@@ -42,7 +42,7 @@
 
 ## D. TASK QUEUE — KHÔNG TỰ ĐỔI THỨ TỰ
 
-### [ ] TASK-01 — Scaffold Cloudflare full-stack workspace
+### [x] TASK-01 — Scaffold Cloudflare full-stack workspace
 **Dependency:** Không.  
 **Scope:** Khởi tạo project chạy local được, không tạo resource remote.  
 **Deliverables:** `package.json`, lockfile, `vite.config.ts`, `wrangler.jsonc`, `tsconfig*.json`, `index.html`, `src/client/main.tsx`, `src/server/index.ts`, `src/shared/`, `.gitignore`, `README.md`, `src/client/App.tsx` đơn giản, Hono `/api/v1/health`.  
