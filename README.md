@@ -22,6 +22,8 @@ Cloudflare-native modular monolith: React + Vite SPA và Hono API chạy trong *
 | `npm run test -- --run` | Vitest: `server` (chạy trong Workers runtime) + `client` (jsdom) |
 | `npm run build` | build production (`dist/client` + `dist/tutor_matching`) |
 | `npm run preview` | build rồi chạy bản production local |
+| `npm run e2e` | Playwright E2E trên server production-like local (D1 riêng `.wrangler/e2e`) |
+| `npm run secret-scan` | quét file đã track tìm secret / ID tài khoản |
 | `npm run cf-typegen` | sinh lại `src/server/worker-configuration.d.ts` sau khi sửa `wrangler.jsonc` |
 
 ## Database (D1)
@@ -48,6 +50,13 @@ tests/client  test React (jsdom)
 ```
 
 API dưới `/api/v1/*` luôn do Worker xử lý trước (`run_worker_first`); các đường dẫn khác trả SPA.
+
+## Kiểm thử
+
+- **Unit/integration** (`npm run test -- --run`): project `server` chạy trong Workers runtime với D1 local cô lập theo từng file test; project `client` (jsdom) mock API ở tầng `fetch`.
+- **E2E** (`npm run e2e`): `scripts/e2e-serve.mjs` tạo D1 mới ở `.wrangler/e2e` (migrations + 1 admin chỉ dùng cho E2E), build production rồi chạy `vite preview` :4173; Playwright chạy hành trình đầy đủ gia sư → admin → học viên, kiểm tra viewport 375 px và bàn phím. Lần đầu: `npx playwright install chromium`.
+- **Smoke sau deploy** (`node scripts/smoke.mjs <url> [--admin-email --admin-password]`): kiểm tra luồng thật trên môi trường đã deploy, in SQL dọn dữ liệu smoke.
+- **CI** (`.github/workflows/ci.yml`): secret-scan, format, lint, typecheck, test, build, E2E. Không deploy, không dùng credential Cloudflare.
 
 ## Secrets
 

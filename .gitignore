@@ -17,6 +17,8 @@ dist/
 # misc
 coverage/
 playwright-report/
+blob-report/
+playwright/.cache/
 test-results/
 .DS_Store
 *.log

@@ -1,18 +1,20 @@
+import type { ReactNode } from 'react';
 import type { RouteObject } from 'react-router';
-import { AccountPage } from '../pages/AccountPage';
-import { AdminTutorsPage } from '../pages/admin/AdminTutorsPage';
-import { SignInPage } from '../pages/auth/SignInPage';
-import { SignUpPage } from '../pages/auth/SignUpPage';
-import { TutorDetailPage } from '../pages/discovery/TutorDetailPage';
-import { TutorsPage } from '../pages/discovery/TutorsPage';
+import type { UserRole } from '../../shared/schemas/auth';
 import { HomePage } from '../pages/HomePage';
-import { StudentBookingsPage } from '../pages/student/StudentBookingsPage';
-import { TutorAvailabilityPage } from '../pages/tutor/TutorAvailabilityPage';
-import { TutorBookingsPage } from '../pages/tutor/TutorBookingsPage';
-import { TutorProfilePage } from '../pages/tutor/TutorProfilePage';
 import { NotFoundPage, RouteErrorPage } from './errors';
 import { RequireRole } from './guards';
 import { RootLayout } from './RootLayout';
+
+/** Route-level code splitting: each page chunk loads on first navigation. */
+function page(load: () => Promise<ReactNode>, roles?: UserRole[]): Pick<RouteObject, 'lazy'> {
+  return {
+    lazy: async () => {
+      const element = await load();
+      return { element: roles ? <RequireRole roles={roles}>{element}</RequireRole> : element };
+    },
+  };
+}
 
 /** Route table (FIGMA_INVENTORY.md, PROVISIONAL). Exported for tests with a memory router. */
 export const routes: RouteObject[] = [
@@ -21,57 +23,75 @@ export const routes: RouteObject[] = [
     errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: 'tutors', element: <TutorsPage /> },
-      { path: 'tutors/:slug', element: <TutorDetailPage /> },
-      { path: 'sign-in', element: <SignInPage /> },
-      { path: 'sign-up', element: <SignUpPage /> },
+      {
+        path: 'tutors',
+        ...page(async () => {
+          const { TutorsPage } = await import('../pages/discovery/TutorsPage');
+          return <TutorsPage />;
+        }),
+      },
+      {
+        path: 'tutors/:slug',
+        ...page(async () => {
+          const { TutorDetailPage } = await import('../pages/discovery/TutorDetailPage');
+          return <TutorDetailPage />;
+        }),
+      },
+      {
+        path: 'sign-in',
+        ...page(async () => {
+          const { SignInPage } = await import('../pages/auth/SignInPage');
+          return <SignInPage />;
+        }),
+      },
+      {
+        path: 'sign-up',
+        ...page(async () => {
+          const { SignUpPage } = await import('../pages/auth/SignUpPage');
+          return <SignUpPage />;
+        }),
+      },
       {
         path: 'account',
-        element: (
-          <RequireRole roles={['student', 'tutor', 'admin']}>
-            <AccountPage />
-          </RequireRole>
-        ),
-      },
-      {
-        path: 'tutor/profile',
-        element: (
-          <RequireRole roles={['tutor']}>
-            <TutorProfilePage />
-          </RequireRole>
-        ),
-      },
-      {
-        path: 'tutor/availability',
-        element: (
-          <RequireRole roles={['tutor']}>
-            <TutorAvailabilityPage />
-          </RequireRole>
-        ),
+        ...page(async () => {
+          const { AccountPage } = await import('../pages/AccountPage');
+          return <AccountPage />;
+        }, ['student', 'tutor', 'admin']),
       },
       {
         path: 'student/bookings',
-        element: (
-          <RequireRole roles={['student']}>
-            <StudentBookingsPage />
-          </RequireRole>
-        ),
+        ...page(async () => {
+          const { StudentBookingsPage } = await import('../pages/student/StudentBookingsPage');
+          return <StudentBookingsPage />;
+        }, ['student']),
+      },
+      {
+        path: 'tutor/profile',
+        ...page(async () => {
+          const { TutorProfilePage } = await import('../pages/tutor/TutorProfilePage');
+          return <TutorProfilePage />;
+        }, ['tutor']),
+      },
+      {
+        path: 'tutor/availability',
+        ...page(async () => {
+          const { TutorAvailabilityPage } = await import('../pages/tutor/TutorAvailabilityPage');
+          return <TutorAvailabilityPage />;
+        }, ['tutor']),
       },
       {
         path: 'tutor/bookings',
-        element: (
-          <RequireRole roles={['tutor']}>
-            <TutorBookingsPage />
-          </RequireRole>
-        ),
+        ...page(async () => {
+          const { TutorBookingsPage } = await import('../pages/tutor/TutorBookingsPage');
+          return <TutorBookingsPage />;
+        }, ['tutor']),
       },
       {
         path: 'admin/tutors',
-        element: (
-          <RequireRole roles={['admin']}>
-            <AdminTutorsPage />
-          </RequireRole>
-        ),
+        ...page(async () => {
+          const { AdminTutorsPage } = await import('../pages/admin/AdminTutorsPage');
+          return <AdminTutorsPage />;
+        }, ['admin']),
       },
       { path: '*', element: <NotFoundPage /> },
     ],

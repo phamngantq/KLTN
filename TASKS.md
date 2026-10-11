@@ -170,7 +170,7 @@
 **Acceptance tests:** no high-severity open issue; negative auth/role tests pass; secrets absent from tracked files; browser unsafe requests have CSRF protection; anti-bot server verification if enabled.  
 **Commit:** `fix(security): harden auth api and data access`.
 
-### [ ] TASK-17 — Full E2E flow and GitHub Actions CI
+### [x] TASK-17 — Full E2E flow and GitHub Actions CI
 **Dependency:** TASK-16.  
 **Scope:** Reliable E2E against local Worker/D1 and CI on PR.  
 **Deliverables:** Playwright config/tests, `.github/workflows/ci.yml`, README testing, test fixtures.  

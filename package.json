@@ -15,7 +15,8 @@
     "cf-typegen": "wrangler types src/server/worker-configuration.d.ts --env-interface CloudflareBindings --strict-vars=false",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "secret-scan": "node scripts/secret-scan.mjs"
+    "secret-scan": "node scripts/secret-scan.mjs",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",
@@ -30,6 +31,7 @@
     "@cloudflare/vite-plugin": "^1.63.1",
     "@cloudflare/vitest-plugin": "^1.4.0",
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.0",
     "@tailwindcss/vite": "^4.3.3",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",

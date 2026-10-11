@@ -4,7 +4,16 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist', '.wrangler', 'node_modules', 'src/server/worker-configuration.d.ts'] },
+  {
+    ignores: [
+      'dist',
+      '.wrangler',
+      'node_modules',
+      'playwright-report',
+      'test-results',
+      'src/server/worker-configuration.d.ts',
+    ],
+  },
   {
     files: ['**/*.{ts,tsx,js,mjs}'],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
