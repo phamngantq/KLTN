@@ -4,6 +4,8 @@ import type { ApiSuccess } from '../../src/shared/api';
 import type { BookingWithActions } from '../../src/shared/schemas/bookings';
 import type { Page } from '../../src/shared/schemas/discovery';
 import { addDays, localToUtc, todayIn, weekdayOf } from '../../src/shared/time';
+import { createDb } from '../../src/server/db/client';
+import { createBooking } from '../../src/server/modules/bookings/service';
 import { api, createPublicTutor, errorCode, jsonInit, register, type Session } from './helpers';
 
 const VN = 'Asia/Ho_Chi_Minh';
@@ -25,17 +27,13 @@ async function bookedFixture(days = 3, hour = 18): Promise<Fixture> {
     jsonInit('PUT', { rules: [{ weekday: weekdayOf(date), start: '08:00', end: '21:00' }] }, tutor),
   );
   const student = await register('student', { displayName: 'Học viên Bình' });
-  const res = await api(
-    '/bookings',
-    jsonInit(
-      'POST',
-      { tutorId: tutor.userId, startUtc: at(date, hour), durationMinutes: 60 },
-      student,
-    ),
-  );
-  expect(res.status).toBe(201);
-  const { data } = await res.json<ApiSuccess<{ id: string }>>();
-  return { tutor, student, bookingId: data.id, date };
+  // Historical booking fixture is created below the retired HTTP endpoint.
+  const booking = await createBooking(createDb(env.DB), student.userId, {
+    tutorId: tutor.userId,
+    startUtc: at(date, hour),
+    durationMinutes: 60,
+  });
+  return { tutor, student, bookingId: booking.id, date };
 }
 
 function act(session: Session, id: string, action: string) {
@@ -86,7 +84,7 @@ describe('booking transitions', () => {
     expect((await state(f.bookingId)).status).toBe('PENDING');
   });
 
-  it('reject releases the slot so it can be booked again', async () => {
+  it('reject releases the slot while new HTTP booking creation remains closed', async () => {
     const f = await bookedFixture();
     expect((await act(f.tutor, f.bookingId, 'reject')).status).toBe(200);
     expect(await state(f.bookingId)).toMatchObject({ status: 'REJECTED', claims: 0 });
@@ -95,11 +93,22 @@ describe('booking transitions', () => {
       '/bookings',
       jsonInit(
         'POST',
-        { tutorId: f.tutor.userId, startUtc: at(f.date, 18), durationMinutes: 60 },
+        {
+          tutorId: f.tutor.userId,
+          startUtc: at(f.date, 18),
+          durationMinutes: 60,
+        },
         again,
       ),
     );
-    expect(rebook.status).toBe(201);
+    expect(rebook.status).toBe(410);
+    expect(
+      (
+        await env.DB.prepare('SELECT count(*) AS n FROM booking_slot_claims WHERE tutor_id = ?')
+          .bind(f.tutor.userId)
+          .first<{ n: number }>()
+      )?.n,
+    ).toBe(0);
   });
 
   it('cancel frees the slot exactly once; repeating is 409', async () => {

@@ -38,3 +38,8 @@
   --font-sans: var(--font-sans);
   --shadow-card: var(--shadow-card);
 }
+
+@page {
+  size: A4;
+  margin: 12mm;
+}

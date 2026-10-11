@@ -8,280 +8,332 @@ import {
   uniqueEmail,
 } from './support';
 
-/**
- * One end-to-end story against the real Worker + local D1 (no mocks):
- * tutor onboarding → availability → admin approval → student search & booking →
- * tutor confirmation → student cancellation. Tests share state, so they run serially.
- */
-test.describe.configure({ mode: 'serial' });
+type ApiData<T> = { data: T };
+type Items<T> = { items: T[]; total: number };
+type Versioned = { id: string; version: number };
+type ContentDraft = { id: string; editVersion: number };
+type Request = Versioned & { status: string };
+type Class = Versioned & { code: string; sourceRequestId: string; status: string };
+type Assignment = { id: string; classId: string };
 
-// The journey creates several long-lived contexts so tutor and parent sessions can be reused.
-// Close them before the worker/browser fixtures tear down, including when a test fails.
-test.afterAll(async ({ browser }) => {
-  await Promise.all(browser.contexts().map((context) => context.close()));
-});
+async function getData<T>(page: Page, path: string): Promise<T> {
+  const response = await page.context().request.get(`/api/v1${path}`);
+  expect(response.status(), await response.text()).toBe(200);
+  return ((await response.json()) as ApiData<T>).data;
+}
 
-const tutor = { name: `Gia sư E2E ${Date.now()}`, email: uniqueEmail('tutor') };
-const student = { name: 'Học viên E2E', email: uniqueEmail('student') };
-let tutorPage: Page;
-let studentPage: Page;
+async function postData<T>(
+  page: Page,
+  path: string,
+  data: unknown,
+  expectedStatus = 201,
+): Promise<T> {
+  const session = await getData<{ csrfToken: string }>(page, '/me');
+  const response = await page.context().request.post(`/api/v1${path}`, {
+    data,
+    headers: { 'X-CSRF-Token': session.csrfToken },
+  });
+  expect(response.status(), await response.text()).toBe(expectedStatus);
+  return ((await response.json()) as ApiData<T>).data;
+}
 
-test('tutor signs up, completes the profile and submits it for review', async ({ browser }) => {
-  tutorPage = await newPage(browser);
-  await signUp(tutorPage, 'tutor', tutor.name, tutor.email);
-  await expect(tutorPage).toHaveURL(/\/tutor$/);
+async function publishContent(
+  admin: Page,
+  kind: 'terms' | 'contract',
+  slug: string,
+  title: string,
+): Promise<string> {
+  // Test-only text lives in the isolated E2E D1; no legal policy is seeded for staging.
+  const draft = await postData<ContentDraft>(admin, '/admin/content', {
+    kind,
+    slug,
+    audience: 'tutor',
+    title,
+    summary: '',
+    bodyText: `${title}. Nội dung chỉ dùng trong kiểm thử E2E local D1.`,
+  });
+  await postData(
+    admin,
+    `/admin/content/${draft.id}/publish`,
+    { editVersion: draft.editVersion },
+    200,
+  );
+  return draft.id;
+}
 
-  await tutorPage.goto('/tutor/profile');
-  await tutorPage
-    .getByLabel('Giới thiệu')
-    .fill('Giáo viên Toán, 5 năm kinh nghiệm luyện thi THPT.');
-  await tutorPage.getByLabel('Toán').check();
-  await tutorPage.getByLabel(/Học phí/).fill('200000');
-  await tutorPage.getByLabel('Trực tuyến').check();
-  await tutorPage.getByRole('button', { name: 'Lưu hồ sơ' }).click();
-  await expect(tutorPage.getByText('Đã lưu.')).toBeVisible();
+async function publishLocalTermsAndFees(admin: Page): Promise<string> {
+  const termsId = await publishContent(
+    admin,
+    'terms',
+    'tutor-responsibility',
+    'Điều khoản kiểm thử E2E',
+  );
+  const quiz = await postData<ContentDraft>(admin, '/admin/terms/quizzes', {
+    termsContentRevisionId: termsId,
+    questions: [
+      {
+        id: 'q1',
+        prompt: 'Câu hỏi kiểm thử: cần xác nhận điều khoản trước khi ứng tuyển?',
+        choices: [
+          { id: 'yes', text: 'Đúng' },
+          { id: 'no', text: 'Sai' },
+        ],
+        correctChoiceId: 'yes',
+      },
+    ],
+    minimumCorrect: 1,
+  });
+  await postData(
+    admin,
+    `/admin/terms/quizzes/${quiz.id}/publish`,
+    { editVersion: quiz.editVersion },
+    200,
+  );
 
-  await tutorPage.getByRole('button', { name: 'Gửi duyệt' }).click();
-  await expect(tutorPage.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
-  await expect(tutorPage.getByText('Chờ duyệt', { exact: true })).toBeVisible();
-});
-
-test('tutor publishes weekly availability (every day 18:00–19:00)', async () => {
-  await tutorPage.getByRole('link', { name: 'Lịch dạy' }).click();
-  const addButtons = tutorPage.getByRole('button', { name: '+ Thêm khung giờ' });
-  await expect(addButtons).toHaveCount(7);
-  for (let i = 0; i < 7; i++) await addButtons.nth(i).click();
-  await expect(tutorPage.getByText('Có thay đổi chưa lưu')).toBeVisible();
-  await tutorPage.getByRole('button', { name: 'Lưu lịch tuần' }).click();
-  await expect(tutorPage.getByText('Đã lưu lịch tuần.')).toBeVisible();
-  await tutorPage.reload();
-  await expect(tutorPage.getByLabel('Chủ nhật: giờ bắt đầu')).toHaveValue('18:00');
-});
-
-test('unapproved tutors are not public; admin approves', async ({ browser }) => {
-  const guest = await newPage(browser);
-  await guest.goto('/tutors');
-  await expect(guest.getByRole('link', { name: tutor.name })).toHaveCount(0);
-
-  const admin = await newPage(browser);
-  await signIn(admin, E2E_ADMIN.email, E2E_ADMIN.password);
-  await expect(admin).toHaveURL(/\/admin$/);
-  await admin.goto('/admin/tutors');
-  const card = admin.getByRole('article').filter({ hasText: tutor.email });
-  await card.getByRole('button', { name: 'Duyệt & công khai' }).click();
-  await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt & công khai' }).click();
-  await expect(admin.getByText(`Duyệt & công khai: ${tutor.name}.`)).toBeVisible();
-
-  await guest.reload();
-  await expect(guest.getByRole('link', { name: tutor.name })).toBeVisible();
-});
-
-test('student finds the tutor by subject and requests a booking', async ({ browser }) => {
-  studentPage = await newPage(browser);
-  await signUp(studentPage, 'student', student.name, student.email);
-  await expect(studentPage).toHaveURL(/\/parent$/);
-
-  await studentPage.getByRole('link', { name: 'Tìm gia sư' }).first().click();
-  await studentPage.getByLabel('Môn học').selectOption({ label: 'Toán' });
-  await studentPage.getByRole('button', { name: 'Lọc' }).click();
-  await expect(studentPage).toHaveURL(/subject=toan/);
-  await studentPage.getByRole('link', { name: tutor.name }).click();
-
-  await expect(studentPage.getByRole('heading', { name: tutor.name })).toBeVisible();
-  await expect(studentPage.getByText('Asia/Ho_Chi_Minh')).toBeVisible();
-  await studentPage.getByRole('button', { name: '18:00–19:00' }).first().click();
-  await expect(studentPage.getByText(/Học phí dự kiến/)).toContainText('200.000');
-  await studentPage.getByRole('button', { name: 'Gửi yêu cầu đặt lịch' }).click();
-  const dialog = studentPage.getByRole('dialog');
-  await expect(dialog).toContainText('Chờ xác nhận');
-  await dialog.getByRole('button', { name: 'Gửi yêu cầu' }).click();
-  await expect(studentPage.getByText('Đã gửi yêu cầu đặt lịch')).toBeVisible();
-
-  await studentPage.goto('/student/bookings');
-  await expect(studentPage.getByText(`Gia sư: ${tutor.name}`)).toBeVisible();
-});
-
-test('tutor confirms the request', async () => {
-  await tutorPage.goto('/tutor/bookings');
-  await expect(tutorPage.getByText(`Học viên: ${student.name}`)).toBeVisible();
-  await tutorPage.getByRole('button', { name: 'Xác nhận' }).click();
-  await expect(tutorPage.getByText(/Xác nhận: thành công/)).toBeVisible();
-  await tutorPage.getByRole('link', { name: 'Đã xác nhận' }).click();
-  await expect(tutorPage.getByText(`Học viên: ${student.name}`)).toBeVisible();
-});
-
-test('student cancels after confirming the policy; the slot is offered again', async ({
-  browser,
-}) => {
-  await studentPage.goto('/student/bookings?tab=confirmed');
-  await studentPage.getByRole('button', { name: 'Hủy buổi học' }).click();
-  const dialog = studentPage.getByRole('dialog');
-  await expect(dialog).toContainText('Có thể hủy yêu cầu');
-  await dialog.getByRole('button', { name: 'Hủy buổi học' }).click();
-  await expect(studentPage.getByText(/Hủy buổi học: thành công/)).toBeVisible();
-  await studentPage.getByRole('link', { name: 'Đã hủy / từ chối' }).click();
-  await expect(studentPage.getByText('Đã hủy', { exact: true })).toBeVisible();
-
-  const guest = await newPage(browser);
-  await guest.goto('/tutors?subject=toan');
-  await guest.getByRole('link', { name: tutor.name }).click();
-  await expect(guest.getByRole('button', { name: '18:00–19:00' }).first()).toBeVisible();
-});
-
-test('parent submits a real find-tutor request only after explicit contact consent', async () => {
-  await studentPage.goto('/parent/request');
-  await expect(studentPage.getByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeVisible();
-  await studentPage.getByLabel('Môn học').selectOption('subj_math');
-  await studentPage.getByLabel('Lớp học').selectOption('Lớp 10');
-  await studentPage.getByLabel('Mô tả nhu cầu').fill('Cần gia sư Toán buổi tối.');
-  await studentPage.getByLabel('Số điện thoại liên hệ').fill('0912345678');
-
-  const send = studentPage.getByRole('button', { name: 'Gửi yêu cầu' });
-  await expect(send).toBeDisabled();
-  await studentPage.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/).check();
-  await expect(send).toBeEnabled();
-  await send.click();
-
-  await expect(studentPage).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
-  await expect(studentPage.getByText('Đã gửi', { exact: true })).toBeVisible();
-  await expect(studentPage.getByText(/Đã ghi nhận đồng ý chia sẻ liên hệ/)).toBeVisible();
-  await expect(studentPage.getByText('Số điện thoại: 0912345678')).toBeVisible();
-
-  const listResponse = await studentPage.context().request.get('/api/v1/parent/requests');
-  expect(listResponse.ok()).toBeTruthy();
-  const listJson = await listResponse.text();
-  expect(listJson).not.toContain('0912345678');
-
-  await studentPage.goto('/parent?status=submitted');
-  await expect(studentPage.getByText('1 yêu cầu', { exact: false })).toBeVisible();
-  await expect(studentPage.getByRole('link', { name: /YC-[A-F0-9]{12}/ })).toBeVisible();
-
-  await studentPage.setViewportSize({ width: 320, height: 900 });
-  await studentPage.goto('/parent/request');
-  await expect(studentPage.getByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeVisible();
-  await expectNoHorizontalOverflow(studentPage);
-});
-
-test('filters with no match show a recoverable empty state', async ({ browser }) => {
-  const guest = await newPage(browser);
-  await guest.goto('/tutors?subject=lich-su');
-  await expect(guest.getByText('Không có gia sư phù hợp')).toBeVisible();
-  await guest.getByRole('button', { name: 'Xóa bộ lọc' }).click();
-  await expect(guest).toHaveURL(/\/tutors$/);
-  await expect(guest.getByRole('link', { name: tutor.name })).toBeVisible();
-});
-
-test('mobile viewport (375px): key pages fit without horizontal scrolling', async ({ browser }) => {
-  const mobile = await newPage(browser, { width: 375, height: 812 });
-  for (const path of ['/', '/tutors', '/sign-in', '/sign-up']) {
-    await mobile.goto(path);
-    await expect(mobile.getByRole('heading', { level: 1 })).toBeVisible();
-    await expectNoHorizontalOverflow(mobile);
-  }
-  await mobile.goto('/tutors');
-  await mobile.getByRole('link', { name: tutor.name }).click();
-  await expect(mobile.getByRole('heading', { name: 'Lịch trống' })).toBeVisible();
-  await expectNoHorizontalOverflow(mobile);
-});
-
-test('new public routes fit a narrow phone and show honest unavailable states', async ({
-  browser,
-}) => {
-  const phone = await newPage(browser, { width: 320, height: 900 });
-  for (const path of ['/', '/gioi-thieu', '/dich-vu', '/bang-gia', '/lop-hoc', '/lien-he']) {
-    await phone.goto(path);
-    await expect(phone.getByRole('heading', { level: 1 })).toBeVisible();
-    await expectNoHorizontalOverflow(phone);
-  }
-  await phone.goto('/lop-hoc');
-  await expect(phone.getByText('Chưa có danh sách lớp để đăng ký trực tuyến.')).toBeVisible();
-  await phone.getByRole('button', { name: 'Mở menu' }).click();
-  await expect(phone.getByRole('navigation', { name: 'Điều hướng di động' })).toBeVisible();
-  await phone
-    .getByRole('navigation', { name: 'Điều hướng di động' })
-    .getByRole('link', { name: 'Trang chủ' })
-    .click();
-  await expect(phone).toHaveURL(/\/$/);
-});
-
-test('keyboard users can skip to content and reach the search', async ({ browser }) => {
-  const page = await newPage(browser);
-  await page.goto('/');
-  await page.keyboard.press('Tab');
-  const skip = page.getByRole('link', { name: 'Bỏ qua tới nội dung chính' });
-  await expect(skip).toBeFocused();
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(/#main$/);
-});
-
-test('parent, tutor and moderator shells fit 320/768/1280 and support keyboard navigation', async ({
-  browser,
-}) => {
-  const areas = [
+  const formulas = [
     {
-      path: '/parent',
-      role: 'student',
-      productRole: 'parent',
-      heading: 'Yêu cầu tìm gia sư',
-      nav: 'Điều hướng Phụ huynh',
-      target: 'Hồ sơ',
-      targetPath: '/parent/profile',
+      optionKey: 'first_lesson_percent',
+      title: 'E2E buổi đầu',
+      rateBasisPoints: 5000,
+      depositBasisPoints: null,
     },
     {
-      path: '/tutor/new-classes',
-      role: 'tutor',
-      productRole: 'tutor',
-      heading: 'Lớp mới',
-      nav: 'Điều hướng Gia sư',
-      target: 'Lớp phù hợp',
-      targetPath: '/tutor/matched-classes',
+      optionKey: 'lesson_multiplier_with_deposit',
+      title: 'E2E số buổi và cọc',
+      rateBasisPoints: 30000,
+      depositBasisPoints: 5000,
     },
     {
-      path: '/admin/requests',
-      role: 'admin',
-      productRole: 'moderator',
-      heading: 'Quản lý yêu cầu',
-      nav: 'Điều hướng Kiểm duyệt viên',
-      target: 'Lớp học',
-      targetPath: '/admin/classes',
+      optionKey: 'monthly_percent',
+      title: 'E2E học phí tháng',
+      rateBasisPoints: 3000,
+      depositBasisPoints: null,
     },
   ] as const;
+  let selectedFeeId = '';
+  for (const formula of formulas) {
+    const draft = await postData<Versioned>(admin, '/admin/fee-options', {
+      ...formula,
+      policyText: `${formula.title}: công thức và tham số chỉ dùng trong kiểm thử local D1.`,
+      scopeSubjectId: null,
+      scopeMode: null,
+      effectiveFrom: null,
+      effectiveTo: null,
+    });
+    await postData(
+      admin,
+      `/admin/fee-options/${draft.id}/publish`,
+      { version: draft.version },
+      200,
+    );
+    if (formula.optionKey === 'first_lesson_percent') selectedFeeId = draft.id;
+  }
+  return selectedFeeId;
+}
 
-  for (const width of [320, 768, 1280]) {
-    for (const area of areas) {
-      const page = await newPage(browser, { width, height: 900 });
-      await page.route('**/api/v1/me', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            data: {
-              user: {
-                id: 'viewport-user',
-                email: 'viewport@example.com',
-                displayName: 'Nguyễn An',
-                role: area.role,
-                productRole: area.productRole,
-              },
-              csrfToken: 'viewport-csrf',
-            },
-            meta: { requestId: 'req_viewport' },
-          }),
-        });
-      });
-      await page.goto(area.path);
-      await expect(page.getByRole('heading', { name: area.heading })).toBeVisible();
-      await expect(page.getByRole('navigation', { name: area.nav })).toBeVisible();
-      await expectNoHorizontalOverflow(page);
-      const link = page.getByRole('navigation', { name: area.nav }).getByRole('link', {
-        name: area.target,
-      });
-      await link.focus();
-      await expect(link).toBeFocused();
-      await page.keyboard.press('Enter');
-      await expect(page).toHaveURL(new RegExp(`${area.targetPath}$`));
-      await expectNoHorizontalOverflow(page);
-      await page.context().close();
+test('parent → moderator → tutor → class, private contact, contract and verified report PDF', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  const parent = await newPage(browser);
+  const tutor = await newPage(browser);
+  const admin = await newPage(browser);
+  const outsider = await newPage(browser);
+  const guest = await newPage(browser);
+  const tutorName = `Gia sư E2E ${Date.now()}`;
+  const parentName = `Phụ huynh E2E ${Date.now()}`;
+  const phone = '0900000001';
+  const address = 'Địa chỉ riêng của yêu cầu E2E';
+
+  try {
+    await signUp(tutor, 'tutor', tutorName, uniqueEmail('tutor'));
+    await tutor.goto('/tutor/profile');
+    await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán trong kiểm thử local D1.');
+    await tutor.getByLabel('Toán').check();
+    await tutor.getByLabel(/Học phí/).fill('200000');
+    await tutor.getByLabel('Trực tuyến').check();
+    await tutor.getByRole('button', { name: 'Lưu hồ sơ' }).click();
+    await expect(tutor.getByText('Đã lưu.')).toBeVisible();
+    await tutor.getByRole('button', { name: 'Gửi duyệt' }).click();
+    await expect(tutor.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
+
+    await signIn(admin, E2E_ADMIN.email, E2E_ADMIN.password);
+    expect((await tutor.context().request.get('/api/v1/admin/requests')).status()).toBe(403);
+    await admin.goto('/admin/tutors');
+    const tutorCard = admin.getByRole('article').filter({ hasText: tutorName });
+    await tutorCard.getByRole('button', { name: 'Duyệt & công khai' }).click();
+    await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt & công khai' }).click();
+    await expect(admin.getByText(`Duyệt & công khai: ${tutorName}.`)).toBeVisible();
+
+    await signUp(parent, 'student', parentName, uniqueEmail('parent'));
+    const parentSession = await getData<{ csrfToken: string }>(parent, '/me');
+    const legacyBooking = await parent.context().request.post('/api/v1/bookings', {
+      data: {},
+      headers: { 'X-CSRF-Token': parentSession.csrfToken },
+    });
+    expect(legacyBooking.status()).toBe(410);
+    expect((await legacyBooking.json()).error.code).toBe('LEGACY_BOOKING_CLOSED');
+    expect((await parent.context().request.get('/api/v1/bookings')).status()).toBe(200);
+    await parent.goto('/parent/request');
+    await parent.getByLabel('Môn học').selectOption('subj_math');
+    await parent.getByLabel('Lớp học').selectOption('Lớp 10');
+    await parent.getByLabel('Mô tả nhu cầu').fill('Cần gia sư Toán trực tuyến buổi tối.');
+    await parent.getByLabel('Số điện thoại liên hệ').fill(phone);
+    await parent.getByLabel('Địa chỉ liên hệ cụ thể').fill(address);
+    const send = parent.getByRole('button', { name: 'Gửi yêu cầu' });
+    await expect(send).toBeDisabled();
+    await parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/).check();
+    await send.click();
+    await expect(parent).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
+    await expect(parent.getByText('Đã gửi', { exact: true })).toBeVisible();
+    const requests = await getData<Items<Request>>(parent, '/parent/requests?status=submitted');
+    expect(requests.total).toBe(1);
+    const request = requests.items[0]!;
+    expect(request).toBeDefined();
+    expect(JSON.stringify(requests)).not.toContain(phone);
+
+    await admin.goto(`/admin/requests?selected=${request.id}`);
+    expect((await parent.context().request.get('/api/v1/admin/requests')).status()).toBe(403);
+    await expect(admin.getByRole('region', { name: 'Chi tiết yêu cầu' })).toContainText(phone);
+    await admin.getByRole('button', { name: 'Tạo lớp từ yêu cầu' }).click();
+    await admin.getByRole('dialog').getByRole('button', { name: 'Tạo lớp' }).click();
+    await expect(admin.getByText(/Đã tạo bản nháp lớp/)).toBeVisible();
+    const drafts = await getData<Items<Class>>(admin, '/admin/classes?status=draft');
+    const cls = drafts.items.find((item) => item.sourceRequestId === request.id);
+    expect(cls).toBeDefined();
+    await admin.goto('/admin/classes?status=draft');
+    const classCard = admin.getByRole('article').filter({ hasText: cls!.code });
+    await classCard.getByRole('button', { name: 'Xuất bản lớp' }).click();
+    await admin.getByRole('dialog').getByRole('button', { name: 'Xuất bản' }).click();
+    await expect(admin.getByText(`Đã xuất bản lớp ${cls!.code}.`)).toBeVisible();
+
+    await guest.goto(`/lop-hoc/${cls!.id}`);
+    await expect(guest.getByText(`Mã lớp ${cls!.code}`)).toBeVisible();
+    expect(await guest.locator('body').innerText()).not.toContain(phone);
+    expect(await guest.locator('body').innerText()).not.toContain(address);
+    const publicClass = await getData<unknown>(guest, `/classes/${cls!.id}`);
+    expect(JSON.stringify(publicClass)).not.toContain(phone);
+    expect(JSON.stringify(publicClass)).not.toContain(address);
+
+    await tutor.goto(`/tutor/new-classes/${cls!.id}`);
+    await expect(
+      tutor.getByText('Chưa có đủ ba phương án phí nhận lớp được công bố cho lớp này.'),
+    ).toBeVisible();
+    const feeId = await publishLocalTermsAndFees(admin);
+    await tutor.goto('/tutor/terms');
+    await expect(tutor.getByRole('heading', { name: 'Điều khoản kiểm thử E2E' })).toBeVisible();
+    await tutor.getByRole('radio', { name: 'Đúng' }).check();
+    await tutor.getByRole('button', { name: 'Nộp bài kiểm tra' }).click();
+    await expect(tutor.getByText('Bạn đã vượt qua bài kiểm tra.')).toBeVisible();
+    await tutor.getByLabel(/Tôi đã đọc và đồng ý với phiên bản/).check();
+    await tutor.getByRole('button', { name: 'Xác nhận điều khoản' }).click();
+    await expect(tutor.getByText('Đã xác nhận điều khoản hiện hành')).toBeVisible();
+
+    await tutor.goto(`/tutor/new-classes/${cls!.id}`);
+    await tutor.getByLabel('Phương án phí nhận lớp').selectOption(feeId);
+    await tutor.getByRole('button', { name: 'Gửi đơn ứng tuyển' }).click();
+    await expect(tutor.getByText('Đã gửi đơn ứng tuyển')).toBeVisible();
+    await admin.goto(`/admin/applications?classId=${cls!.id}`);
+    const applicationCard = admin.getByRole('article').filter({ hasText: tutorName });
+    await applicationCard.getByRole('button', { name: 'Gán gia sư' }).click();
+    await admin.getByRole('dialog').getByRole('button', { name: 'Gán và kích hoạt lớp' }).click();
+    await expect(admin.getByText(new RegExp(`Đã gán lớp ${cls!.code}`))).toBeVisible();
+
+    await tutor.goto('/tutor/classes');
+    await expect(tutor.getByText(cls!.code, { exact: false })).toBeVisible();
+    await expect(tutor.getByText(phone)).toHaveCount(0);
+    await tutor.getByRole('button', { name: 'Xem liên hệ phụ huynh' }).click();
+    await expect(tutor.getByRole('region', { name: 'Liên hệ phụ huynh' })).toContainText(phone);
+    await expect(tutor.getByRole('region', { name: 'Liên hệ phụ huynh' })).toContainText(address);
+    const assignments = await getData<Items<Assignment>>(tutor, '/tutor/assignments');
+    const assignment = assignments.items.find((item) => item.classId === cls!.id);
+    expect(assignment).toBeDefined();
+    await signUp(outsider, 'tutor', 'Gia sư khác E2E', uniqueEmail('outsider'));
+    const forbidden = await outsider
+      .context()
+      .request.get(`/api/v1/tutor/assignments/${assignment!.id}/contact`);
+    expect([403, 404]).toContain(forbidden.status());
+
+    const contractId = await publishContent(
+      admin,
+      'contract',
+      'tutor-class-contract',
+      'Hợp đồng kiểm thử E2E',
+    );
+    const candidates = await getData<Items<{ assignmentId: string; assignmentVersion: number }>>(
+      admin,
+      '/admin/contracts/candidates',
+    );
+    const candidate = candidates.items.find((item) => item.assignmentId === assignment!.id);
+    expect(candidate).toBeDefined();
+    await postData(admin, `/admin/assignments/${assignment!.id}/contracts`, {
+      assignmentVersion: candidate!.assignmentVersion,
+      contentRevisionId: contractId,
+    });
+    await tutor.goto('/tutor/contracts');
+    await tutor.getByRole('button', { name: 'Xem hợp đồng' }).click();
+    await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
+      'E2E buổi đầu',
+    );
+    await tutor.getByLabel(/Tôi đã đọc nội dung hợp đồng phiên bản/).check();
+    await tutor.getByRole('button', { name: 'Xác nhận nội dung hợp đồng' }).click();
+    await expect(tutor.getByText('Đã ghi nhận xác nhận nội dung hợp đồng của bạn.')).toBeVisible();
+
+    await parent.reload();
+    await expect(parent.getByText('Đã gán gia sư')).toBeVisible();
+    let releaseReport!: () => void;
+    const reportGate = new Promise<void>((resolve) => {
+      releaseReport = resolve;
+    });
+    await admin.route('**/api/v1/admin/reports/overview*', async (route) => {
+      await reportGate;
+      await route.continue();
+    });
+    await admin.goto('/admin/reports');
+    await expect(admin.getByRole('button', { name: 'In hoặc lưu PDF' })).toHaveCount(0);
+    releaseReport();
+    const print = admin.getByRole('button', { name: 'In hoặc lưu PDF' });
+    await expect(print).toBeVisible();
+    await expect(
+      admin.getByText('Yêu cầu đã gửi', { exact: true }).locator('..').locator('p').last(),
+    ).toHaveText('1');
+    await expect(
+      admin.getByText('Lớp hoạt động', { exact: true }).locator('..').locator('p').last(),
+    ).toHaveText('1');
+    const pdf = await admin.pdf({ format: 'A4', printBackground: true });
+    expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
+    expect(pdf.length).toBeGreaterThan(10_000);
+
+    for (const width of [320, 768, 1280]) {
+      for (const [page, route] of [
+        [parent, '/parent'],
+        [tutor, '/tutor/classes'],
+        [admin, '/admin/reports'],
+      ] as const) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(route);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        await expectNoHorizontalOverflow(page);
+      }
     }
+    await guest.setViewportSize({ width: 320, height: 900 });
+    for (const route of ['/', '/gioi-thieu', '/dich-vu', '/bang-gia', '/lop-hoc', '/lien-he']) {
+      await guest.goto(route);
+      await expect(guest.getByRole('heading', { level: 1 })).toBeVisible();
+      await expectNoHorizontalOverflow(guest);
+    }
+    await guest.goto('/');
+    await guest.keyboard.press('Tab');
+    await expect(guest.getByRole('link', { name: 'Bỏ qua tới nội dung chính' })).toBeFocused();
+    await admin.goto('/admin/settings');
+    await expect(admin.getByRole('heading', { name: 'Cài đặt và nội dung' })).toBeVisible();
+    await expect(admin.getByRole('link', { name: /Phương án phí Đặt giá trị/ })).toBeVisible();
+    await tutor.goto('/tutor/class-history');
+    await expect(tutor.getByRole('heading', { name: 'Lịch sử lớp học' })).toBeVisible();
+    await expect(tutor.getByText('Chưa có lịch sử rút gán hoặc hoàn tất.')).toBeVisible();
+  } finally {
+    await Promise.all(
+      [parent, tutor, admin, outsider, guest].map((page) => page.context().close()),
+    );
   }
 });

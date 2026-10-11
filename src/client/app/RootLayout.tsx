@@ -84,7 +84,7 @@ export function RootLayout() {
       >
         Bỏ qua tới nội dung chính
       </a>
-      <header className="sticky top-0 z-40 bg-primary text-on-primary shadow-card">
+      <header className="sticky top-0 z-40 bg-primary text-on-primary shadow-card print:hidden">
         <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center gap-3 px-4 py-2">
           <Link
             to="/"
@@ -242,7 +242,10 @@ export function RootLayout() {
           </Alert>
         </div>
       )}
-      <nav aria-label="Khu vực tài khoản và chức năng" className="border-b border-border bg-bg">
+      <nav
+        aria-label="Khu vực tài khoản và chức năng"
+        className="border-b border-border bg-bg print:hidden"
+      >
         <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center gap-2 px-4">
           <ul className="flex min-w-0 gap-1 overflow-x-auto">
             {user && !preview && (
@@ -271,16 +274,16 @@ export function RootLayout() {
       <main
         id="main"
         tabIndex={-1}
-        className={`w-full flex-1 outline-none ${fullBleed ? '' : 'mx-auto max-w-[var(--container-max)] px-4 py-6'}`}
+        className={`w-full flex-1 outline-none print:max-w-none print:px-0 print:py-0 ${fullBleed ? '' : 'mx-auto max-w-[var(--container-max)] px-4 py-6'}`}
       >
         <Outlet />
       </main>
-      <footer className="bg-primary px-4 py-8 text-on-primary">
+      <footer className="bg-primary px-4 py-8 text-on-primary print:hidden">
         <div className="mx-auto grid max-w-[var(--container-max)] gap-6 sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <p className="font-semibold">Tutor Matching</p>
             <p className="mt-2 text-sm text-on-primary/80">
-              Luồng tìm lớp và kết nối phụ huynh với gia sư đang được xây dựng từ bản thiết kế mới.
+              Kết nối phụ huynh với gia sư qua yêu cầu, ứng tuyển và điều phối lớp.
             </p>
           </div>
           <nav aria-label="Liên kết cuối trang" className="flex flex-col items-start gap-2 text-sm">
@@ -295,7 +298,7 @@ export function RootLayout() {
             </Link>
           </nav>
           <p className="text-sm text-on-primary/80">
-            Giá, thông tin liên hệ và lớp học sẽ được công bố sau khi được xác nhận.
+            Nội dung và phương án phí gia sư được công bố theo phiên bản đã duyệt.
           </p>
         </div>
       </footer>

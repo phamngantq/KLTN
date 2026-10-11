@@ -10,11 +10,30 @@ import { sessionMiddleware } from './middleware/session';
 import { authRoutes, meRoutes } from './modules/auth/routes';
 import { tutorAvailabilityRoutes } from './modules/availability/routes';
 import { adminRoutes } from './modules/admin/routes';
+import { accountDeletionRoutes } from './modules/account-deletion/routes';
+import { adminAssignmentRoutes, tutorAssignmentRoutes } from './modules/admin/assignments-routes';
+import { adminContentRoutes, contentRoutes } from './modules/content/routes';
 import { bookingRoutes } from './modules/bookings/routes';
+import {
+  adminClassRoutes,
+  classRoutes,
+  publicFeeRoutes,
+  tutorClassRoutes,
+} from './modules/classes/routes';
 import { discoveryRoutes } from './modules/discovery/routes';
 import { parentProfileRoutes } from './modules/parents/routes';
 import { parentRequestRoutes } from './modules/parents/requests-routes';
+import {
+  adminReportRoutes,
+  parentDashboardRoutes,
+  tutorDashboardRoutes,
+} from './modules/reports/routes';
+import {
+  adminTermsContractRoutes,
+  tutorTermsContractRoutes,
+} from './modules/terms-contracts/routes';
 import { subjectRoutes, tutorProfileRoutes } from './modules/tutors/routes';
+import { adminComplaintRoutes, complaintRoutes } from './modules/support/complaints-routes';
 import type { AppEnv } from './types';
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -74,12 +93,28 @@ export function createApp() {
   api.route('/me', meRoutes);
   api.route('/parent/profile', parentProfileRoutes);
   api.route('/parent/requests', parentRequestRoutes);
+  api.route('/parent/dashboard', parentDashboardRoutes);
+  api.route('/account', accountDeletionRoutes);
   api.route('/tutor/availability', tutorAvailabilityRoutes);
+  api.route('/tutor', tutorClassRoutes);
+  api.route('/tutor', tutorTermsContractRoutes);
+  api.route('/tutor/assignments', tutorAssignmentRoutes);
+  api.route('/tutor/dashboard', tutorDashboardRoutes);
   api.route('/subjects', subjectRoutes);
   api.route('/tutor/profile', tutorProfileRoutes);
   api.route('/tutors', discoveryRoutes);
   api.route('/bookings', bookingRoutes);
+  api.route('/classes', classRoutes);
+  api.route('/fee-options', publicFeeRoutes);
+  api.route('/content', contentRoutes);
+  api.route('/complaints', complaintRoutes);
   api.route('/admin', adminRoutes);
+  api.route('/admin', adminClassRoutes);
+  api.route('/admin', adminTermsContractRoutes);
+  api.route('/admin/classes', adminAssignmentRoutes);
+  api.route('/admin/content', adminContentRoutes);
+  api.route('/admin/reports', adminReportRoutes);
+  api.route('/admin/complaints', adminComplaintRoutes);
 
   app.route('/api/v1', api);
 

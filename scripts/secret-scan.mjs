@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 /**
- * Fails (exit 1) when tracked files look like they contain credentials or account-specific
- * Cloudflare identifiers. Runs in CI and before commits: `npm run secret-scan`.
+ * Fails (exit 1) when tracked or new, non-ignored files look like they contain
+ * credentials or account-specific Cloudflare identifiers. Runs in CI and before commits.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { lstatSync, readFileSync } from 'node:fs';
 
-const files = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' })
-  .split('\0')
-  .filter(Boolean);
+const files = [
+  ...new Set(
+    execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
+      encoding: 'utf8',
+    })
+      .split('\0')
+      .filter(Boolean),
+  ),
+];
 
 // Generated or third-party files whose hashes/fixtures are not secrets.
 const SKIP = [
@@ -52,6 +58,14 @@ const findings = [];
 for (const file of files) {
   const normalized = file.replaceAll('\\', '/');
   if (SKIP.some((re) => re.test(normalized))) continue;
+  let kind;
+  try {
+    kind = lstatSync(file);
+  } catch (error) {
+    if (error?.code === 'ENOENT') continue; // tracked file deleted in the working tree
+    throw error;
+  }
+  if (!kind.isFile()) continue;
   for (const rule of RULES) {
     if (rule.path && !rule.path.test(normalized)) continue;
     if (rule.allow?.test(normalized)) continue;
@@ -69,4 +83,4 @@ if (findings.length) {
   console.error(`secret-scan: ${findings.length} finding(s)\n  ${findings.join('\n  ')}`);
   process.exit(1);
 }
-console.log(`secret-scan: OK (${files.length} tracked files checked)`);
+console.log(`secret-scan: OK (${files.length} tracked and new paths checked)`);

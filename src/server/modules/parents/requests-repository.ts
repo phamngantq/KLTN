@@ -11,6 +11,8 @@ import type {
 import type { Db } from '../../db/client';
 import {
   auditLogs,
+  classCancellations,
+  classListings,
   parentRequestPrivate,
   parentRequests,
   requestScheduleWindows,
@@ -138,6 +140,12 @@ export async function findOwnRequest(
     .where(eq(requestScheduleWindows.requestId, id))
     .orderBy(asc(requestScheduleWindows.weekday), asc(requestScheduleWindows.startLocal))
     .all();
+  const cancellation = await db
+    .select({ reason: classCancellations.reason })
+    .from(classListings)
+    .innerJoin(classCancellations, eq(classCancellations.classId, classListings.id))
+    .where(eq(classListings.sourceRequestId, id))
+    .get();
   const { contactPhone, contactAddress, contactConsentAt, contactConsentVersion, ...publicRow } =
     row;
   return {
@@ -146,6 +154,7 @@ export async function findOwnRequest(
     contactAddress,
     contactConsentAt,
     contactConsentVersion,
+    cancellationReason: cancellation?.reason ?? null,
   };
 }
 

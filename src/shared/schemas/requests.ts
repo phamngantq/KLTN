@@ -143,6 +143,7 @@ export interface ParentRequestSummary {
 
 /** Returned only from an owner-authenticated detail/create/update endpoint. */
 export interface OwnParentRequest extends ParentRequestSummary {
+  cancellationReason?: string | null;
   contactPhone: string | null;
   contactAddress: string | null;
   contactConsentAt: string | null;

@@ -34,6 +34,8 @@ const AREAS: Record<Area, AreaConfig> = {
       { to: '/tutor/classes', label: 'Lớp của tôi' },
       { to: '/tutor/profile', label: 'Hồ sơ của tôi' },
       { to: '/tutor/contracts', label: 'Hợp đồng' },
+      { to: '/tutor/terms', label: 'Điều khoản trách nhiệm' },
+      { to: '/tutor/how-to-accept', label: 'Hướng dẫn nhận lớp' },
       { to: '/tutor/class-history', label: 'Lịch sử lớp' },
       { to: '/tutor/khieu-nai', label: 'Khiếu nại' },
       { to: '/tutor/bookings', label: 'Lịch đặt hiện tại' },
@@ -46,10 +48,14 @@ const AREAS: Record<Area, AreaConfig> = {
       { to: '/admin', label: 'Tổng quan' },
       { to: '/admin/users', label: 'Người dùng' },
       { to: '/admin/requests', label: 'Yêu cầu' },
+      { to: '/admin/applications', label: 'Đơn nhận lớp' },
       { to: '/admin/classes', label: 'Lớp học' },
       { to: '/admin/tutors', label: 'Duyệt hồ sơ' },
       { to: '/admin/services', label: 'Dịch vụ' },
       { to: '/admin/pricing', label: 'Phương án phí' },
+      { to: '/admin/terms/quiz', label: 'Bài kiểm tra điều khoản' },
+      { to: '/admin/contracts', label: 'Hợp đồng lớp' },
+      { to: '/admin/content/pages', label: 'Trang thông tin' },
       { to: '/admin/content/blog', label: 'Nội dung' },
       { to: '/admin/support', label: 'Hỗ trợ' },
       { to: '/admin/reports', label: 'Báo cáo' },
@@ -68,8 +74,8 @@ export function RoleShell({ area }: { area: Area }) {
   const config = AREAS[area];
 
   return (
-    <div className="mx-auto grid w-full max-w-[var(--container-max)] gap-6 px-4 py-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
-      <aside className="min-w-0" aria-label={`Khu vực ${config.label}`}>
+    <div className="mx-auto grid w-full max-w-[var(--container-max)] gap-6 px-4 py-6 print:block print:max-w-none print:px-0 print:py-0 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
+      <aside className="min-w-0 print:hidden" aria-label={`Khu vực ${config.label}`}>
         <p className="mb-2 text-sm font-semibold text-primary">Khu vực {config.label}</p>
         <nav aria-label={`Điều hướng ${config.label}`}>
           <ul className="flex min-w-0 gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">

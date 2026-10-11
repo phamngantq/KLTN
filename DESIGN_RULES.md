@@ -145,19 +145,26 @@ Các mục E1–E5 mô tả luồng tutor discovery/slot booking của MVP đã 
 
 ### E6. Phụ huynh tạo yêu cầu tìm gia sư (mục tiêu `./figma`)
 - `/parent` và `/parent/request` là cùng luồng; form gồm môn/lớp, khu vực, hình thức, mức học phí dự kiến, lịch mong muốn hoặc “Trao đổi sau”, yêu cầu khác và thông tin học sinh tối thiểu.
+- Phụ huynh tìm gia sư miễn phí theo DEC-012; mức học phí dự kiến là ngân sách học, không phải khoản phí nền tảng phải trả.
 - Trước khi gửi, parent tự đánh dấu checkbox consent mặc định bỏ chọn, nêu rõ điện thoại/địa chỉ chỉ được chia sẻ với gia sư được kiểm duyệt viên gán; server kiểm tra và lưu version/thời điểm theo DEC-010.
 - Danh sách/chi tiết/tabs hiển thị trạng thái do API trả về; không lấy `MOCK` trong export làm dữ liệu thật. Phụ huynh sở hữu và kiểm duyệt viên được xem dữ liệu riêng theo quyền; gia sư được kiểm duyệt viên đề xuất chỉ xem thông tin liên hệ cần thiết qua API kiểm tra quyền, theo DEC-009.
 - Khi lỗi submit, giữ giá trị form và thông báo tại field; khi thành công, hiển thị mã yêu cầu/trạng thái server trả về.
 
 ### E7. Gia sư tìm và nhận lớp
 - `/tutor/new-classes`, `/tutor/matched-classes`, `/tutor/class-requests` dùng class DTO và application state riêng, không map trực tiếp booking cũ.
+- Trước khi cho gửi ứng tuyển, UI hiển thị phiên bản điều khoản và quiz đã công bố, kết quả đạt/xác nhận từ API, cùng **đủ ba phương án phí** do moderator công bố (tỷ lệ buổi đầu, số buổi kèm đặt cọc, tỷ lệ học phí tháng). Gia sư chọn một option còn hiệu lực; không hiển thị mức phí mẫu như giá thật.
 - Chỉ hiển thị PII phụ huynh sau transition được phép; hồ sơ/điều khoản/điều kiện nhận lớp được server kiểm tra. Không dùng `termsTestPassed` trong localStorage làm quyền.
-- Trạng thái ứng tuyển/được gán/đã nhận, rút ứng tuyển, từ chối và xác nhận cần message thật, 409 stale và retry hợp lệ.
+- Trạng thái ứng tuyển/rút/được gán cần message thật, 409 stale và retry hợp lệ. Khi moderator gán, lớp hoạt động ngay và đúng gia sư được chọn xem liên hệ qua API; UI không yêu cầu gia sư chấp nhận lớp lần nữa hoặc báo đã thanh toán. Sau rút gán, tutor cũ không còn được xem contact; lịch sử ứng tuyển/option phí/hợp đồng vẫn xem theo quyền.
 
 ### E8. Quản trị yêu cầu và lớp
-- Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển, gán/rút gán gia sư; mỗi mutation cần xác nhận khi cần, audit actor/reason và render kết quả API.
+- Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển và gán gia sư; mỗi mutation cần xác nhận khi cần, audit actor/reason và render kết quả API. Rút gán phải nhập lý do, mở lại lớp để chọn tutor khác và cắt contact tutor cũ ngay; hoàn tất lớp phải có lý do. Hủy lớp chờ policy riêng; không đổi trạng thái bằng state client.
 - Một lớp chỉ có một assignment active theo domain contract. Không hiện match score, rating hoặc notification đã gửi từ mock export.
-- Các trang CRUD nội dung/bảng giá, hỗ trợ và báo cáo chỉ công bố dữ liệu được duyệt và có nguồn thật; placeholder trong export không được xem là chức năng đã hoàn thành.
+- Admin công bố phiên bản điều khoản/quiz và đủ ba phương án phí trước khi ứng tuyển được mở; trang nội dung/bảng giá, hỗ trợ và báo cáo chỉ công bố dữ liệu được duyệt và có nguồn thật. Nội dung liên hệ công khai dùng nguồn được duyệt cho Hà Nội, không sao chép hotline/địa chỉ mẫu export.
+
+### E9. Khiếu nại và xóa tài khoản
+- Phụ huynh/gia sư chỉ xem khiếu nại của mình; kiểm duyệt viên xem và xử lý theo trạng thái API. Gửi/tiếp nhận/giải quyết dùng version, lý do/kết quả thật và hiển thị lỗi 409; không lấy `mockData` hoặc toast của export làm bằng chứng.
+- Trang tài khoản yêu cầu xác nhận rõ trước khi xóa. Nếu còn booking `PENDING/CONFIRMED` hoặc yêu cầu/lớp/đơn/gán đang xử lý, hiển thị 409 và hướng dẫn xử lý cam kết; không báo xóa thành công. Khi server xác nhận xóa, kết thúc phiên và không còn hiện contact/hồ sơ riêng.
+- Không hiển thị input upload tài liệu/đính kèm khi chưa có storage và chính sách retention. Nội dung khiếu nại có thể nhạy cảm; danh sách chỉ hiển thị thông tin cần thiết, chi tiết cần quyền riêng và audit.
 
 ## F. States và interaction contract
 

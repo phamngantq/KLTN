@@ -5,8 +5,17 @@
 import { desc, sql } from 'drizzle-orm';
 import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
 import { BOOKING_STATUSES } from '../../shared/schemas/bookings';
+import { COMPLAINT_STATUSES } from '../../shared/schemas/complaints';
+import { CLASS_ASSIGNMENT_STATUSES } from '../../shared/schemas/admin-assignments';
 import { REQUEST_STATUSES } from '../../shared/schemas/requests';
 import {
+  CLASS_STATUSES,
+  FEE_OPTION_KEYS,
+  FEE_OPTION_STATUSES,
+  APPLICATION_STATUSES,
+} from '../../shared/schemas/classes';
+import {
+  type AnySQLiteColumn,
   index,
   integer,
   primaryKey,
@@ -109,6 +118,322 @@ export const requestScheduleWindows = sqliteTable(
     primaryKey({ columns: [t.requestId, t.weekday, t.startLocal] }),
     index('request_schedule_windows_request_weekday_idx').on(t.requestId, t.weekday),
   ],
+);
+
+export const classListings = sqliteTable(
+  'class_listings',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    sourceRequestId: text('source_request_id')
+      .notNull()
+      .references(() => parentRequests.id, { onDelete: 'restrict' }),
+    sourceRequestVersion: integer('source_request_version').notNull(),
+    parentUserId: text('parent_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    subjectId: text('subject_id')
+      .notNull()
+      .references(() => subjects.id, { onDelete: 'restrict' }),
+    grade: text('grade').notNull(),
+    mode: text('mode', { enum: ['online', 'offline'] }).notNull(),
+    publicArea: text('public_area'),
+    expectedBudgetMinor: integer('expected_budget_minor'),
+    status: text('status', { enum: CLASS_STATUSES }).notNull().default('draft'),
+    version: integer('version').notNull().default(1),
+    mutationId: text('mutation_id').notNull(),
+    publishedAt: text('published_at'),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('class_listings_code_uq').on(t.code),
+    uniqueIndex('class_listings_source_request_uq').on(t.sourceRequestId),
+    index('class_listings_public_idx').on(t.status, desc(t.publishedAt), t.id),
+    index('class_listings_filter_idx').on(
+      t.status,
+      t.subjectId,
+      t.grade,
+      t.mode,
+      desc(t.publishedAt),
+      t.id,
+    ),
+  ],
+);
+
+export const feeOptionVersions = sqliteTable(
+  'fee_option_versions',
+  {
+    id: text('id').primaryKey(),
+    optionKey: text('option_key', { enum: FEE_OPTION_KEYS }).notNull(),
+    version: integer('version').notNull(),
+    title: text('title').notNull(),
+    policyText: text('policy_text').notNull(),
+    rateBasisPoints: integer('rate_basis_points').notNull(),
+    depositBasisPoints: integer('deposit_basis_points'),
+    scopeSubjectId: text('scope_subject_id').references(() => subjects.id, {
+      onDelete: 'restrict',
+    }),
+    scopeMode: text('scope_mode', { enum: ['online', 'offline'] }),
+    status: text('status', { enum: FEE_OPTION_STATUSES }).notNull(),
+    effectiveFrom: text('effective_from'),
+    effectiveTo: text('effective_to'),
+    approvedBy: text('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+    publishedAt: text('published_at'),
+    mutationId: text('mutation_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('fee_option_versions_key_version_uq').on(t.optionKey, t.version),
+    index('fee_option_versions_available_idx').on(
+      t.status,
+      t.scopeSubjectId,
+      t.scopeMode,
+      t.effectiveFrom,
+      t.effectiveTo,
+    ),
+  ],
+);
+
+export const tutorApplications = sqliteTable(
+  'tutor_applications',
+  {
+    id: text('id').primaryKey(),
+    classId: text('class_id')
+      .notNull()
+      .references(() => classListings.id, { onDelete: 'restrict' }),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    feeOptionVersionId: text('fee_option_version_id')
+      .notNull()
+      .references(() => feeOptionVersions.id, { onDelete: 'restrict' }),
+    status: text('status', { enum: APPLICATION_STATUSES }).notNull().default('submitted'),
+    rejectionReason: text('rejection_reason'),
+    version: integer('version').notNull().default(1),
+    mutationId: text('mutation_id').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('tutor_applications_live_uq')
+      .on(t.classId, t.tutorUserId)
+      .where(sql`${t.status} = 'submitted'`),
+    index('tutor_applications_tutor_created_idx').on(t.tutorUserId, desc(t.createdAt), t.id),
+    index('tutor_applications_class_status_idx').on(t.classId, t.status, desc(t.createdAt), t.id),
+  ],
+);
+
+export const classAssignments = sqliteTable(
+  'class_assignments',
+  {
+    id: text('id').primaryKey(),
+    classId: text('class_id')
+      .notNull()
+      .references(() => classListings.id, { onDelete: 'restrict' }),
+    applicationId: text('application_id')
+      .notNull()
+      .references(() => tutorApplications.id, { onDelete: 'restrict' }),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    assignedBy: text('assigned_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    status: text('status', { enum: CLASS_ASSIGNMENT_STATUSES }).notNull().default('active'),
+    version: integer('version').notNull().default(1),
+    mutationId: text('mutation_id').notNull(),
+    assignedAt: text('assigned_at').notNull(),
+    revokedAt: text('revoked_at'),
+  },
+  (t) => [
+    uniqueIndex('class_assignments_application_uq').on(t.applicationId),
+    uniqueIndex('class_assignments_active_class_uq')
+      .on(t.classId)
+      .where(sql`${t.status} = 'active'`),
+    index('class_assignments_tutor_status_idx').on(t.tutorUserId, t.status, desc(t.assignedAt)),
+  ],
+);
+
+export const classLifecycleEvents = sqliteTable(
+  'class_lifecycle_events',
+  {
+    id: text('id').primaryKey(),
+    classId: text('class_id')
+      .notNull()
+      .references(() => classListings.id, { onDelete: 'restrict' }),
+    assignmentId: text('assignment_id')
+      .notNull()
+      .references(() => classAssignments.id, { onDelete: 'restrict' }),
+    eventType: text('event_type', { enum: ['revoked', 'completed'] }).notNull(),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    mutationId: text('mutation_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('class_lifecycle_events_assignment_uq').on(t.assignmentId),
+    uniqueIndex('class_lifecycle_events_mutation_uq').on(t.mutationId),
+    index('class_lifecycle_events_class_idx').on(t.classId, desc(t.createdAt)),
+  ],
+);
+
+export const classCancellations = sqliteTable(
+  'class_cancellations',
+  {
+    id: text('id').primaryKey(),
+    classId: text('class_id')
+      .notNull()
+      .references(() => classListings.id, { onDelete: 'restrict' }),
+    actorId: text('actor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    mutationId: text('mutation_id').notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('class_cancellations_class_uq').on(t.classId),
+    uniqueIndex('class_cancellations_mutation_uq').on(t.mutationId),
+  ],
+);
+
+export const contentRevisions = sqliteTable(
+  'content_revisions',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind', {
+      enum: ['page', 'service', 'blog', 'faq', 'guide', 'contract', 'terms'],
+    }).notNull(),
+    slug: text('slug').notNull(),
+    audience: text('audience', { enum: ['public', 'parent', 'tutor'] }).notNull(),
+    revision: integer('revision').notNull(),
+    editVersion: integer('edit_version').notNull().default(1),
+    status: text('status', { enum: ['draft', 'published', 'retired'] })
+      .notNull()
+      .default('draft'),
+    title: text('title').notNull(),
+    summary: text('summary').notNull().default(''),
+    bodyText: text('body_text').notNull(),
+    createdBy: text('created_by').references(() => users.id, { onDelete: 'set null' }),
+    publishedBy: text('published_by').references(() => users.id, { onDelete: 'set null' }),
+    revisedFromId: text('revised_from_id').references((): AnySQLiteColumn => contentRevisions.id, {
+      onDelete: 'restrict',
+    }),
+    publishedAt: text('published_at'),
+    ...timestamps(),
+    lastMutationId: text('last_mutation_id'),
+  },
+  (t) => [
+    uniqueIndex('content_one_draft_uq')
+      .on(t.kind, t.slug, t.audience)
+      .where(sql`${t.status} = 'draft'`),
+    uniqueIndex('content_one_published_uq')
+      .on(t.kind, t.slug, t.audience)
+      .where(sql`${t.status} = 'published'`),
+    index('content_public_idx').on(t.kind, t.audience, t.status, desc(t.publishedAt)),
+    index('content_history_idx').on(t.kind, t.slug, t.audience, desc(t.revision)),
+  ],
+);
+
+export const termsQuizzes = sqliteTable(
+  'terms_quizzes',
+  {
+    id: text('id').primaryKey(),
+    termsContentRevisionId: text('terms_content_revision_id')
+      .notNull()
+      .unique()
+      .references(() => contentRevisions.id, { onDelete: 'restrict' }),
+    status: text('status', { enum: ['draft', 'published'] })
+      .notNull()
+      .default('draft'),
+    editVersion: integer('edit_version').notNull().default(1),
+    questionsJson: text('questions_json').notNull(),
+    minimumCorrect: integer('minimum_correct').notNull(),
+    mutationId: text('mutation_id').notNull(),
+    createdBy: text('created_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    publishedBy: text('published_by').references(() => users.id, { onDelete: 'restrict' }),
+    publishedAt: text('published_at'),
+    ...timestamps(),
+  },
+  (t) => [index('terms_quizzes_status_idx').on(t.status, desc(t.publishedAt))],
+);
+
+export const termsQuizAttempts = sqliteTable(
+  'terms_quiz_attempts',
+  {
+    id: text('id').primaryKey(),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => termsQuizzes.id, { onDelete: 'restrict' }),
+    answersJson: text('answers_json').notNull(),
+    correctCount: integer('correct_count').notNull(),
+    passed: integer('passed', { mode: 'boolean' }).notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    index('terms_quiz_attempts_tutor_quiz_idx').on(t.tutorUserId, t.quizId, desc(t.createdAt)),
+  ],
+);
+
+export const termsAcknowledgements = sqliteTable(
+  'terms_acknowledgements',
+  {
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    quizId: text('quiz_id')
+      .notNull()
+      .references(() => termsQuizzes.id, { onDelete: 'restrict' }),
+    attemptId: text('attempt_id')
+      .notNull()
+      .unique()
+      .references(() => termsQuizAttempts.id, { onDelete: 'restrict' }),
+    termsContentRevisionId: text('terms_content_revision_id')
+      .notNull()
+      .references(() => contentRevisions.id, { onDelete: 'restrict' }),
+    acknowledgedAt: text('acknowledged_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tutorUserId, t.quizId] })],
+);
+
+export const classContractRecords = sqliteTable(
+  'class_contract_records',
+  {
+    id: text('id').primaryKey(),
+    assignmentId: text('assignment_id')
+      .notNull()
+      .unique()
+      .references(() => classAssignments.id, { onDelete: 'restrict' }),
+    classId: text('class_id')
+      .notNull()
+      .references(() => classListings.id, { onDelete: 'restrict' }),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    feeOptionVersionId: text('fee_option_version_id')
+      .notNull()
+      .references(() => feeOptionVersions.id, { onDelete: 'restrict' }),
+    contractContentRevisionId: text('contract_content_revision_id')
+      .notNull()
+      .references(() => contentRevisions.id, { onDelete: 'restrict' }),
+    status: text('status', { enum: ['issued', 'acknowledged'] })
+      .notNull()
+      .default('issued'),
+    version: integer('version').notNull().default(1),
+    issuedBy: text('issued_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    issuedAt: text('issued_at').notNull(),
+    acknowledgedAt: text('acknowledged_at'),
+    mutationId: text('mutation_id').notNull(),
+  },
+  (t) => [index('class_contract_records_tutor_idx').on(t.tutorUserId, desc(t.issuedAt))],
 );
 
 export const authCredentials = sqliteTable('auth_credentials', {
@@ -327,3 +652,38 @@ export const auditLogs = sqliteTable(
     index('audit_logs_actor_idx').on(t.actorId, t.createdAt),
   ],
 );
+
+export const complaints = sqliteTable(
+  'complaints',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    creatorUserId: text('creator_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    classId: text('class_id').references(() => classListings.id, { onDelete: 'restrict' }),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
+    status: text('status', { enum: COMPLAINT_STATUSES }).notNull().default('submitted'),
+    version: integer('version').notNull().default(1),
+    triageReason: text('triage_reason'),
+    resolution: text('resolution'),
+    handledBy: text('handled_by').references(() => users.id, { onDelete: 'restrict' }),
+    resolvedAt: text('resolved_at'),
+    mutationId: text('mutation_id').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('complaints_code_uq').on(t.code),
+    index('complaints_owner_created_idx').on(t.creatorUserId, desc(t.createdAt), t.id),
+    index('complaints_status_created_idx').on(t.status, desc(t.createdAt), t.id),
+    index('complaints_class_idx').on(t.classId, desc(t.createdAt)),
+  ],
+);
+
+export const accountDeletions = sqliteTable('account_deletions', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  deletedAt: text('deleted_at').notNull(),
+});

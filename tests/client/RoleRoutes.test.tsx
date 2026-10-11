@@ -86,10 +86,18 @@ describe('Figma role route matrix', () => {
   });
 
   it('shows tutor pages only to tutors and does not offer a fake application', async () => {
-    mockApi((req) => (req.path === '/me' ? sessionOf({ role: 'tutor' }) : undefined));
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/subjects') return { data: [] };
+      if (req.path.startsWith('/classes?')) {
+        return { data: { items: [], page: 1, pageSize: 12, total: 0 } };
+      }
+      return undefined;
+    });
     renderRoute('/tutor/new-classes');
     expect(await screen.findByRole('heading', { name: 'Lớp mới' })).toBeTruthy();
-    expect(screen.getByText(/chức năng đăng ký nhận lớp chưa mở/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Chưa có lớp phù hợp' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /ứng tuyển/i })).toBeNull();
     expect(screen.getByRole('navigation', { name: 'Điều hướng Gia sư' })).toBeTruthy();
   });
 

@@ -1,133 +1,126 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái sản phẩm:** Các lần deploy staging cũ ghi bên dưới là MVP đặt lịch TASK-01–18. Mục tiêu `./figma` theo DEC-007 mới tích hợp một phần tới TASK-23; staging v2 chỉ là preview chỉ đọc. Không dùng smoke test của MVP cũ hay preview làm bằng chứng hoàn thành sản phẩm mới.
+> **Trạng thái:** Các lần deploy staging trong §9 thuộc MVP đặt lịch TASK-01–18. Worker `preview` đang chạy là bản xem trước chỉ đọc theo [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Mã cho sản phẩm thay thế từ `./figma` đang được hoàn thiện và kiểm thử tại repository; tài liệu này **không xác nhận** đã deploy mã đó lên staging hoặc production.
 
-**Staging v2 riêng:** Theo DEC-011, tài khoản hiện tại có môi trường `preview` chỉ đọc với dữ liệu mẫu tổng hợp. Xem [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Môi trường này không thay staging cũ hay vượt qua các cổng phát hành mục tiêu mới tại §10.
+Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Mỗi môi trường dùng D1 và rate limiter riêng. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 
-Một Worker phục vụ cả API (`/api/v1/*`) và SPA (Workers Static Assets). Mỗi môi trường có Worker, D1 và namespace rate-limit **riêng**. Không commit `database_id`/`account_id` (Wrangler tìm D1 theo `database_name`; `npm run secret-scan` chặn việc commit ID).
+| Môi trường | Worker / D1 | Trạng thái đã xác minh |
+|---|---|---|
+| Local | `npm run dev` / Miniflare `.wrangler/state` | Dùng để kiểm thử migration và hành trình mới |
+| Preview | `tutor-matching-staging-v2` / D1 riêng cùng tên | Đã deploy bản chỉ đọc; không phải staging chức năng mới |
+| Staging cũ | `tutor-matching-staging` / D1 cùng tên | Lịch sử MVP đã deploy; tài khoản Wrangler ở lần kiểm tra cuối không nhìn thấy cả Worker/D1 |
+| Production | `tutor-matching` / `tutor-matching-prod` | Chưa tạo; cần quyết định phát hành riêng |
 
-| Môi trường | Worker | D1 | Rate-limit ns | Trạng thái |
-|---|---|---|---|---|
-| development (local) | — (`npm run dev`) | `tutor-matching-dev` (Miniflare, `.wrangler/state`) | 1001/1002 | chạy local |
-| staging | `tutor-matching-staging` | `tutor-matching-staging` (APAC) | 1101/1102 | **đã triển khai** — https://tutor-matching-staging.tutor-matching-platform.workers.dev |
-| production | `tutor-matching` | `tutor-matching-prod` | 1201/1202 | **chưa tạo** — cần phê duyệt riêng (TASK_DECISIONS DEC-002) |
+Không commit token, `account_id` hay `database_id`. Tên/binding thực tế nằm trong [`wrangler.jsonc`](../wrangler.jsonc); không suy ra quyền tài khoản từ URL công khai trả HTTP 200.
 
-## 0. Điều kiện tiên quyết
+## 0. Điều kiện trước khi phát hành
 
-- Node 22+, `npm ci`.
-- Quyền Cloudflare: người deploy chạy `npx wrangler login` (OAuth, lưu trên máy) — **hoặc** CI dùng `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` lưu trong secret của CI (quyền tối thiểu: Workers Scripts:Edit, D1:Edit). Không bao giờ commit token. CI hiện tại **không** deploy.
-- Kiểm tra tài khoản đúng: `npx wrangler whoami`.
+- Node 22+, `npm ci`; quyền Cloudflare đúng tài khoản và môi trường. `npx wrangler whoami` phải hiển thị đúng tài khoản; CI hiện không tự deploy.
+- Có commit đã review, quyền triển khai được cho phép riêng, D1 được kiểm kê số lượng bản ghi không PII, điểm khôi phục và kế hoạch rollback. Không chạy lệnh remote chỉ vì tài liệu này được cập nhật.
+- Xác nhận chính sách đang có hiệu lực trong [TASK_DECISIONS.md](../TASK_DECISIONS.md) và các cổng [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Mức phí, nội dung điều khoản/hợp đồng cần kiểm duyệt viên nhập và công bố; không dùng số tiền mẫu từ export.
 
-## 1. Tạo tài nguyên lần đầu (mỗi môi trường, một lần)
+## 1. Chỉ tạo tài nguyên cho môi trường mới đã được cho phép
 
-```bash
-npx wrangler d1 create tutor-matching-<env> --location apac
-# KHÔNG thêm database_id vào wrangler.jsonc — binding đã khai báo theo database_name.
-```
+Kiểm tra `npx wrangler d1 list --json` và deployments của tài khoản trước khi cân nhắc tạo D1. Với tài nguyên mới được phê duyệt, dùng `npx wrangler d1 create <database-name> --location apac`, sau đó xác minh binding theo `wrangler.jsonc`. Không tạo một bản trùng tên để vượt qua lỗi thiếu quyền. Secret của CI/Worker chỉ lưu trong secret store, không ghi vào Git hoặc release log.
 
-Không có secret nào bắt buộc ở bản hiện tại. Khi cần (ví dụ Turnstile): `npx wrangler secret put TURNSTILE_SECRET --env <env>`.
-
-## 2. Cổng chất lượng trước mỗi lần phát hành (bắt buộc)
+## 2. Cổng chất lượng local
 
 ```bash
 npm ci
-npm run secret-scan && npm run format:check && npm run lint && npm run typecheck
-npm run test -- --run
+npm run db:migrate:local
+npm run secret-scan
+npm run format:check
+npm run lint
+npm run typecheck
+npx vitest run
+npm run build:staging
 npm run e2e
+git diff --check
 ```
 
-Tất cả phải xanh. Xem thêm [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md).
+`package.json` khai báo `test: vitest`; dùng `npx vitest run` để chạy một lần vì `npm run test -- --run` không tương thích với npm hiện dùng. Harness `scripts/e2e-serve.mjs` tạo D1 local cô lập tại `.wrangler/e2e`, chạy migration, seed một admin kiểm thử, build Worker và phục vụ bằng Wrangler dev. Playwright **không** dùng Vite preview hay D1 remote. Nếu E2E không khởi chạy được trong sandbox, ghi lệnh và lỗi thực tế rồi chạy lại trong môi trường có Playwright/Wrangler dev; không coi unit test hoặc build là E2E PASS. E2E ghi lại `dist`; chạy lại `npm run build:staging` trước deploy và kiểm tra tên Worker, D1, `APP_ENV=staging` trong build output.
 
-## 3. Review migration (gate thủ công)
+## 3. Review migration 0007–0015
+
+So sánh `npx wrangler d1 migrations list DB --env <env> --remote` với source và đọc SQL theo thứ tự. Chạy `npm run db:migrate:local` và test dữ liệu cũ trước khi xem xét remote. Không sửa migration đã áp dụng; bổ sung migration mới khi cần.
+
+| Migration | Miền | Điều phải xác minh |
+|---|---|---|
+| `0007_class_listings` | Lớp, ba loại phiên bản phí, ứng tuyển | Lớp lấy từ yêu cầu đã đồng ý chia sẻ contact; công khai không lộ contact; không seed mức phí |
+| `0008_class_assignments` | Gán lớp | Một gán active mỗi lớp; moderator gán làm lớp active ngay |
+| `0009_content` | Nội dung theo revision | Chỉ bản published ra public; bản published bất biến |
+| `0010_tutor_terms_contracts` | Quiz, xác nhận điều khoản, hợp đồng | Gia sư đạt quiz và xác nhận điều khoản trước ứng tuyển; hợp đồng không là chứng từ thanh toán |
+| `0011_complaints_privacy` | Khiếu nại, tombstone xóa tài khoản | Chặn xóa khi còn nghĩa vụ; giữ ID/lịch sử đã ẩn danh |
+| `0012_approved_content_seed` | Nội dung được duyệt | Liên hệ Hà Nội, phụ huynh miễn phí; không seed điều khoản, hợp đồng, mức phí |
+| `0013_class_lifecycle` | Rút gán/hoàn tất lớp | Rút gán có lý do mở lại lớp và cắt contact; hoàn tất có lý do, giữ lịch sử |
+| `0014_class_cancellation` | Hủy lớp đã công bố | Bản ghi lý do không sửa trong vận hành thường; chỉ `open`/`sourcing` chưa gán, đóng cả lớp/yêu cầu và không còn đơn `submitted` |
+| `0015_account_history_redaction` | Ẩn danh lịch sử khi xóa tài khoản | Chỉ cho ẩn lý do lifecycle/cancellation sau tombstone, giữ ID/actor/event/time; backfill tài khoản đã xóa trước 0015, gồm đơn ứng tuyển, khiếu nại và audit metadata liên quan |
+
+Sau `npm run db:migrate:local`, kiểm tra riêng 0014 trên D1 local:
 
 ```bash
-npx wrangler d1 migrations list DB --env <env> --remote   # liệt kê migration sẽ chạy
+npx wrangler d1 migrations list DB --local
+npx wrangler d1 execute DB --local --command "SELECT type, name FROM sqlite_master WHERE name IN ('class_cancellations','class_cancellations_valid_insert','class_cancellations_no_update','class_cancellations_no_delete') ORDER BY name"
+npx wrangler d1 execute DB --local --command "PRAGMA foreign_key_check"
 ```
 
-- Đọc từng file SQL mới trong `migrations/`. Chỉ chấp nhận thay đổi **tương thích ngược** (thêm bảng/cột có default, thêm index). Xóa/đổi tên cột phải tách thành nhiều bản phát hành (expand → migrate → contract).
-- Không sửa migration đã chạy ở bất kỳ môi trường nào; sửa bằng migration mới.
-- D1 giới hạn pattern `GLOB` dài trong `CHECK` — dùng `date()`/`strftime()`.
+Danh sách migration chờ không được còn 0014 **hoặc 0015**; bảng và ba trigger của 0014 phải hiện, `foreign_key_check` không trả hàng. Dùng integration test để xác minh action `POST /api/v1/admin/classes/:id/cancel` trả 409 cho `draft`/`active`/terminal và ghi cùng transaction lý do, lớp/yêu cầu `cancelled`, ứng tuyển `submitted → rejected` khi lớp `open` hợp lệ.
 
-## 4. Sao lưu điểm khôi phục (production bắt buộc, staging khuyến nghị)
+Với 0015, kiểm thử D1 local có **tombstone tạo trước khi áp dụng migration**: lý do lifecycle/cancellation, rejection reason, nội dung khiếu nại và audit metadata liên quan được ẩn danh; ID, actor, event type, status và thời gian vẫn giữ. Chỉ redaction sau tombstone được phép cập nhật lý do lịch sử; các sửa khác phải bị trigger chặn. Chạy targeted `npx vitest run tests/server/account-deletion-redaction.test.ts tests/server/complaints-privacy.test.ts` cùng full test gate. Bản sao/Time Travel trước 0015 có thể chứa free text đã xóa, nên chuẩn bị lại redaction khi phục hồi.
+
+Các migration 0001–0006 chứa MVP và yêu cầu phụ huynh, vẫn phải tồn tại. Kiểm tra dữ liệu booking, user, parent request và các FK trước/sau; migration mới không được tự xóa hoặc chuyển booking cũ thành lớp. `POST /api/v1/bookings` phải trả `410 LEGACY_BOOKING_CLOSED`, còn GET và action hợp lệ của booking cũ vẫn hoạt động. Kiểm tra tính tương thích code cũ với schema mới trước khi chọn rollback code.
+
+## 4. Sao lưu và kiểm kê trước mutation remote
 
 ```bash
 npx wrangler d1 time-travel info DB --env <env>
-# Ghi lại bookmark in ra vào release log (dùng cho ROLLBACK.md).
-# Tùy chọn: bản export đầy đủ
-npx wrangler d1 export DB --env <env> --remote --output backup-<env>-<yyyymmdd-hhmm>.sql
+npx wrangler d1 migrations list DB --env <env> --remote
 ```
 
-File export chứa dữ liệu người dùng (email, hash mật khẩu): lưu ở nơi có kiểm soát truy cập, **không** commit, xóa theo chính sách lưu trữ.
+Ghi bookmark ngoài Git cùng commit, môi trường, thời điểm và số lượng từng bảng (không ghi PII). Nếu có dữ liệu thật, xuất bản sao D1 được bảo vệ trước migration; production bắt buộc. Bản export có email, hash mật khẩu và contact nên giới hạn truy cập, không commit và lưu/xóa theo chính sách. Xem truy vấn chỉ đọc trong [OPERATIONS.md](OPERATIONS.md).
 
-## 5. Áp dụng migration (trước khi deploy code)
+## 5. Áp dụng migration và deploy khi đã qua gate
+
+Các lệnh dưới đây là bước thực thi có ghi từ xa, chỉ chạy trong phiên phát hành được cho phép và sau checklist:
 
 ```bash
-npm run db:migrate:staging      # hoặc db:migrate:production
+npm run db:migrate:staging
+npm run build:staging
+npm run deploy:staging
 ```
 
-Code mới luôn được viết để chạy được với schema cũ + mới trong khoảng thời gian giữa bước 5 và 6.
+Với production, thay `staging` bằng `production` sau khi staging mới đã qua kiểm thử và được duyệt. Kiểm tra output Wrangler có đúng tên Worker, binding `DB`, `AUTH_LIMITER`, `BOOKING_LIMITER`, `APP_ENV`; không dùng `npm run deploy` mặc định vì build đó dùng development. Nếu tạo subdomain mới, DNS/TLS có thể cần thời gian; xác minh lại URL trước khi đánh giá smoke.
 
-## 6. Build & deploy
+## 6. Xác minh sản phẩm mới sau deploy
 
-```bash
-npm run deploy:staging          # = build:staging (CLOUDFLARE_ENV=staging) + wrangler deploy
-npm run deploy:production       # chỉ sau khi staging đã smoke test xanh
-```
-
-Lưu ý: `npm run build` (không có `:env`) tạo cấu hình **development**. Luôn dùng script có tên môi trường trước khi `wrangler deploy`. Kiểm tra output Wrangler liệt kê đúng bindings: `env.DB (tutor-matching-<env>)`, `AUTH_LIMITER`, `BOOKING_LIMITER`, `APP_ENV`.
-
-Lần deploy đầu lên một subdomain workers.dev mới có thể cần vài phút để DNS/TLS sẵn sàng (lỗi TLS `curl (35)` trong lúc chờ là bình thường).
-
-## 7. Smoke test sau deploy
+Chạy smoke **chỉ đọc** trên URL vừa deploy:
 
 ```bash
 npm run smoke -- https://<worker>.<subdomain>.workers.dev
-# Luồng đầy đủ (đặt lịch, xác nhận, hủy) cần một tài khoản admin:
-npm run smoke -- https://<url> --admin-email <admin> --admin-password <pw>
 ```
 
-Script in lệnh SQL dọn tài khoản `smoke-*`; chạy nó bằng `npx wrangler d1 execute DB --env <env> --remote --command "<sql>"`. Không chạy smoke có ghi dữ liệu trên production khi đang có người dùng thật nếu chưa được phép — dùng chế độ không admin (chỉ đọc + tạo tài khoản smoke rồi xóa).
+Script kiểm tra SPA routes, health/security headers, subjects, public classes không lộ contact, nội dung/fee option đã công bố và API dashboard từ chối anonymous. Script không tạo user, booking hoặc dữ liệu dọn dẹp; nó không xác nhận mutation.
 
-## 8. Cấp quyền admin
+`e2e/journeys.spec.ts` hiện có **một** hành trình Playwright trên Worker build + D1 local cô lập: parent consent/gửi yêu cầu; moderator tạo, xuất bản và gán lớp; tutor đã duyệt làm quiz/xác nhận điều khoản, chọn một trong ba option phí đang công bố, ứng tuyển, đọc contact sau gán và xác nhận hợp đồng. Test còn kiểm public/outsider không thấy contact, POST booking trả 410, GET danh sách booking trả 200, dashboard hiển thị số liệu từ hành trình, tạo file PDF hợp lệ, responsive ở 320/768/1280 px và skip link bằng bàn phím. Nó không thử rút gán, hoàn tất, hủy lớp, khiếu nại, xóa tài khoản hoặc race.
 
-Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md) (`node scripts/grant-admin.mjs --email … --env <env>`).
+Các trường hợp đó được kiểm bằng Vitest integration trên D1 local: `tests/server/admin-assignments.test.ts`, `tests/server/complaints-privacy.test.ts`, `tests/server/classes.test.ts`, `tests/server/bookings-lifecycle.test.ts` và `tests/server/reports.test.ts`. Xem kết quả thực chạy trong release record; không suy test đã PASS từ việc file tồn tại. Sau deploy, kiểm tra số lượng dữ liệu, log 5xx và báo cáo theo quyền mà không đưa PII vào log.
 
-## 9. Lịch sử triển khai staging thực tế
+Ghi kết quả E2E/smoke, version Worker và release record ngoài Git. Nếu bất kỳ gate nào lỗi, dùng [ROLLBACK.md](ROLLBACK.md); không tự khôi phục D1 khi chỉ lỗi code.
 
-| Ngày | Nội dung | Kết quả |
+## 7. Cấp quyền kiểm duyệt viên
+
+Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md). DB role `admin` là actor kiểm duyệt viên; không tự đăng ký vai trò này từ client.
+
+## 8. Tài khoản staging cũ
+
+Trước mọi mutation trên staging cũ, `npx wrangler whoami`, `npx wrangler deployments list --name tutor-matching-staging --json` và `npx wrangler d1 list --json` phải cùng nhìn thấy đúng Worker/D1. Lần kiểm tra chỉ đọc ngày 2026-10-11, `/api/v1/health` trả 200 nhưng tài khoản Wrangler đang chọn không thấy hai tài nguyên đó. Vì vậy chưa có kiểm kê dữ liệu hiện tại hoặc quyền triển khai đã xác minh. Preview v2 có D1 riêng và không thay thế trạng thái đó.
+
+## 9. Lịch sử deploy MVP cũ
+
+| Ngày | Nội dung | Kết quả ghi nhận lúc đó |
 |---|---|---|
-| 2026-10-11 | Tạo D1 `tutor-matching-staging` (APAC); migration 0001; deploy bản backend (auth + availability) | smoke auth/CSRF/PBKDF2 OK |
-| 2026-10-11 | Migration 0002–0004; deploy toàn bộ tính năng (TASK-01→16) | `scripts/smoke.mjs` 24/24 PASS; dữ liệu smoke đã xóa |
-| 2026-10-11 | Theo runbook: không có migration mới; bookmark khôi phục lưu riêng ngoài Git; `npm run deploy:staging` (route splitting, rate-limit ns 1101/1102) | smoke 24/24 PASS; Chromium headless: `/`, `/tutors`, `/sign-in` render, không lỗi CSP; dữ liệu smoke đã xóa (0 user/booking/claim) |
+| 2026-10-11 | Tạo D1 staging APAC, migration 0001; deploy auth + availability | Smoke auth/CSRF/PBKDF2 OK |
+| 2026-10-11 | Migration 0002–0004; deploy tính năng TASK-01–16 | Smoke MVP 24/24 PASS; dữ liệu smoke đã xóa |
+| 2026-10-11 | Deploy lại staging MVP, bookmark lưu ngoài Git | Smoke MVP 24/24 PASS; Chromium tải `/`, `/tutors`, `/sign-in` |
 
-## 10. Phát hành staging cho mục tiêu `./figma`
-
-Mục này áp dụng cho **bản sản phẩm mới** theo DEC-007. Các lệnh ở §5–7 hiện kiểm tra luồng booking cũ; chỉ dùng chúng cho bản mới sau khi TASK-19–30 đã thay thế luồng, migration và smoke/E2E tương ứng. Không triển khai nguyên gói `./figma`: export chứa dữ liệu mẫu và auth/role phía client, chưa phải ứng dụng Worker có API/D1 thật.
-
-### 10.1. Xác nhận tài khoản và dữ liệu staging trước mọi thay đổi
-
-```bash
-npx wrangler whoami
-npx wrangler deployments list --name tutor-matching-staging --json
-npx wrangler d1 list --json
-npx wrangler d1 migrations list DB --env staging --remote
-```
-
-- Xác nhận **cùng một tài khoản** nhìn thấy Worker `tutor-matching-staging` và D1 `tutor-matching-staging` đã ghi trong runbook. Không tạo Worker/D1 trùng tên ở tài khoản khác để vượt qua lỗi truy cập.
-- Chỉ sau khi xác nhận đúng D1, truy vấn **số lượng** bản ghi `users`, `bookings`, `booking_slot_claims`, `tutor_profiles`, `audit_logs` và các bảng mới theo TASK-20; không xuất PII vào log. Ghi số lượng và kết quả đối chiếu vào release record riêng. Dữ liệu cũ phải được giữ khi đổi sản phẩm.
-- Lấy điểm khôi phục Time Travel, kiểm tra khả năng khôi phục; lưu bookmark ngoài Git. Nếu có dữ liệu người dùng, tạo bản export được bảo vệ trước migration. Không chạy migration/deploy khi chưa biết dữ liệu hiện có hoặc không có đường khôi phục.
-
-**Kiểm tra chỉ đọc ngày 2026-10-11:** URL công khai `/api/v1/health` của staging trả HTTP 200. Wrangler trong phiên kiểm tra xác thực được, nhưng không tìm thấy Worker staging hoặc D1 staging trong tài khoản đang chọn. Vì vậy **chưa xác minh được số bản ghi hiện có**; kết quả “0 user/booking/claim” trong lịch sử §9 không còn là bằng chứng cho trạng thái hiện tại. Cần chọn tài khoản có quyền đối với tài nguyên đang chạy rồi lặp lại kiểm tra trước mọi thao tác ghi.
-
-### 10.2. Cổng sản phẩm và kỹ thuật
-
-- TASK-19–30 đạt acceptance criteria trong `TASKS.md`; UI/luồng từ export đã được tích hợp vào `src/client`, API và D1 thật trong `src/server`/`migrations`. Chốt các gap FIG-013–020, quyền xem PII, trạng thái request/lớp/ứng tuyển/gán lớp, và chính sách phí/hợp đồng. Không có mock auth, role do client chọn, số liệu mẫu hay thông báo thanh toán/email thành công giả trong hành trình phát hành.
-- Chạy `npm ci`, `npm run secret-scan`, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm run test -- --run`, `npm run build:staging`, `npm run e2e`; thử migration trên D1 local. E2E phải phủ public → phụ huynh → admin → gia sư → lớp, phân quyền/ownership, cạnh tranh/idempotency, responsive/keyboard; script smoke staging phải kiểm tra **luồng mới** trước khi dùng làm gate.
-- Rà từng migration mới để bảo toàn booking và dữ liệu cũ; so với danh sách migration remote; chuẩn bị rollback code và phương án phục hồi D1. Chỉ áp dụng remote migration sau khi đã qua các gate và có quyền triển khai cho môi trường đó.
-
-### 10.3. Rollout và xác minh
-
-1. Chốt commit phát hành, kiểm tra `git diff --check`, staged files, secret scan và provenance/license/PII của các file lấy từ `./figma`; push nhánh đã review, không force-push.
-2. Xác nhận lại tài khoản/tài nguyên ở §10.1, dữ liệu và backup; áp dụng migration đã review theo §5, rồi `npm run deploy:staging` theo §6. Kiểm tra bindings và phiên bản Worker, không dùng `npm run deploy` mặc định.
-3. Chạy smoke/E2E mục tiêu mới trên URL staging và đối chiếu số lượng dữ liệu trước/sau. Kiểm tra auth/CSRF/RBAC, quyền sở hữu PII, request → ứng tuyển → gán/nhận lớp, lỗi 409 khi cạnh tranh, giao diện ở các viewport và log 5xx. Dọn dữ liệu thử theo kế hoạch; không xóa dữ liệu người dùng.
-4. Nếu gate sau deploy không đạt, quay về bản Worker trước theo [ROLLBACK.md](ROLLBACK.md); phục hồi D1 chỉ khi xác định migration gây hỏng dữ liệu và theo bookmark/backup riêng. Ghi kết quả thực tế vào release record.
+Các kết quả lịch sử không xác nhận dữ liệu hiện tại hay tính năng `./figma` đang chạy trên remote.

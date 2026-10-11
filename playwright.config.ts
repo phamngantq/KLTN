@@ -9,16 +9,18 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['github'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: 'http://127.0.0.1:4173',
     trace: 'retain-on-failure',
     locale: 'vi-VN',
     timezoneId: 'Asia/Ho_Chi_Minh',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
-  webServer: {
-    command: 'node scripts/e2e-serve.mjs',
-    url: 'http://localhost:4173/api/v1/health',
-    timeout: 180_000,
-    reuseExistingServer: false,
-  },
+  webServer: process.env.E2E_EXTERNAL_SERVER
+    ? undefined
+    : {
+        command: 'node scripts/e2e-serve.mjs',
+        url: 'http://127.0.0.1:4173/api/v1/health',
+        timeout: 180_000,
+        reuseExistingServer: false,
+      },
 });

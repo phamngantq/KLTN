@@ -79,6 +79,11 @@ export function ParentRequestDetailPage() {
           {REQUEST_STATUS_LABELS[request.status]}
         </Badge>
       </div>
+      {request.status === 'cancelled' && request.cancellationReason && (
+        <Alert tone="warning" title="Yêu cầu đã hủy">
+          Lý do: {request.cancellationReason}
+        </Alert>
+      )}
 
       <dl className="grid min-w-0 gap-x-6 gap-y-3 rounded-lg border border-border bg-bg p-4 sm:grid-cols-[minmax(9rem,auto)_minmax(0,1fr)]">
         <dt className="font-medium text-muted">Môn học và lớp</dt>

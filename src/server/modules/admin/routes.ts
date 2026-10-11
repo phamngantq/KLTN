@@ -11,11 +11,17 @@ import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import * as service from './service';
+import { adminRequestRoutes } from './requests-routes';
+import { adminApplicationRoutes } from './applications-routes';
+import { adminUserRoutes } from './users-routes';
 
 /** Mounted at /api/v1/admin. Every route is admin-only. */
 export const adminRoutes = new Hono<AppEnv>();
 
 adminRoutes.use('*', requireRole('admin'));
+adminRoutes.route('/requests', adminRequestRoutes);
+adminRoutes.route('/applications', adminApplicationRoutes);
+adminRoutes.route('/users', adminUserRoutes);
 
 adminRoutes.get('/tutors', async (c) => {
   const query = parseQuery(c, adminTutorListSchema);

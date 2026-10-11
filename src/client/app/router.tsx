@@ -61,13 +61,6 @@ const TUTOR_PENDING = [
     'Lớp của tôi',
     'Lớp theo quy trình mới chưa được ghi nhận; lịch đặt hiện tại vẫn truy cập được.',
   ],
-  [
-    'new-classes',
-    'Lớp mới',
-    'Chưa có lớp được xuất bản từ dữ liệu thật. Chức năng đăng ký nhận lớp chưa mở.',
-  ],
-  ['matched-classes', 'Lớp phù hợp', 'Hệ thống chưa đưa ra đề xuất lớp dựa trên dữ liệu thật.'],
-  ['class-requests', 'Đơn nhận lớp', 'Chưa thể nộp, rút hoặc theo dõi đơn nhận lớp trực tuyến.'],
   ['class-history', 'Lịch sử lớp', 'Chưa có lịch sử lớp được ghi nhận theo quy trình mới.'],
   [
     'contracts',
@@ -182,14 +175,36 @@ const parentRoutes: RouteObject[] = [
     }),
   },
   { path: 'dashboard', element: <Navigate to="/parent" replace /> },
-  { path: 'trang-chu', element: <HomePage /> },
-  { path: 'gioi-thieu', element: <PublicInfoPage kind="about" /> },
-  { path: 'dich-vu', element: <PublicInfoPage kind="services" /> },
-  { path: 'bang-gia', element: <PublicInfoPage kind="pricing" /> },
-  { path: 'lop-hoc', element: <PublicInfoPage kind="classes" /> },
-  { path: 'blog', element: <PublicInfoPage kind="blog-parent" /> },
-  { path: 'lien-he', element: <PublicInfoPage kind="contact" /> },
-  ...pendingRoutes('parent', PARENT_PENDING),
+  {
+    path: 'trang-chu',
+    ...page(async () => {
+      const { ParentDashboardPage } = await import('../pages/dashboards/RoleDashboards');
+      return <ParentDashboardPage />;
+    }),
+  },
+  { path: 'gioi-thieu', element: <Navigate to="/gioi-thieu" replace /> },
+  { path: 'dich-vu', element: <Navigate to="/dich-vu" replace /> },
+  { path: 'bang-gia', element: <Navigate to="/bang-gia" replace /> },
+  {
+    path: 'lop-hoc',
+    ...page(async () => {
+      const { PublicClassBrowsePage } = await import('../pages/classes/ClassBrowsePage');
+      return <PublicClassBrowsePage />;
+    }),
+  },
+  {
+    path: 'khieu-nai',
+    ...page(async () => {
+      const { ComplaintsPage } = await import('../pages/shared/ComplaintsPage');
+      return <ComplaintsPage />;
+    }),
+  },
+  { path: 'blog', element: <Navigate to="/blog/phu-huynh" replace /> },
+  { path: 'lien-he', element: <Navigate to="/lien-he" replace /> },
+  ...pendingRoutes(
+    'parent',
+    PARENT_PENDING.filter(([path]) => path !== 'khieu-nai'),
+  ),
   {
     path: 'profile',
     ...page(async () => {
@@ -202,19 +217,109 @@ const parentRoutes: RouteObject[] = [
 const tutorRoutes: RouteObject[] = [
   {
     index: true,
-    element: pending(
-      'tutor',
-      'Tổng quan gia sư',
-      'Chưa có dữ liệu lớp học theo quy trình mới để tổng hợp.',
-    ),
+    ...page(async () => {
+      const { TutorDashboardPage } = await import('../pages/dashboards/RoleDashboards');
+      return <TutorDashboardPage />;
+    }),
   },
   { path: 'dashboard', element: <Navigate to="/tutor" replace /> },
   { path: 'signed-contracts', element: <Navigate to="/tutor/contracts" replace /> },
   { path: 'tutor-blog', element: <Navigate to="/tutor/blog" replace /> },
-  { path: 'pricing', element: <PublicInfoPage kind="pricing" /> },
-  { path: 'blog', element: <PublicInfoPage kind="blog-tutor" /> },
-  { path: 'contact', element: <PublicInfoPage kind="contact" /> },
-  ...pendingRoutes('tutor', TUTOR_PENDING),
+  { path: 'pricing', element: <Navigate to="/bang-gia" replace /> },
+  { path: 'blog', element: <Navigate to="/blog/gia-su" replace /> },
+  { path: 'contact', element: <Navigate to="/lien-he" replace /> },
+  {
+    path: 'new-classes',
+    ...page(async () => {
+      const { TutorNewClassBrowsePage } = await import('../pages/classes/ClassBrowsePage');
+      return <TutorNewClassBrowsePage />;
+    }),
+  },
+  {
+    path: 'new-classes/:id',
+    ...page(async () => {
+      const { TutorClassDetailPage } = await import('../pages/classes/ClassDetailPage');
+      return <TutorClassDetailPage />;
+    }),
+  },
+  {
+    path: 'matched-classes',
+    ...page(async () => {
+      const { TutorMatchedClassBrowsePage } = await import('../pages/classes/ClassBrowsePage');
+      return <TutorMatchedClassBrowsePage />;
+    }),
+  },
+  {
+    path: 'class-requests',
+    ...page(async () => {
+      const { TutorApplicationsPage } = await import('../pages/tutor/TutorApplicationsPage');
+      return <TutorApplicationsPage />;
+    }),
+  },
+  {
+    path: 'classes',
+    ...page(async () => {
+      const { TutorAssignedClassesPage } = await import('../pages/tutor/TutorAssignedClassesPage');
+      return <TutorAssignedClassesPage />;
+    }),
+  },
+  {
+    path: 'class-history',
+    ...page(async () => {
+      const { TutorClassHistoryPage } = await import('../pages/tutor/TutorClassHistoryPage');
+      return <TutorClassHistoryPage />;
+    }),
+  },
+  {
+    path: 'terms',
+    ...page(async () => {
+      const { TutorTermsPage } = await import('../pages/tutor/TutorTermsPage');
+      return <TutorTermsPage />;
+    }),
+  },
+  { path: 'responsibility-terms', element: <Navigate to="/tutor/terms" replace /> },
+  {
+    path: 'how-to-accept',
+    ...page(async () => {
+      const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
+      return (
+        <PublishedContentPage
+          kind="guide"
+          slug="how-to-accept"
+          audience="tutor"
+          fallbackTitle="Hướng dẫn nhận lớp"
+        />
+      );
+    }),
+  },
+  {
+    path: 'contracts',
+    ...page(async () => {
+      const { TutorContractsPage } = await import('../pages/tutor/TutorContractsPage');
+      return <TutorContractsPage />;
+    }),
+  },
+  {
+    path: 'khieu-nai',
+    ...page(async () => {
+      const { ComplaintsPage } = await import('../pages/shared/ComplaintsPage');
+      return <ComplaintsPage />;
+    }),
+  },
+  ...pendingRoutes(
+    'tutor',
+    TUTOR_PENDING.filter(
+      ([path]) =>
+        ![
+          'classes',
+          'class-history',
+          'contracts',
+          'responsibility-terms',
+          'how-to-accept',
+          'khieu-nai',
+        ].includes(path),
+    ),
+  ),
   {
     path: 'profile',
     ...page(async () => {
@@ -241,16 +346,190 @@ const tutorRoutes: RouteObject[] = [
 const moderatorRoutes: RouteObject[] = [
   {
     index: true,
-    element: pending(
-      'moderator',
-      'Tổng quan kiểm duyệt',
-      'Chưa có dữ liệu yêu cầu và lớp học thật để tổng hợp.',
-    ),
+    ...page(async () => {
+      const { AdminReportsOverviewPage } = await import('../pages/admin/AdminReportsPage');
+      return <AdminReportsOverviewPage />;
+    }),
   },
   { path: 'tutor-approval', element: <Navigate to="/admin/tutors" replace /> },
   { path: 'content', element: <Navigate to="/admin/content/blog" replace /> },
   { path: 'statistics', element: <Navigate to="/admin/reports" replace /> },
-  ...pendingRoutes('moderator', MODERATOR_PENDING),
+  {
+    path: 'users',
+    ...page(async () => {
+      const { AdminUsersPage } = await import('../pages/admin/AdminUsersPage');
+      return <AdminUsersPage />;
+    }),
+  },
+  {
+    path: 'requests',
+    ...page(async () => {
+      const { AdminRequestsPage } = await import('../pages/admin/AdminRequestsPage');
+      return <AdminRequestsPage />;
+    }),
+  },
+  { path: 'requests/find-tutor', element: <Navigate to="/admin/requests" replace /> },
+  {
+    path: 'requests/accept-class',
+    ...page(async () => {
+      const { AdminApplicationsPage } = await import('../pages/admin/AdminApplicationsPage');
+      return <AdminApplicationsPage />;
+    }),
+  },
+  {
+    path: 'applications',
+    ...page(async () => {
+      const { AdminApplicationsPage } = await import('../pages/admin/AdminApplicationsPage');
+      return <AdminApplicationsPage />;
+    }),
+  },
+  {
+    path: 'classes',
+    ...page(async () => {
+      const { AdminClassesPage } = await import('../pages/admin/AdminClassesPage');
+      return <AdminClassesPage />;
+    }),
+  },
+  {
+    path: 'pricing',
+    ...page(async () => {
+      const { AdminPricingPage } = await import('../pages/admin/AdminPricingPage');
+      return <AdminPricingPage />;
+    }),
+  },
+  {
+    path: 'terms/quiz',
+    ...page(async () => {
+      const { AdminTermsQuizPage } = await import('../pages/admin/AdminTermsQuizPage');
+      return <AdminTermsQuizPage />;
+    }),
+  },
+  {
+    path: 'contracts',
+    ...page(async () => {
+      const { AdminClassContractsPage } = await import('../pages/admin/AdminClassContractsPage');
+      return <AdminClassContractsPage />;
+    }),
+  },
+  {
+    path: 'support',
+    ...page(async () => {
+      const { AdminComplaintsPage } = await import('../pages/admin/AdminComplaintsPage');
+      return <AdminComplaintsPage />;
+    }),
+  },
+  {
+    path: 'settings',
+    ...page(async () => {
+      const { AdminSettingsPage } = await import('../pages/admin/AdminSettingsPage');
+      return <AdminSettingsPage />;
+    }),
+  },
+  {
+    path: 'services',
+    ...page(async () => {
+      const { AdminServicesPage } = await import('../pages/admin/AdminServicesPage');
+      return <AdminServicesPage />;
+    }),
+  },
+  {
+    path: 'content/pages',
+    ...page(async () => {
+      const { AdminContentPage } = await import('../pages/admin/AdminContentPage');
+      return <AdminContentPage kind="page" title="Trang thông tin" />;
+    }),
+  },
+  {
+    path: 'content/blog',
+    ...page(async () => {
+      const { AdminContentPage } = await import('../pages/admin/AdminContentPage');
+      return <AdminContentPage kind="blog" title="Bài viết" />;
+    }),
+  },
+  {
+    path: 'content/faq',
+    ...page(async () => {
+      const { AdminContentPage } = await import('../pages/admin/AdminContentPage');
+      return <AdminContentPage kind="faq" title="Câu hỏi thường gặp" />;
+    }),
+  },
+  {
+    path: 'content/contracts',
+    ...page(async () => {
+      const { AdminContentPage } = await import('../pages/admin/AdminContentPage');
+      return <AdminContentPage kind="contract" title="Mẫu hợp đồng" defaultAudience="tutor" />;
+    }),
+  },
+  {
+    path: 'content/terms',
+    ...page(async () => {
+      const { AdminContentPage } = await import('../pages/admin/AdminContentPage');
+      return (
+        <AdminContentPage kind="terms" title="Điều khoản trách nhiệm" defaultAudience="tutor" />
+      );
+    }),
+  },
+  {
+    path: 'content/how-to-accept',
+    ...page(async () => {
+      const { AdminContentPage } = await import('../pages/admin/AdminContentPage');
+      return <AdminContentPage kind="guide" title="Hướng dẫn nhận lớp" defaultAudience="tutor" />;
+    }),
+  },
+  {
+    path: 'reports',
+    ...page(async () => {
+      const { AdminReportsOverviewPage } = await import('../pages/admin/AdminReportsPage');
+      return <AdminReportsOverviewPage />;
+    }),
+  },
+  {
+    path: 'reports/conversion',
+    ...page(async () => {
+      const { AdminConversionPage } = await import('../pages/admin/AdminReportsPage');
+      return <AdminConversionPage />;
+    }),
+  },
+  {
+    path: 'reports/no-tutor',
+    ...page(async () => {
+      const { AdminNoTutorPage } = await import('../pages/admin/AdminReportsPage');
+      return <AdminNoTutorPage />;
+    }),
+  },
+  {
+    path: 'reports/revenue',
+    ...page(async () => {
+      const { AdminRevenuePage } = await import('../pages/admin/AdminReportsPage');
+      return <AdminRevenuePage />;
+    }),
+  },
+  ...pendingRoutes(
+    'moderator',
+    MODERATOR_PENDING.filter(
+      ([path]) =>
+        ![
+          'users',
+          'requests',
+          'requests/find-tutor',
+          'requests/accept-class',
+          'classes',
+          'pricing',
+          'services',
+          'content/blog',
+          'content/faq',
+          'content/contracts',
+          'content/terms',
+          'content/how-to-accept',
+          'reports',
+          'reports/conversion',
+          'reports/no-tutor',
+          'reports/revenue',
+          'support',
+          'settings',
+        ].includes(path),
+    ),
+  ),
   {
     path: 'tutors',
     ...page(async () => {
@@ -267,15 +546,87 @@ export const routes: RouteObject[] = [
     errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <HomePage /> },
-      { path: 'gioi-thieu', element: <PublicInfoPage kind="about" /> },
-      { path: 'dich-vu', element: <PublicInfoPage kind="services" /> },
-      { path: 'bang-gia', element: <PublicInfoPage kind="pricing" /> },
-      { path: 'lop-hoc', element: <PublicInfoPage kind="classes" /> },
+      {
+        path: 'gioi-thieu',
+        ...page(async () => {
+          const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
+          return <PublishedContentPage kind="page" slug="about" fallbackTitle="Giới thiệu" />;
+        }),
+      },
+      {
+        path: 'dich-vu',
+        ...page(async () => {
+          const { PublicServicesPage } = await import('../pages/public/PublicServicesPage');
+          return <PublicServicesPage />;
+        }),
+      },
+      {
+        path: 'bang-gia',
+        ...page(async () => {
+          const { PublicPricingPage } = await import('../pages/public/PublicPricingPage');
+          return <PublicPricingPage />;
+        }),
+      },
+      {
+        path: 'lop-hoc',
+        ...page(async () => {
+          const { PublicClassBrowsePage } = await import('../pages/classes/ClassBrowsePage');
+          return <PublicClassBrowsePage />;
+        }),
+      },
+      {
+        path: 'lop-hoc/:id',
+        ...page(async () => {
+          const { PublicClassDetailPage } = await import('../pages/classes/ClassDetailPage');
+          return <PublicClassDetailPage />;
+        }),
+      },
       { path: 'blog', element: <Navigate to="/blog/phu-huynh" replace /> },
-      { path: 'blog/phu-huynh', element: <PublicInfoPage kind="blog-parent" /> },
-      { path: 'blog/gia-su', element: <PublicInfoPage kind="blog-tutor" /> },
-      { path: 'blog/:category/:id', element: <PublicInfoPage kind="blog-article" /> },
-      { path: 'lien-he', element: <PublicInfoPage kind="contact" /> },
+      {
+        path: 'blog/phu-huynh',
+        ...page(async () => {
+          const { PublishedContentCollectionPage } =
+            await import('../pages/public/PublishedContentPage');
+          return (
+            <PublishedContentCollectionPage
+              kind="blog"
+              slugPrefix="phu-huynh-"
+              title="Tin tức phụ huynh"
+              detailBase="/blog/phu-huynh"
+            />
+          );
+        }),
+      },
+      {
+        path: 'blog/gia-su',
+        ...page(async () => {
+          const { PublishedContentCollectionPage } =
+            await import('../pages/public/PublishedContentPage');
+          return (
+            <PublishedContentCollectionPage
+              kind="blog"
+              slugPrefix="gia-su-"
+              title="Tin tức gia sư"
+              detailBase="/blog/gia-su"
+            />
+          );
+        }),
+      },
+      {
+        path: 'blog/:category/:id',
+        ...page(async () => {
+          const { PublishedBlogArticleRoute } =
+            await import('../pages/public/PublishedContentPage');
+          return <PublishedBlogArticleRoute />;
+        }),
+      },
+      {
+        path: 'lien-he',
+        ...page(async () => {
+          const { PublicContactPage } = await import('../pages/public/PublicContactPage');
+          return <PublicContactPage />;
+        }),
+      },
       { path: 'forgot-password', element: <PublicInfoPage kind="password-help" /> },
       { path: 'login', element: <Navigate to="/sign-in" replace /> },
       { path: 'register', element: <Navigate to="/sign-up" replace /> },

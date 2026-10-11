@@ -10,9 +10,18 @@ afterEach(() => {
 
 describe('public product foundation', () => {
   it('opens a Figma public route from the mobile menu and closes the menu', async () => {
-    mockApi((req) =>
-      req.path === '/me' ? anonymous : req.path === '/subjects' ? { data: [] } : undefined,
-    );
+    mockApi((req) => {
+      if (req.path === '/me') return anonymous;
+      if (req.path === '/subjects') return { data: [] };
+      if (req.path === '/fee-options/published') return { data: [] };
+      if (req.path === '/content/page/pricing?audience=public') {
+        return { status: 404, error: { code: 'CONTENT_NOT_FOUND', message: 'Chưa có nội dung.' } };
+      }
+      if (req.path === '/content?kind=faq&audience=public&page=1&pageSize=12') {
+        return { data: { items: [], page: 1, pageSize: 12, total: 0 } };
+      }
+      return undefined;
+    });
     const { router } = renderRoute('/');
     const user = userEvent.setup();
 
@@ -21,16 +30,22 @@ describe('public product foundation', () => {
     await user.click(within(menu).getByRole('link', { name: 'Bảng giá' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/bang-gia'));
-    expect(screen.getByRole('heading', { name: 'Bảng giá đang được xác nhận' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Phí dịch vụ' })).toBeTruthy();
     expect(screen.queryByRole('navigation', { name: 'Điều hướng di động' })).toBeNull();
-    expect(screen.getByText(/chưa có bảng giá chính thức/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Miễn phí dịch vụ tìm gia sư' })).toBeTruthy();
   });
 
-  it('keeps existing tutor discovery reachable and labels the new class list unavailable', async () => {
-    mockApi((req) => (req.path === '/me' ? anonymous : undefined));
+  it('keeps existing tutor discovery reachable and loads the public class list', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return anonymous;
+      if (req.path === '/subjects') return { data: [] };
+      if (req.path === '/classes?page=1&pageSize=12')
+        return { data: { items: [], total: 0, page: 1, pageSize: 12 } };
+      return undefined;
+    });
     const { router } = renderRoute('/lop-hoc');
     expect(await screen.findByRole('heading', { name: 'Danh sách lớp học' })).toBeTruthy();
-    expect(screen.getByText(/chưa có danh sách lớp để đăng ký trực tuyến/i)).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Chưa có lớp phù hợp' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Tìm gia sư' }).getAttribute('href')).toBe('/tutors');
     expect(router.state.location.pathname).toBe('/lop-hoc');
   });
@@ -42,13 +57,10 @@ describe('public product foundation', () => {
     expect(router.state.location.pathname).toBe('/sign-in');
   });
 
-  it('shows an honest state for an exported article detail path', async () => {
+  it('does not display an article under the wrong category', async () => {
     mockApi((req) => (req.path === '/me' ? anonymous : undefined));
     const { router } = renderRoute('/blog/phu-huynh/unknown-article');
-    expect(await screen.findByRole('heading', { name: 'Bài viết chưa khả dụng' })).toBeTruthy();
-    expect(
-      screen.getByText('Chưa có nội dung bài viết để hiển thị tại đường dẫn này.'),
-    ).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Không tìm thấy bài viết' })).toBeTruthy();
     expect(router.state.location.pathname).toBe('/blog/phu-huynh/unknown-article');
   });
 });

@@ -65,7 +65,7 @@ export function SignUpPage() {
           {(
             [
               ['parent', 'Phụ huynh'],
-              ['tutor', 'Gia sư — tạo hồ sơ và nhận lịch dạy'],
+              ['tutor', 'Gia sư — tạo hồ sơ và ứng tuyển lớp'],
             ] as const
           ).map(([value, label]) => (
             <label
@@ -85,8 +85,8 @@ export function SignUpPage() {
           ))}
         </fieldset>
         <p className="text-sm text-muted">
-          Phụ huynh hiện có thể tìm gia sư và đặt lịch học. Luồng gửi yêu cầu tìm gia sư đang được
-          xây dựng.
+          Phụ huynh có thể gửi yêu cầu tìm gia sư và theo dõi lớp. Gia sư tạo hồ sơ, gửi duyệt và
+          ứng tuyển lớp đã công bố.
         </p>
         <TextField
           label="Họ và tên"

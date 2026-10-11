@@ -1,9 +1,5 @@
-import { useState } from 'react';
 import { useParams } from 'react-router';
-import type { Booking } from '../../../shared/schemas/bookings';
 import { isReadOnlyPreview } from '../../app/preview';
-import { BookingCreatedNotice, BookingRequest } from '../../components/domain/BookingRequest';
-import { SlotPicker, type SelectedSlot } from '../../components/domain/SlotPicker';
 import { teachingModes, TutorAvatar } from '../../components/domain/TutorCard';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
@@ -16,9 +12,6 @@ export function TutorDetailPage() {
   const preview = isReadOnlyPreview();
   const { slug = '' } = useParams();
   const tutor = useTutor(slug);
-  const [selected, setSelected] = useState<SelectedSlot | null>(null);
-  const [booked, setBooked] = useState<{ booking: Booking; timezone: string } | null>(null);
-  const [slotLost, setSlotLost] = useState(false);
 
   if (tutor.isPending) return <PageLoading />;
   if (tutor.isError) {
@@ -84,44 +77,10 @@ export function TutorDetailPage() {
         </h2>
         <p className="max-w-prose whitespace-pre-line text-fg">{data.bio}</p>
       </section>
-      {preview ? (
-        <Alert tone="info" title="Bản xem trước chỉ đọc">
-          Đây là hồ sơ minh họa. Chức năng chọn giờ và đặt lịch chưa mở.
-        </Alert>
-      ) : (
-        <>
-          <SlotPicker
-            tutorId={data.id}
-            selected={selected}
-            onSelect={(slot) => {
-              setBooked(null);
-              setSlotLost(false);
-              setSelected(slot);
-            }}
-          />
-          {booked && <BookingCreatedNotice booking={booked.booking} timezone={booked.timezone} />}
-          {slotLost && (
-            <Alert tone="danger" title="Chưa đặt được lịch">
-              Khung giờ bạn chọn vừa được người khác đặt hoặc không còn trống. Lịch trống đã được
-              tải lại — vui lòng chọn giờ khác.
-            </Alert>
-          )}
-          {selected && (
-            <BookingRequest
-              tutor={data}
-              selected={selected}
-              onBooked={(booking) => {
-                setBooked({ booking, timezone: selected.timezone });
-                setSelected(null);
-              }}
-              onSlotLost={() => {
-                setSelected(null);
-                setSlotLost(true);
-              }}
-            />
-          )}
-        </>
-      )}
+      <Alert tone="info" title="Tìm gia sư theo yêu cầu">
+        Phụ huynh gửi môn học, lớp và lịch mong muốn. Kiểm duyệt viên sẽ điều phối gia sư phù hợp.
+      </Alert>
+      {!preview && <ButtonLink to="/parent/request">Gửi yêu cầu tìm gia sư</ButtonLink>}
     </article>
   );
 }

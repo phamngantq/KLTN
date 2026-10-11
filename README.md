@@ -58,8 +58,8 @@ API dưới `/api/v1/*` luôn do Worker xử lý trước (`run_worker_first`); 
 ## Kiểm thử
 
 - **Unit/integration** (`npm run test -- --run`): project `server` chạy trong Workers runtime với D1 local cô lập theo từng file test; project `client` (jsdom) mock API ở tầng `fetch`.
-- **E2E** (`npm run e2e`): `scripts/e2e-serve.mjs` tạo D1 mới ở `.wrangler/e2e` (migrations + 1 admin chỉ dùng cho E2E), build production rồi chạy `vite preview` :4173; Playwright chạy hành trình đầy đủ gia sư → admin → học viên, kiểm tra viewport 375 px và bàn phím. Lần đầu: `npx playwright install chromium`.
-- **Smoke sau deploy** (`node scripts/smoke.mjs <url> [--admin-email --admin-password]`): kiểm tra luồng thật trên môi trường đã deploy, in SQL dọn dữ liệu smoke.
+- **E2E** (`npm run e2e`): `scripts/e2e-serve.mjs` tạo D1 mới ở `.wrangler/e2e` (migrations + 1 admin chỉ dùng cho E2E), build rồi chạy Worker đã build qua Wrangler dev local tại `127.0.0.1:4173`. Playwright kiểm hành trình phụ huynh → kiểm duyệt viên → gia sư: yêu cầu, lớp, điều khoản, phí, ứng tuyển, gán lớp, liên hệ riêng, hợp đồng và báo cáo PDF; thêm responsive và bàn phím. Lần đầu: `npx playwright install chromium`.
+- **Smoke sau deploy** (`node scripts/smoke.mjs <url>`): chỉ đọc SPA/API công khai, headers bảo mật và quyền truy cập anonymous; không tạo dữ liệu cần dọn.
 - **CI** (`.github/workflows/ci.yml`): secret-scan, format, lint, typecheck, test, build, E2E. Không deploy, không dùng credential Cloudflare.
 
 ## Secrets

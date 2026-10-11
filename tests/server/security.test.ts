@@ -48,7 +48,7 @@ const MATRIX: [string, string, unknown, Record<Role, number>][] = [
     { anon: 401, student: 403, tutor: 422, admin: 403 },
   ],
   ['GET', '/bookings', undefined, { anon: 401, student: 200, tutor: 200, admin: 403 }],
-  ['POST', '/bookings', {}, { anon: 401, student: 422, tutor: 403, admin: 403 }],
+  ['POST', '/bookings', {}, { anon: 401, student: 410, tutor: 403, admin: 403 }],
   [
     'POST',
     `/bookings/${crypto.randomUUID()}/cancel`,
@@ -119,11 +119,14 @@ describe('rate limiting', () => {
     expect((await attempt('203.0.113.8')).status).toBe(401); // other clients unaffected
   });
 
-  it('limits booking creation per student', async () => {
-    const student = await register('student');
+  it('limits tutor applications per tutor', async () => {
+    const tutor = await register('tutor');
+    const classId = crypto.randomUUID();
     const statuses: number[] = [];
     for (let i = 0; i < 21; i++)
-      statuses.push((await api('/bookings', jsonInit('POST', {}, student))).status);
+      statuses.push(
+        (await api(`/classes/${classId}/applications`, jsonInit('POST', {}, tutor))).status,
+      );
     expect(statuses.slice(0, 20).every((s) => s === 422)).toBe(true);
     expect(statuses[20]).toBe(429);
   });

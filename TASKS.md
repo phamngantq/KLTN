@@ -261,72 +261,72 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 
 **Commit:** `feat(requests): add parent tutor requests`.
 
-### [ ] TASK-24 — Publish class listings and accept tutor applications
+### [x] TASK-24 — Publish class listings and accept tutor applications
 **Dependency:** TASK-23.
 
 **Scope:** Lớp công khai/lớp mới, filter/detail, tutor đăng ký/thu hồi ứng tuyển, sở thích lớp phù hợp.
 
 **Deliverables:** Class/application schema, admin create/publish API tối thiểu, public `/lop-hoc`, tutor `/tutor/new-classes` và `/tutor/matched-classes`, tests.
 
-**Implementation:** Class chỉ xuất bản từ dữ liệu admin hợp lệ; che liên hệ/PII học sinh trước khi đủ quyền. Một tutor không có hai ứng tuyển còn hiệu lực cùng lớp; filter/sort deterministic, pagination. Không hiện matchScore/rating mẫu như dữ liệu thật.
+**Implementation:** Class chỉ xuất bản từ dữ liệu admin hợp lệ; che liên hệ/PII học sinh trước khi đủ quyền. Một tutor không có hai ứng tuyển còn hiệu lực cùng lớp; filter/sort deterministic, pagination. DEC-012 yêu cầu đủ ba option phí đã công bố, quiz điều khoản đã đạt và phiên bản đã xác nhận **trước** mutation ứng tuyển; không lấy cờ localStorage làm quyền. Không hiện matchScore/rating mẫu như dữ liệu thật.
 
-**Acceptance tests:** Approved tutor/application RBAC, duplicate/race → 409 không orphan, public DTO không PII, loading/empty/error và lint/typecheck/test/build/D1 local PASS.
+**Acceptance tests:** Approved tutor/application RBAC, terms/quiz/ba option gate phía server, duplicate/race → 409 không orphan, public DTO không PII, loading/empty/error và lint/typecheck/test/build/D1 local PASS.
 
 **Commit:** `feat(classes): publish classes and tutor applications`.
 
-### [ ] TASK-25 — Build admin matching and class assignment
+### [x] TASK-25 — Build admin matching and class assignment
 **Dependency:** TASK-24.
 
-**Scope:** Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển, gán/rút gán gia sư và quản lý trạng thái lớp.
+**Scope:** Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển, gán gia sư, rút gán để mở lại lớp, hoàn tất lớp có lý do và hủy lớp `open` chưa gán theo DEC-015.
 
-**Deliverables:** Admin APIs/UI cho users/requests/classes/accept-class, audit và tests; reuse tutor moderation cũ khi đúng domain.
+**Deliverables:** Admin APIs/UI cho users/requests/classes/accept-class, audit và tests; migration 0014 cho lịch sử lý do hủy lớp; reuse tutor moderation cũ khi đúng domain.
 
-**Implementation:** Server enforce from→to, một assignment active mỗi lớp, optimistic concurrency/atomic D1 batch, lý do từ chối/hủy, thông tin liên hệ chỉ lộ sau transition được duyệt. Không tuyên bố đã gửi notification khi chưa có dịch vụ.
+**Implementation:** Server enforce from→to, một assignment active mỗi lớp, optimistic concurrency/atomic D1 batch, lý do từ chối các đơn còn lại và audit, thông tin liên hệ chỉ lộ cho gia sư được chọn sau commit gán làm lớp active. Theo DEC-014, moderator rút gán kèm lý do làm lớp mở lại, cắt ngay quyền contact của tutor cũ và giữ lịch sử application/fee/contract; moderator hoàn tất lớp kèm lý do, không suy ra buổi học hay thanh toán. Theo DEC-015, moderator hủy lớp `open`/request `sourcing` chưa gán với lý do, đóng cả lớp/request, từ chối các ứng tuyển đang `submitted` và giữ lịch sử; lớp `active` phải rút gán trước, lớp `draft` chưa có action hủy. Không tuyên bố đã gửi notification khi chưa có dịch vụ.
 
-**Acceptance tests:** Ma trận auth/ownership, concurrent assignment, stale action 409, audit actor/reason, không lộ PII, local D1 migration + lint/typecheck/test/build PASS.
+**Acceptance tests:** Ma trận auth/ownership, concurrent assignment, stale action 409, audit actor/reason, rút gán mở lại lớp và cắt contact tức thì, hoàn tất có lý do, hủy lớp open/request sourcing chưa gán đóng cả hai và từ chối đơn đang chờ nhưng giữ lịch sử; lớp active/draft hủy sai trạng thái trả 409, không lộ PII; migration 0014 chạy D1 local, bảng/trigger và FK hợp lệ, lint/typecheck/test/build PASS.
 
 **Commit:** `feat(admin): manage class assignment workflow`.
 
-### [ ] TASK-26 — Complete tutor class lifecycle and terms
+### [x] TASK-26 — Complete tutor class lifecycle and terms
 **Dependency:** TASK-25.
 
-**Scope:** Dashboard/lịch sử/đã nhận lớp, bài kiểm tra điều khoản, chấp nhận/từ chối lớp và hợp đồng theo version.
+**Scope:** Dashboard/lịch sử/lớp được gán, bài kiểm tra điều khoản trước ứng tuyển và hồ sơ hợp đồng theo version. DEC-009 không có bước gia sư chấp nhận lại sau khi admin gán.
 
 **Deliverables:** Tutor class APIs/UI, server-side terms result/acknowledgement, contract records, lifecycle tests.
 
-**Implementation:** Không tin `termsTestPassed`/`pendingClassAccept` trong localStorage; trạng thái, quyền đọc thông tin phụ huynh và version điều khoản được lưu/audit phía server. Phần thu phí chỉ mở khi có policy TASK-20/FIG-016 được phê duyệt.
+**Implementation:** Không tin `termsTestPassed`/`pendingClassAccept` trong localStorage; quiz/acknowledgement đã công bố là gate phía server trước ứng tuyển, hợp đồng theo assignment/version, quyền đọc thông tin phụ huynh và kết quả điều khoản được lưu/audit. Sau rút gán theo DEC-014, tutor cũ mất quyền contact nhưng vẫn thấy lịch sử ứng tuyển, option phí và hợp đồng theo quyền. Phần thu phí chỉ mở khi có policy G3/FIG-016 và dịch vụ xác nhận được phê duyệt.
 
-**Acceptance tests:** Role/ownership/terms gating, idempotent action, stale 409, không báo thanh toán/email thành công giả; lint/typecheck/test/build PASS.
+**Acceptance tests:** Role/ownership/terms gating, idempotent action, stale 409, cắt contact sau rút gán nhưng giữ lịch sử, không báo thanh toán/email thành công giả; lint/typecheck/test/build PASS.
 
 **Commit:** `feat(tutors): manage accepted classes and terms`.
 
-### [ ] TASK-27 — Add approved content, services and fee presentation
+### [x] TASK-27 — Add approved content, services and fee presentation
 **Dependency:** TASK-26.
 
 **Scope:** Public/parent/tutor pages giới thiệu, dịch vụ, blog, liên hệ, FAQ/hướng dẫn và admin content/pricing management.
 
 **Deliverables:** Content/service/fee schema và API, draft/publish UI, ảnh dùng hợp lệ, public pages theo export, tests.
 
-**Implementation:** Chỉ công bố copy/địa chỉ/hotline/bảng giá đã duyệt; phí do server tính từ policy, giá đã công bố có version/effective date. CTA trả tiền chỉ hoạt động với chính sách/đối tác/xác nhận giao dịch được duyệt; nếu chưa có, phải được product owner chấp thuận ẩn/hoãn CTA và hiển thị tình trạng trung thực. Không tự thêm gateway.
+**Implementation:** Chỉ công bố copy/địa chỉ/hotline Hà Nội và bảng giá đã duyệt; phụ huynh tìm gia sư miễn phí, mức học phí dự kiến không phải phí dịch vụ. Ba loại option phí gia sư do moderator publish có version/effective date và số liệu theo policy được duyệt; không seed số tiền giả. CTA trả tiền chỉ hoạt động với chính sách/đối tác/xác nhận giao dịch được duyệt; nếu chưa có, ẩn/hoãn CTA và hiển thị tình trạng trung thực. Không tự thêm gateway.
 
 **Acceptance tests:** Không có CRUD chỉ đổi `useState`/toast; admin-only mutation, public chỉ thấy published, input/upload validation, không có giá hoặc bank info mẫu trong production; lint/typecheck/test/build PASS.
 
 **Commit:** `feat(content): publish service and pricing content`.
 
-### [ ] TASK-28 — Implement complaints and sensitive-data controls
+### [x] TASK-28 — Implement complaints and sensitive-data controls
 **Dependency:** TASK-27.
 
 **Scope:** Khiếu nại parent/tutor/admin, xóa tài khoản và contact riêng theo DEC-010, file đính kèm nếu storage/policy được duyệt, hồ sơ xác minh gia sư nếu cần.
 
-**Deliverables:** Complaint state machine/API/UI, audit, account deletion và PII purge giữ lịch sử không PII, access/retention controls, tests.
+**Deliverables:** Complaint state machine/API/UI, audit, account deletion và PII purge giữ lịch sử không PII, migration 0015 redaction/backfill cho lịch sử tài khoản đã xóa, access/retention controls, tests.
 
-**Implementation:** Thống nhất status giữa page user/admin; xóa contact riêng, PII hồ sơ và vô hiệu hóa session khi xóa tài khoản, xử lý FK để giữ lịch sử nghiệp vụ không PII. Che PII và tài liệu học sinh/CCCD theo role, kiểm file size/type, không public raw upload. Không tạo storage remote khi chưa được phép.
+**Implementation:** Thống nhất status giữa page user/admin; chặn xóa tài khoản bằng 409 có lý do/audit nếu còn booking `PENDING/CONFIRMED` hoặc yêu cầu/lớp/đơn/gán đang xử lý (DEC-013), không tự hủy cam kết. Khi đủ điều kiện, một D1 transaction xóa contact riêng, PII hồ sơ/credential/session và ẩn danh free text, gồm lý do lifecycle/cancellation, rejection reason, complaint text và audit metadata liên quan, giữ ID/FK/lịch sử nghiệp vụ không PII bằng tombstone; không cho tái kích hoạt. Migration 0015 backfill các account có tombstone từ trước nhưng không đổi ID/actor/status/time. Che PII theo role. Hoãn upload giấy tờ/đính kèm tới khi có storage và policy retention, không tạo storage remote khi chưa được phép.
 
-**Acceptance tests:** Owner/admin access, transition 409, account deletion xóa contact/PII/session nhưng giữ lịch sử không PII, file authorization nếu có, retention/empty/error states và lint/typecheck/test/build PASS.
+**Acceptance tests:** Owner/admin access, transition 409, account deletion 409 khi còn nghĩa vụ và audit, xóa contact/PII/session khi đủ điều kiện nhưng giữ lịch sử không PII, tombstone không tái kích hoạt; fixture tombstone trước 0015 được backfill free text và trigger chỉ cho redaction sau tombstone, giữ ID/actor/status/time; D1 local migration/FK, retention/empty/error states và lint/typecheck/test/build PASS. File authorization chỉ kiểm khi upload được duyệt.
 
 **Commit:** `feat(support): add complaint workflow and privacy controls`.
 
-### [ ] TASK-29 — Back dashboards and reports with real data
+### [x] TASK-29 — Back dashboards and reports with real data
 **Dependency:** TASK-28.
 
 **Scope:** Parent/tutor/admin dashboard và báo cáo conversion, lớp thiếu gia sư, doanh thu theo dữ liệu được phép.
@@ -339,7 +339,7 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 
 **Commit:** `feat(reports): add verified product dashboards`.
 
-### [ ] TASK-30 — Verify complete Figma-target journeys and release readiness
+### [x] TASK-30 — Verify complete Figma-target journeys and release readiness
 **Dependency:** TASK-29.
 
 **Scope:** E2E parent→admin→tutor→class, security/privacy, responsive/a11y/visual QA và cập nhật runbook cho sản phẩm mới.

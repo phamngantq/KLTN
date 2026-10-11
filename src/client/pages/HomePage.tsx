@@ -30,15 +30,15 @@ export function HomePage() {
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg text-on-primary/90">
             {preview
-              ? 'Khám phá giao diện với hồ sơ minh họa. Bản xem trước chưa nhận đăng ký, yêu cầu tìm gia sư hoặc đặt lịch.'
-              : 'Khám phá hồ sơ gia sư hiện có. Luồng gửi yêu cầu tìm gia sư và nhận lớp theo bản thiết kế mới đang được xây dựng.'}
+              ? 'Bản xem trước chỉ đọc. Bạn có thể xem các thông tin đã được công bố.'
+              : 'Phụ huynh gửi nhu cầu học tập. Gia sư xem lớp, hoàn thành điều khoản và ứng tuyển; kiểm duyệt viên điều phối lớp.'}
           </p>
           <div className="mt-8 flex flex-wrap justify-center gap-3">
-            <ButtonLink to="/tutors" variant="accent">
-              {preview ? 'Xem hồ sơ minh họa' : 'Xem gia sư hiện có'}
+            <ButtonLink to={preview ? '/lop-hoc' : '/parent/request'} variant="accent">
+              {preview ? 'Xem lớp học' : 'Gửi yêu cầu tìm gia sư'}
             </ButtonLink>
-            <ButtonLink to="/gioi-thieu" variant="secondary">
-              Tìm hiểu nền tảng
+            <ButtonLink to="/lop-hoc" variant="secondary">
+              Xem lớp học
             </ButtonLink>
           </div>
         </div>
@@ -68,9 +68,11 @@ export function HomePage() {
             <p className="mt-2 text-muted">
               Gửi nhu cầu học tập, theo dõi yêu cầu và kết nối với gia sư phù hợp.
             </p>
-            <p className="mt-4 rounded-md bg-info-surface p-3 text-sm text-primary">
-              Chức năng gửi yêu cầu đang được triển khai.
-            </p>
+            {!preview && (
+              <ButtonLink to="/parent/request" variant="secondary" className="mt-4">
+                Gửi yêu cầu
+              </ButtonLink>
+            )}
             {user?.role === 'student' && (
               <ButtonLink to="/parent" variant="secondary" className="mt-4">
                 Xem khu vực phụ huynh
@@ -86,10 +88,7 @@ export function HomePage() {
             </span>
             <h3 className="mt-4 text-2xl font-semibold text-primary">Gia sư</h3>
             <p className="mt-2 text-muted">
-              Tạo hồ sơ, xem lớp phù hợp và đăng ký nhận lớp khi luồng mới hoàn thành.
-            </p>
-            <p className="mt-4 rounded-md bg-info-surface p-3 text-sm text-primary">
-              Hồ sơ gia sư hiện dùng được; đăng ký lớp chưa mở.
+              Tạo hồ sơ, xem lớp phù hợp, xác nhận điều khoản và ứng tuyển nhận lớp.
             </p>
             {!user && !preview && (
               <ButtonLink to="/sign-up?role=tutor" variant="secondary" className="mt-4">
@@ -97,8 +96,8 @@ export function HomePage() {
               </ButtonLink>
             )}
             {user?.role === 'tutor' && !preview && (
-              <ButtonLink to="/tutor/profile" variant="secondary" className="mt-4">
-                Xem hồ sơ của tôi
+              <ButtonLink to="/tutor/new-classes" variant="secondary" className="mt-4">
+                Xem lớp mới
               </ButtonLink>
             )}
           </article>
@@ -113,15 +112,15 @@ export function HomePage() {
             </h2>
             <p className="mt-3 max-w-prose text-muted">
               {preview
-                ? 'Hồ sơ gia sư ở đây là dữ liệu minh họa để xem giao diện, không phải gia sư đang nhận lớp.'
-                : 'Bạn có thể xem hồ sơ gia sư đã được duyệt theo môn học. Đây là chức năng đang hoạt động trong hệ thống hiện tại.'}
+                ? 'Hồ sơ hiển thị trong bản xem trước chỉ để tham khảo.'
+                : 'Xem hồ sơ gia sư đã được duyệt theo môn học; gửi yêu cầu để kiểm duyệt viên điều phối lớp.'}
             </p>
             {!user && !preview && (
               <p className="mt-5 text-sm text-muted">
                 <ButtonLink to="/sign-up" variant="ghost">
                   Tạo tài khoản
                 </ButtonLink>{' '}
-                cho luồng đặt lịch hiện tại.
+                để gửi yêu cầu tìm gia sư.
               </p>
             )}
           </div>

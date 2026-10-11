@@ -22,7 +22,8 @@ export async function newPage(
 }
 
 export async function signUp(page: Page, role: 'student' | 'tutor', name: string, email: string) {
-  await page.goto('/sign-up');
+  const response = await page.goto('/sign-up');
+  expect(response?.status(), 'sign-up navigation failed').toBe(200);
   await page.getByLabel(role === 'tutor' ? /Gia sư — tạo hồ sơ/ : /Phụ huynh/).check();
   await page.getByLabel(/Họ và tên/).fill(name);
   await page.getByLabel(/^Email/).fill(email);
@@ -32,7 +33,8 @@ export async function signUp(page: Page, role: 'student' | 'tutor', name: string
 }
 
 export async function signIn(page: Page, email: string, password = PASSWORD) {
-  await page.goto('/sign-in');
+  const response = await page.goto('/sign-in');
+  expect(response?.status(), 'sign-in navigation failed').toBe(200);
   await page.getByLabel(/^Email/).fill(email);
   await page.getByLabel(/^Mật khẩu/).fill(password);
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
