@@ -114,7 +114,7 @@
 **Acceptance tests:** add closure on holiday; one-off extra window; invalid date/window rejected; ownership; form edits round-trip persisted; responsive/keyboard.  
 **Commit:** `feat(schedule): add exceptions and weekly schedule editor`.
 
-### [ ] TASK-10 — Available slot projection API + public picker
+### [x] TASK-10 — Available slot projection API + public picker
 **Dependency:** TASK-09.  
 **Scope:** Read-only slot generation.  
 **Deliverables:** `GET /api/v1/tutors/:id/slots?from=...&to=...&duration=...`, slot service, client picker with timezone text, tests.  

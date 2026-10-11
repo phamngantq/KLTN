@@ -127,3 +127,40 @@ export interface AffectedBookings {
 
 export type WeeklyAvailabilitySaveResult = WeeklyAvailability & AffectedBookings;
 export type ExceptionSaveResult = { exception: AvailabilityException } & AffectedBookings;
+
+/** Booking/slot rules (TASKS.md §A.5). */
+export const BOOKING_DURATIONS = [30, 60, 90, 120] as const;
+export type BookingDuration = (typeof BOOKING_DURATIONS)[number];
+export const DEFAULT_DURATION: BookingDuration = 60;
+export const SLOT_HORIZON_DAYS = 30;
+
+export const slotQuerySchema = z
+  .object({
+    from: localDateSchema.optional(),
+    to: localDateSchema.optional(),
+    duration: z.coerce
+      .number()
+      .refine((v): v is BookingDuration => (BOOKING_DURATIONS as readonly number[]).includes(v), {
+        message: 'Thời lượng phải là 30, 60, 90 hoặc 120 phút.',
+      })
+      .default(DEFAULT_DURATION),
+  })
+  .refine((q) => !q.from || !q.to || q.from <= q.to, {
+    message: 'Khoảng ngày không hợp lệ.',
+    path: ['to'],
+  });
+export type SlotQuery = z.infer<typeof slotQuerySchema>;
+
+export interface Slot {
+  startUtc: string;
+  endUtc: string;
+}
+
+export interface SlotList {
+  tutorId: string;
+  timezone: string;
+  duration: BookingDuration;
+  from: string;
+  to: string;
+  slots: Slot[];
+}

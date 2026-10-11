@@ -1,15 +1,18 @@
+import { useState } from 'react';
 import { useParams } from 'react-router';
+import { SlotPicker, type SelectedSlot } from '../../components/domain/SlotPicker';
 import { teachingModes, TutorAvatar } from '../../components/domain/TutorCard';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useTutor } from '../../features/discovery/api';
 import { isApiError } from '../../lib/api-client';
-import { formatVnd } from '../../lib/format';
+import { formatDate, formatTimeRange, formatVnd } from '../../lib/format';
 
 export function TutorDetailPage() {
   const { slug = '' } = useParams();
   const tutor = useTutor(slug);
+  const [selected, setSelected] = useState<SelectedSlot | null>(null);
 
   if (tutor.isPending) return <PageLoading />;
   if (tutor.isError) {
@@ -69,6 +72,26 @@ export function TutorDetailPage() {
         </h2>
         <p className="max-w-prose whitespace-pre-line text-fg">{data.bio}</p>
       </section>
+      <SlotPicker tutorId={data.id} selected={selected} onSelect={setSelected} />
+      {selected && (
+        <section
+          aria-labelledby="selection-heading"
+          className="sticky bottom-0 flex flex-col gap-2 rounded-lg border border-primary bg-bg p-4 shadow-card"
+        >
+          <h2 id="selection-heading" className="font-semibold">
+            Khung giờ đã chọn
+          </h2>
+          <p>
+            <span className="capitalize">{formatDate(selected.startUtc, selected.timezone)}</span>,{' '}
+            {formatTimeRange(selected.startUtc, selected.endUtc, selected.timezone)} (
+            {selected.duration} phút)
+          </p>
+          <p>
+            Học phí dự kiến:{' '}
+            <strong>{formatVnd((data.hourlyRateMinor * selected.duration) / 60)}</strong>
+          </p>
+        </section>
+      )}
     </article>
   );
 }

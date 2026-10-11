@@ -117,3 +117,40 @@ export function cellsOf(startMs: number, endMs: number): number[] {
   for (let t = startMs; t < endMs; t += SLOT_MINUTES * 60_000) cells.push(t);
   return cells;
 }
+
+export interface SlotProjectionInput {
+  rules: readonly WeeklyRuleLike[];
+  exceptions: readonly ExceptionLike[];
+  /** UTC epoch-ms of 30-minute cells already claimed by active bookings. */
+  claimed: ReadonlySet<number>;
+  fromDate: string;
+  toDate: string;
+  timeZone: string;
+  durationMinutes: number;
+  now: Date;
+}
+
+/**
+ * Bookable start instants: every run of `duration / 30` consecutive open, unclaimed, future
+ * cells. Pure — the booking API re-runs it server-side; the UI only displays it.
+ */
+export function projectSlots(input: SlotProjectionInput): { startMs: number; endMs: number }[] {
+  const cellMs = SLOT_MINUTES * 60_000;
+  const needed = input.durationMinutes / SLOT_MINUTES;
+  const nowMs = input.now.getTime();
+  const open = openCellsUtc(
+    input.fromDate,
+    input.toDate,
+    input.rules,
+    input.exceptions,
+    input.timeZone,
+  );
+  const free = new Set([...open].filter((cell) => cell >= nowMs && !input.claimed.has(cell)));
+  const slots: { startMs: number; endMs: number }[] = [];
+  for (const start of [...free].sort((a, b) => a - b)) {
+    let ok = true;
+    for (let i = 1; i < needed && ok; i++) ok = free.has(start + i * cellMs);
+    if (ok) slots.push({ startMs: start, endMs: start + needed * cellMs });
+  }
+  return slots;
+}
