@@ -94,3 +94,4 @@ Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md) (`node scripts/grant-admin.mj
 |---|---|---|
 | 2026-10-11 | Tạo D1 `tutor-matching-staging` (APAC); migration 0001; deploy bản backend (auth + availability) | smoke auth/CSRF/PBKDF2 OK |
 | 2026-10-11 | Migration 0002–0004; deploy toàn bộ tính năng (TASK-01→16) | `scripts/smoke.mjs` 24/24 PASS; dữ liệu smoke đã xóa |
+| 2026-10-11 | Theo runbook: không có migration mới; bookmark `00000005-00000000-00005101-4d00e11e0cc6c5c75ca205e4e70ebdb7`; `npm run deploy:staging` (route splitting, rate-limit ns 1101/1102) | smoke 24/24 PASS; Chromium headless: `/`, `/tutors`, `/sign-in` render, không lỗi CSP; dữ liệu smoke đã xóa (0 user/booking/claim) |
