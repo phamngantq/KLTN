@@ -27,6 +27,7 @@ function profile(overrides: Partial<TutorProfile> = {}): TutorProfile {
     subjects: [SUBJECTS[0]!],
     approvalStatus: 'draft',
     visibility: 'private',
+    moderationNote: null,
     missing: [],
     ...overrides,
   };

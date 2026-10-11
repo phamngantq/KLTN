@@ -50,6 +50,8 @@ export interface TutorProfile {
   subjects: Subject[];
   approvalStatus: ApprovalStatus;
   visibility: Visibility;
+  /** Admin's reason when the profile was rejected or hidden. */
+  moderationNote: string | null;
   missing: ProfileRequirement[];
 }
 

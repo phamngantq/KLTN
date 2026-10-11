@@ -19,6 +19,7 @@ const NAV: { to: string; label: string; roles: readonly (UserRole | 'guest')[] }
   { to: '/tutor/bookings', label: 'Yêu cầu đặt lịch', roles: ['tutor'] },
   { to: '/tutor/availability', label: 'Lịch dạy', roles: ['tutor'] },
   { to: '/tutor/profile', label: 'Hồ sơ gia sư', roles: ['tutor'] },
+  { to: '/admin/tutors', label: 'Duyệt gia sư', roles: ['admin'] },
   { to: '/account', label: 'Tài khoản', roles: ['student', 'tutor', 'admin'] },
 ];
 

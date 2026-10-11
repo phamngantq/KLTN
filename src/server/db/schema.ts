@@ -85,10 +85,12 @@ export const tutorProfiles = sqliteTable(
     approvalStatus: text('approval_status', { enum: APPROVAL_STATUSES }).notNull().default('draft'),
     visibility: text('visibility', { enum: VISIBILITIES }).notNull().default('private'),
     ...timestamps(),
+    moderationNote: text('moderation_note'),
   },
   (t) => [
     uniqueIndex('tutor_profiles_slug_uq').on(t.slug),
     index('tutor_profiles_public_rate_idx').on(t.approvalStatus, t.visibility, t.hourlyRateMinor),
+    index('tutor_profiles_moderation_idx').on(t.approvalStatus, t.updatedAt),
   ],
 );
 

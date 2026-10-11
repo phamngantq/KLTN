@@ -154,7 +154,7 @@
 **Acceptance tests:** student sees own only, tutor sees own, statuses update after server response, actions obey permissions, no cross-account data leaks, mobile tests.  
 **Commit:** `feat(dashboard): add tutor and student booking views`.
 
-### [ ] TASK-15 — Admin tutor approval and audit UI
+### [x] TASK-15 — Admin tutor approval and audit UI
 **Dependency:** TASK-14.  
 **Scope:** Admin approval queue and server authorization.  
 **Deliverables:** `GET /api/v1/admin/tutors`, `POST /api/v1/admin/tutors/:id/{approve,reject,hide}`, admin UI, audit tests.  

@@ -44,6 +44,7 @@ export function findProfileRow(db: Db, userId: string) {
       teachesOffline: tutorProfiles.teachesOffline,
       approvalStatus: tutorProfiles.approvalStatus,
       visibility: tutorProfiles.visibility,
+      moderationNote: tutorProfiles.moderationNote,
     })
     .from(tutorProfiles)
     .innerJoin(users, eq(users.id, tutorProfiles.userId))

@@ -150,7 +150,16 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
           <Badge tone={STATUS_TONE[status]}>{APPROVAL_STATUS_LABELS[status]}</Badge>
           {profile?.visibility === 'public' && <Badge tone="success">Đang công khai</Badge>}
         </div>
-        <p className="text-sm text-muted">{STATUS_HELP[status]}</p>
+        <p className="text-sm text-muted">
+          {status === 'approved' && profile?.visibility === 'private'
+            ? 'Hồ sơ đã được duyệt nhưng đang bị ẩn khỏi tìm kiếm.'
+            : STATUS_HELP[status]}
+        </p>
+        {profile?.moderationNote && (status === 'rejected' || profile.visibility === 'private') && (
+          <Alert tone="warning" title="Phản hồi từ quản trị viên">
+            {profile.moderationNote}
+          </Alert>
+        )}
         {submitBlocker !== null && (
           <div className="flex flex-col items-start gap-2">
             <Button

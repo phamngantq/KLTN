@@ -18,7 +18,7 @@ export function homePathFor(role: UserRole): string {
     case 'tutor':
       return '/tutor/bookings';
     case 'admin':
-      return '/account';
+      return '/admin/tutors';
   }
 }
 

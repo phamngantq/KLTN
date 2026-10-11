@@ -1,5 +1,6 @@
 import type { RouteObject } from 'react-router';
 import { AccountPage } from '../pages/AccountPage';
+import { AdminTutorsPage } from '../pages/admin/AdminTutorsPage';
 import { SignInPage } from '../pages/auth/SignInPage';
 import { SignUpPage } from '../pages/auth/SignUpPage';
 import { TutorDetailPage } from '../pages/discovery/TutorDetailPage';
@@ -61,6 +62,14 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole roles={['tutor']}>
             <TutorBookingsPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'admin/tutors',
+        element: (
+          <RequireRole roles={['admin']}>
+            <AdminTutorsPage />
           </RequireRole>
         ),
       },
