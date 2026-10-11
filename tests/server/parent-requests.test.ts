@@ -59,6 +59,7 @@ describe('parent find-tutor requests', () => {
       { parentId: tutor.userId },
       { status: 'submitted' },
       { code: 'YC-000001' },
+      { agreedTuitionPerSessionMinor: 1 },
       { childName: 'Private child' },
       { cccd: '012345678901' },
     ]) {
@@ -82,6 +83,7 @@ describe('parent find-tutor requests', () => {
       contactAddress: VALID.contactAddress,
       contactConsentAt: null,
       contactConsentVersion: null,
+      agreedTuitionPerSessionMinor: null,
       schedule: VALID.schedule,
     });
 
@@ -93,6 +95,7 @@ describe('parent find-tutor requests', () => {
     expect(JSON.stringify(page.items)).not.toContain(VALID.contactPhone);
     expect(JSON.stringify(page.items)).not.toContain(VALID.contactAddress);
     expect(JSON.stringify(page.items)).not.toContain('contactConsent');
+    expect(JSON.stringify(page.items)).not.toContain('agreedTuitionPerSessionMinor');
 
     const own = await api(`${PATH}/${request.id}`, { headers: { Cookie: parent.cookie } });
     expect((await data(own)).contactPhone).toBe(VALID.contactPhone);

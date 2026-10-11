@@ -3,6 +3,7 @@ import {
   assignClassSchema,
   cancelClassSchema,
   classLifecycleActionSchema,
+  recordAssignmentTuitionSchema,
   tutorAssignmentListSchema,
   type AdminAssignment,
   type AssignedParentContact,
@@ -15,7 +16,12 @@ import { ok } from '../../lib/respond';
 import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
-import { assignClass, getAssignedContact, listTutorAssignments } from './assignments-service';
+import {
+  assignClass,
+  getAssignedContact,
+  listTutorAssignments,
+  recordAssignmentTuition,
+} from './assignments-service';
 import {
   cancelOpenClass,
   getClassLifecycle,
@@ -50,6 +56,17 @@ adminAssignmentRoutes.post('/:id/cancel', async (c) => {
   return ok<ClassLifecycle>(
     c,
     await cancelOpenClass(c.env.DB, authOf(c).user.id, c.req.param('id'), input),
+  );
+});
+
+/** Mount at /api/v1/admin/assignments; only legacy active rows can be recorded. */
+export const adminAssignmentTuitionRoutes = new Hono<AppEnv>();
+adminAssignmentTuitionRoutes.use('*', requireRole('admin'));
+adminAssignmentTuitionRoutes.post('/:id/tuition', async (c) => {
+  const input = await parseJsonBody(c, recordAssignmentTuitionSchema);
+  return ok<AdminAssignment>(
+    c,
+    await recordAssignmentTuition(c.var.db, authOf(c).user.id, c.req.param('id'), input),
   );
 });
 

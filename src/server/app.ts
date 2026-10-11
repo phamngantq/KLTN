@@ -11,7 +11,11 @@ import { authRoutes, meRoutes } from './modules/auth/routes';
 import { tutorAvailabilityRoutes } from './modules/availability/routes';
 import { adminRoutes } from './modules/admin/routes';
 import { accountDeletionRoutes } from './modules/account-deletion/routes';
-import { adminAssignmentRoutes, tutorAssignmentRoutes } from './modules/admin/assignments-routes';
+import {
+  adminAssignmentRoutes,
+  adminAssignmentTuitionRoutes,
+  tutorAssignmentRoutes,
+} from './modules/admin/assignments-routes';
 import { adminContentRoutes, contentRoutes } from './modules/content/routes';
 import { bookingRoutes } from './modules/bookings/routes';
 import {
@@ -115,6 +119,7 @@ export function createApp() {
   api.route('/admin/pricing', adminPricingRoutes);
   api.route('/admin', adminTermsContractRoutes);
   api.route('/admin/classes', adminAssignmentRoutes);
+  api.route('/admin/assignments', adminAssignmentTuitionRoutes);
   api.route('/admin/content', adminContentRoutes);
   api.route('/admin/reports', adminReportRoutes);
   api.route('/admin/complaints', adminComplaintRoutes);

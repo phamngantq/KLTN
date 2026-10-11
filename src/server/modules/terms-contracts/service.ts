@@ -466,6 +466,7 @@ interface ContractRow {
   fee_policy_text: string;
   rate_basis_points: number;
   deposit_basis_points: number | null;
+  agreed_tuition_per_session_minor: number | null;
   issued_at: string;
   acknowledged_at: string | null;
 }
@@ -474,6 +475,7 @@ const contractSelect = `SELECT r.id, r.assignment_id, r.class_id, cl.code AS cla
   c.revision AS contract_revision, c.title AS contract_title, c.body_text AS contract_body_text,
   r.fee_option_version_id, f.option_key AS fee_option_key, f.title AS fee_option_title,
   f.policy_text AS fee_policy_text, f.rate_basis_points, f.deposit_basis_points,
+  r.agreed_tuition_per_session_minor,
   r.issued_at, r.acknowledged_at
   FROM class_contract_records r
   JOIN class_listings cl ON cl.id = r.class_id
@@ -499,6 +501,7 @@ function contract(row: ContractRow): ClassContractRecord {
     feePolicyText: row.fee_policy_text,
     rateBasisPoints: row.rate_basis_points,
     depositBasisPoints: row.deposit_basis_points,
+    agreedTuitionPerSessionMinor: row.agreed_tuition_per_session_minor,
     issuedAt: row.issued_at,
     acknowledgedAt: row.acknowledged_at,
   };
@@ -610,7 +613,7 @@ export async function issueContract(
   const assignment = await db
     .prepare(
       `SELECT a.class_id, a.tutor_user_id, a.version,
-    a.status, t.fee_option_version_id
+    a.status, a.agreed_tuition_per_session_minor, t.fee_option_version_id
     FROM class_assignments a JOIN tutor_applications t ON t.id = a.application_id
     JOIN class_listings c ON c.id = a.class_id
     WHERE a.id = ? AND c.status = 'active'`,
@@ -621,11 +624,18 @@ export async function issueContract(
       tutor_user_id: string;
       version: number;
       status: string;
+      agreed_tuition_per_session_minor: number | null;
       fee_option_version_id: string;
     }>();
   if (!assignment) throw new AppError(404, 'ASSIGNMENT_NOT_FOUND', 'Không tìm thấy lớp được gán.');
   if (assignment.status !== 'active' || assignment.version !== input.assignmentVersion)
     throw new AppError(409, 'ASSIGNMENT_STALE', 'Lớp được gán đã thay đổi.');
+  if (assignment.agreed_tuition_per_session_minor === null)
+    throw new AppError(
+      409,
+      'CONTRACT_TUITION_UNRECORDED',
+      'Cần ghi nhận học phí đã chốt trước khi phát hành hợp đồng.',
+    );
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   try {
@@ -634,8 +644,9 @@ export async function issueContract(
         .prepare(
           `INSERT INTO class_contract_records
         (id, assignment_id, class_id, tutor_user_id, fee_option_version_id,
-         contract_content_revision_id, status, version, issued_by, issued_at, acknowledged_at, mutation_id)
-        VALUES (?, ?, ?, ?, ?, ?, 'issued', 1, ?, ?, NULL, ?)`,
+         contract_content_revision_id, agreed_tuition_per_session_minor,
+         status, version, issued_by, issued_at, acknowledged_at, mutation_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'issued', 1, ?, ?, NULL, ?)`,
         )
         .bind(
           id,
@@ -644,6 +655,7 @@ export async function issueContract(
           assignment.tutor_user_id,
           assignment.fee_option_version_id,
           content.id,
+          assignment.agreed_tuition_per_session_minor,
           actorId,
           now,
           crypto.randomUUID(),

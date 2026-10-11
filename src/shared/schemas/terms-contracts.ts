@@ -147,6 +147,8 @@ export interface ClassContractRecord {
   feePolicyText: string;
   rateBasisPoints: number;
   depositBasisPoints: number | null;
+  /** Snapshot in VND per lesson; null only for contracts issued before tuition capture. */
+  agreedTuitionPerSessionMinor: number | null;
   issuedAt: string;
   acknowledgedAt: string | null;
 }

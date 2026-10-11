@@ -148,6 +148,7 @@ Các mục E1–E5 mô tả luồng tutor discovery/slot booking của MVP đã 
 ### E6. Phụ huynh tạo yêu cầu tìm gia sư (mục tiêu `./figma`)
 - `/parent` và `/parent/request` là cùng luồng; form gồm môn/lớp, khu vực, hình thức, mức học phí dự kiến, lịch mong muốn hoặc “Trao đổi sau”, yêu cầu khác và thông tin học sinh tối thiểu.
 - Phụ huynh tìm gia sư miễn phí theo DEC-012; mức học phí dự kiến là ngân sách học, không phải khoản phí nền tảng phải trả.
+- Chi tiết yêu cầu riêng của phụ huynh phân biệt ngân sách dự kiến với học phí đã chốt theo buổi sau khi gán; danh sách lớp công khai không tiết lộ mức đã chốt.
 - Trước khi gửi, parent tự đánh dấu checkbox consent mặc định bỏ chọn, nêu rõ điện thoại/địa chỉ chỉ được chia sẻ với gia sư được kiểm duyệt viên gán; server kiểm tra và lưu version/thời điểm theo DEC-010.
 - Danh sách/chi tiết/tabs hiển thị trạng thái do API trả về; không lấy `MOCK` trong export làm dữ liệu thật. Phụ huynh sở hữu và kiểm duyệt viên được xem dữ liệu riêng theo quyền; gia sư được kiểm duyệt viên đề xuất chỉ xem thông tin liên hệ cần thiết qua API kiểm tra quyền, theo DEC-009.
 - Khi lỗi submit, giữ giá trị form và thông báo tại field; khi thành công, hiển thị mã yêu cầu/trạng thái server trả về.
@@ -157,9 +158,11 @@ Các mục E1–E5 mô tả luồng tutor discovery/slot booking của MVP đã 
 - Trước khi cho gửi ứng tuyển, UI hiển thị phiên bản điều khoản và quiz đã công bố, kết quả đạt/xác nhận từ API, cùng **đủ ba phương án phí** do moderator công bố (tỷ lệ buổi đầu, số buổi kèm đặt cọc, tỷ lệ học phí tháng). Gia sư chọn một option còn hiệu lực; không hiển thị mức phí mẫu như giá thật.
 - Chỉ hiển thị PII phụ huynh sau transition được phép; hồ sơ/điều khoản/điều kiện nhận lớp được server kiểm tra. Không dùng `termsTestPassed` trong localStorage làm quyền.
 - Trạng thái ứng tuyển/rút/được gán cần message thật, 409 stale và retry hợp lệ. Khi moderator gán, lớp hoạt động ngay và đúng gia sư được chọn xem liên hệ qua API; UI không yêu cầu gia sư chấp nhận lớp lần nữa hoặc báo đã thanh toán. Sau rút gán, tutor cũ không còn được xem contact; lịch sử ứng tuyển/option phí/hợp đồng vẫn xem theo quyền.
+- Lớp đã gán và hợp đồng của gia sư hiển thị học phí đã chốt theo buổi từ API; lịch sử gán giữ mức của từng lần, không dùng ngân sách dự kiến để lấp giá trị cũ chưa ghi nhận.
 
 ### E8. Quản trị yêu cầu và lớp
 - Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển và gán gia sư; mỗi mutation cần xác nhận khi cần, audit actor/reason và render kết quả API. Rút gán phải nhập lý do, mở lại lớp để chọn tutor khác và cắt contact tutor cũ ngay; hoàn tất lớp phải có lý do. Hủy lớp chờ policy riêng; không đổi trạng thái bằng state client.
+- Trong thao tác gán, kiểm duyệt viên phải nhập học phí đã chốt theo buổi và xác nhận các bên đã đồng ý. Sau khi gán, mức này chỉ đọc; với gán cũ chưa có giá trị, kiểm duyệt viên có thể ghi một lần trước khi phát hành hợp đồng. Hợp đồng hiển thị snapshot học phí tại lúc phát hành, kể cả khi lớp được gán lại.
 - Một lớp chỉ có một assignment active theo domain contract. Không hiện match score, rating hoặc notification đã gửi từ mock export.
 - Admin công bố phiên bản điều khoản/quiz và đủ ba phương án phí trước khi ứng tuyển được mở; trang nội dung/bảng giá, hỗ trợ và báo cáo chỉ công bố dữ liệu được duyệt và có nguồn thật. Nội dung liên hệ công khai dùng nguồn được duyệt cho Hà Nội, không sao chép hotline/địa chỉ mẫu export.
 

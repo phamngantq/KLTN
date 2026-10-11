@@ -9,10 +9,10 @@ import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
-import { TextareaField } from '../../components/ui/Field';
+import { TextareaField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
-import { formatDate } from '../../lib/format';
+import { formatDate, formatVnd } from '../../lib/format';
 
 const LABELS: Record<ApplicationStatus, string> = {
   submitted: 'Chờ xem xét',
@@ -68,7 +68,13 @@ export function AdminApplicationsPage() {
       }),
   });
   const select = useMutation({
-    mutationFn: (item: AdminApplication) =>
+    mutationFn: ({
+      item,
+      agreedTuitionPerSessionMinor,
+    }: {
+      item: AdminApplication;
+      agreedTuitionPerSessionMinor: number;
+    }) =>
       api.post<{ id: string; classId: string }>(
         `/admin/classes/${encodeURIComponent(item.classId)}/assign`,
         {
@@ -76,11 +82,15 @@ export function AdminApplicationsPage() {
           classVersion: item.classVersion,
           applicationVersion: item.version,
           requestVersion: item.requestVersion,
+          agreedTuitionPerSessionMinor,
+          partiesAgreed: true,
         },
       ),
   });
   const [dialog, setDialog] = useState<{ item: AdminApplication; action: Action } | null>(null);
   const [reason, setReason] = useState('');
+  const [tuition, setTuition] = useState('');
+  const [partiesAgreed, setPartiesAgreed] = useState(false);
   const [notice, setNotice] = useState('');
   const [localError, setLocalError] = useState('');
 
@@ -88,6 +98,8 @@ export function AdminApplicationsPage() {
     reject.reset();
     select.reset();
     setReason('');
+    setTuition('');
+    setPartiesAgreed(false);
     setLocalError('');
     setNotice('');
     setDialog({ item, action });
@@ -112,17 +124,35 @@ export function AdminApplicationsPage() {
       );
       return;
     }
-    select.mutate(dialog.item, {
-      onSuccess: () => {
-        setDialog(null);
-        setNotice(
-          `Đã gán lớp ${dialog.item.classCode} cho ${dialog.item.tutorDisplayName}. Lớp đã hoạt động.`,
-        );
-        void queryClient.invalidateQueries({ queryKey: ['admin-applications'] });
-        void queryClient.invalidateQueries({ queryKey: ['admin-classes'] });
-        void queryClient.invalidateQueries({ queryKey: ['admin-requests'] });
+    const normalizedTuition = tuition.trim();
+    const amount = Number(normalizedTuition);
+    if (
+      !/^\d+$/.test(normalizedTuition) ||
+      !Number.isSafeInteger(amount) ||
+      amount < 1 ||
+      amount > 100_000_000
+    ) {
+      setLocalError('Nhập học phí đã chốt từ 1 đến 100.000.000 VNĐ mỗi buổi.');
+      return;
+    }
+    if (!partiesAgreed) {
+      setLocalError('Cần xác nhận hai bên đã thống nhất mức học phí này.');
+      return;
+    }
+    select.mutate(
+      { item: dialog.item, agreedTuitionPerSessionMinor: amount },
+      {
+        onSuccess: () => {
+          setDialog(null);
+          setNotice(
+            `Đã gán lớp ${dialog.item.classCode} cho ${dialog.item.tutorDisplayName} với học phí đã chốt ${formatVnd(amount)}/buổi. Lớp đã hoạt động.`,
+          );
+          void queryClient.invalidateQueries({ queryKey: ['admin-applications'] });
+          void queryClient.invalidateQueries({ queryKey: ['admin-classes'] });
+          void queryClient.invalidateQueries({ queryKey: ['admin-requests'] });
+        },
       },
-    });
+    );
   }
 
   const pending = reject.isPending || select.isPending;
@@ -335,6 +365,39 @@ export function AdminApplicationsPage() {
         onCancel={() => setDialog(null)}
         onConfirm={confirm}
       >
+        {dialog?.action === 'select' && (
+          <>
+            <TextField
+              label="Học phí đã chốt (VNĐ/buổi)"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={100_000_000}
+              step={1}
+              value={tuition}
+              onChange={(event) => {
+                setTuition(event.target.value);
+                setLocalError('');
+              }}
+              required
+              hint="Chỉ ghi mức phụ huynh và gia sư đã thống nhất. Mức này tách khỏi phí nhận lớp."
+              error={errors.agreedTuitionPerSessionMinor}
+            />
+            <label className="flex items-start gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={partiesAgreed}
+                onChange={(event) => {
+                  setPartiesAgreed(event.target.checked);
+                  setLocalError('');
+                }}
+                className="mt-1 size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              />
+              Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.
+            </label>
+            {localError && <Alert tone="danger">{localError}</Alert>}
+          </>
+        )}
         {dialog?.action === 'reject' && (
           <TextareaField
             label="Lý do từ chối"

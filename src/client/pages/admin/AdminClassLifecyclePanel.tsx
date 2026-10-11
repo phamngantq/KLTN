@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type {
+  AdminAssignment,
   CancelClassInput,
   ClassLifecycle,
   ClassLifecycleActionInput,
@@ -10,9 +11,10 @@ import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge } from '../../components/ui/Feedback';
-import { TextareaField } from '../../components/ui/Field';
+import { TextareaField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { api } from '../../lib/api-client';
+import { formatVnd } from '../../lib/format';
 
 type Action = 'revoke' | 'complete' | 'cancel';
 
@@ -35,6 +37,26 @@ export function AdminClassLifecyclePanel({
   const [reason, setReason] = useState('');
   const [localError, setLocalError] = useState('');
   const [notice, setNotice] = useState('');
+  const [tuitionOpen, setTuitionOpen] = useState(false);
+  const [tuition, setTuition] = useState('');
+  const [partiesAgreed, setPartiesAgreed] = useState(false);
+  const [tuitionError, setTuitionError] = useState('');
+  const recordTuition = useMutation({
+    mutationFn: ({
+      assignmentId,
+      assignmentVersion,
+      agreedTuitionPerSessionMinor,
+    }: {
+      assignmentId: string;
+      assignmentVersion: number;
+      agreedTuitionPerSessionMinor: number;
+    }) =>
+      api.post<AdminAssignment>(`/admin/assignments/${encodeURIComponent(assignmentId)}/tuition`, {
+        assignmentVersion,
+        agreedTuitionPerSessionMinor,
+        partiesAgreed: true,
+      }),
+  });
   const transition = useMutation({
     mutationFn: ({
       kind,
@@ -44,6 +66,57 @@ export function AdminClassLifecyclePanel({
       input: ClassLifecycleActionInput | CancelClassInput;
     }) => api.post<ClassLifecycle>(`/admin/classes/${encodeURIComponent(item.id)}/${kind}`, input),
   });
+
+  function confirmTuition() {
+    const current = lifecycle.data;
+    if (
+      !current ||
+      current.classStatus !== 'active' ||
+      !current.assignmentId ||
+      !current.assignmentVersion ||
+      current.agreedTuitionPerSessionMinor !== null
+    )
+      return;
+    const normalizedTuition = tuition.trim();
+    const amount = Number(normalizedTuition);
+    if (
+      !/^\d+$/.test(normalizedTuition) ||
+      !Number.isSafeInteger(amount) ||
+      amount < 1 ||
+      amount > 100_000_000
+    ) {
+      setTuitionError('Nhập học phí đã chốt từ 1 đến 100.000.000 VNĐ mỗi buổi.');
+      return;
+    }
+    if (!partiesAgreed) {
+      setTuitionError('Cần xác nhận hai bên đã thống nhất mức học phí này.');
+      return;
+    }
+    recordTuition.mutate(
+      {
+        assignmentId: current.assignmentId,
+        assignmentVersion: current.assignmentVersion,
+        agreedTuitionPerSessionMinor: amount,
+      },
+      {
+        onSuccess: () => {
+          setTuitionOpen(false);
+          setTuition('');
+          setPartiesAgreed(false);
+          setTuitionError('');
+          setNotice(`Đã ghi học phí đã chốt ${formatVnd(amount)}/buổi.`);
+          for (const key of [
+            'admin-class-lifecycle',
+            'admin-classes',
+            'parent-requests',
+            'parent-request',
+            'tutor-assignments',
+          ])
+            void queryClient.invalidateQueries({ queryKey: [key] });
+        },
+      },
+    );
+  }
 
   function confirm() {
     const current = lifecycle.data;
@@ -136,6 +209,31 @@ export function AdminClassLifecyclePanel({
               <span>Gia sư hiện tại: {lifecycle.data.tutorDisplayName}</span>
             )}
           </div>
+          {lifecycle.data.classStatus === 'active' && (
+            <div className="rounded-md border border-border bg-bg p-3 text-sm">
+              <span className="font-medium">Học phí đã chốt: </span>
+              {lifecycle.data.agreedTuitionPerSessionMinor === null
+                ? 'Chưa ghi nhận'
+                : `${formatVnd(lifecycle.data.agreedTuitionPerSessionMinor)}/buổi`}
+            </div>
+          )}
+          {lifecycle.data.classStatus === 'active' &&
+            lifecycle.data.assignmentId &&
+            lifecycle.data.agreedTuitionPerSessionMinor === null && (
+              <Button
+                variant="secondary"
+                disabled={isReadOnlyPreview()}
+                onClick={() => {
+                  recordTuition.reset();
+                  setTuition('');
+                  setPartiesAgreed(false);
+                  setTuitionError('');
+                  setTuitionOpen(true);
+                }}
+              >
+                Ghi học phí đã chốt cho lớp cũ
+              </Button>
+            )}
           {lifecycle.data.classStatus === 'active' && lifecycle.data.assignmentId && (
             <div className="flex flex-wrap gap-2">
               <Button
@@ -194,6 +292,14 @@ export function AdminClassLifecyclePanel({
                       · {new Date(event.createdAt).toLocaleString('vi-VN')}
                     </p>
                     <p>Lý do: {event.reason}</p>
+                    {event.assignmentId && (
+                      <p>
+                        Học phí đã chốt của lần gán:{' '}
+                        {event.agreedTuitionPerSessionMinor === null
+                          ? 'Chưa ghi nhận'
+                          : `${formatVnd(event.agreedTuitionPerSessionMinor)}/buổi`}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ol>
@@ -241,6 +347,44 @@ export function AdminClassLifecyclePanel({
           error={localError}
         />
         {transition.isError && <Alert tone="danger">{transition.error.message}</Alert>}
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={tuitionOpen}
+        title="Ghi học phí đã chốt"
+        description={`Lớp ${item.code} đã được gán trước khi hệ thống yêu cầu ghi học phí. Chỉ lưu mức mà phụ huynh và gia sư đã thống nhất.`}
+        confirmLabel="Lưu học phí đã chốt"
+        loading={recordTuition.isPending}
+        onCancel={() => setTuitionOpen(false)}
+        onConfirm={confirmTuition}
+      >
+        <TextField
+          label="Học phí đã chốt (VNĐ/buổi)"
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={100_000_000}
+          step={1}
+          value={tuition}
+          onChange={(event) => {
+            setTuition(event.target.value);
+            setTuitionError('');
+          }}
+          required
+          error={tuitionError || undefined}
+        />
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            checked={partiesAgreed}
+            onChange={(event) => {
+              setPartiesAgreed(event.target.checked);
+              setTuitionError('');
+            }}
+            className="mt-1 size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          />
+          Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.
+        </label>
+        {recordTuition.isError && <Alert tone="danger">{recordTuition.error.message}</Alert>}
       </ConfirmDialog>
     </section>
   );

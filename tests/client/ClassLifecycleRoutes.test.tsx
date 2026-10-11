@@ -46,6 +46,7 @@ describe('class lifecycle routes', () => {
       assignmentId,
       assignmentVersion: 1,
       tutorDisplayName: 'Gia sư A',
+      agreedTuitionPerSessionMinor: null,
       events: [],
     };
     const { calls } = mockApi((req) => {
@@ -69,6 +70,7 @@ describe('class lifecycle routes', () => {
               classId,
               assignmentId,
               eventType: 'revoked',
+              agreedTuitionPerSessionMinor: null,
               actorId: 'admin-1',
               reason: 'Gia sư đổi lịch dạy.',
               createdAt: '2026-10-11T01:00:00.000Z',
@@ -107,6 +109,7 @@ describe('class lifecycle routes', () => {
       assignmentId: null,
       assignmentVersion: null,
       tutorDisplayName: null,
+      agreedTuitionPerSessionMinor: null,
       events: [],
     };
     const { calls } = mockApi((req) => {
@@ -134,6 +137,7 @@ describe('class lifecycle routes', () => {
               classId,
               assignmentId: null,
               eventType: 'cancelled',
+              agreedTuitionPerSessionMinor: null,
               actorId: 'admin-1',
               reason: 'Phụ huynh dừng tìm gia sư.',
               createdAt: '2026-10-11T01:00:00.000Z',
@@ -167,6 +171,7 @@ describe('class lifecycle routes', () => {
       grade: item.grade,
       mode: item.mode,
       outcome: 'completed',
+      agreedTuitionPerSessionMinor: null,
       reason: 'Hai bên đã kết thúc lớp.',
       endedAt: '2026-10-11T01:00:00.000Z',
     };

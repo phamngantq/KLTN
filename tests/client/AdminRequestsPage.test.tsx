@@ -31,6 +31,7 @@ const request: AdminRequestSummary = {
 };
 const detail: AdminRequestDetail = {
   ...request,
+  agreedTuitionPerSessionMinor: null,
   parentUserId: 'parent-1',
   parentDisplayName: 'Phụ huynh thử',
   contactPhone: '0912345678',

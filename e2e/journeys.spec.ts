@@ -240,11 +240,17 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await admin.goto(`/admin/applications?classId=${cls!.id}`);
     const applicationCard = admin.getByRole('article').filter({ hasText: tutorName });
     await applicationCard.getByRole('button', { name: 'Gán gia sư' }).click();
+    await admin.getByRole('dialog').getByLabel('Học phí đã chốt (VNĐ/buổi)').fill('180000');
+    await admin
+      .getByRole('dialog')
+      .getByLabel('Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.')
+      .check();
     await admin.getByRole('dialog').getByRole('button', { name: 'Gán và kích hoạt lớp' }).click();
     await expect(admin.getByText(new RegExp(`Đã gán lớp ${cls!.code}`))).toBeVisible();
 
     await tutor.goto('/tutor/classes');
     await expect(tutor.getByText(cls!.code, { exact: false })).toBeVisible();
+    await expect(tutor.getByText(/180\.000\s*₫\/buổi/).first()).toBeVisible();
     await expect(tutor.getByText(phone)).toHaveCount(0);
     await tutor.getByRole('button', { name: 'Xem liên hệ phụ huynh' }).click();
     await expect(tutor.getByRole('region', { name: 'Liên hệ phụ huynh' })).toContainText(phone);
@@ -279,12 +285,16 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
       'E2E buổi đầu',
     );
+    await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
+      /180\.000\s*₫\/buổi/,
+    );
     await tutor.getByLabel(/Tôi đã đọc nội dung hợp đồng phiên bản/).check();
     await tutor.getByRole('button', { name: 'Xác nhận nội dung hợp đồng' }).click();
     await expect(tutor.getByText('Đã ghi nhận xác nhận nội dung hợp đồng của bạn.')).toBeVisible();
 
     await parent.reload();
     await expect(parent.getByText('Đã gán gia sư')).toBeVisible();
+    await expect(parent.getByText(/180\.000\s*₫\/buổi/).first()).toBeVisible();
     let releaseReport!: () => void;
     const reportGate = new Promise<void>((resolve) => {
       releaseReport = resolve;

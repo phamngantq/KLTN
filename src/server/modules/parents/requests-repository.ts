@@ -11,6 +11,7 @@ import type {
 import type { Db } from '../../db/client';
 import {
   auditLogs,
+  classAssignments,
   classCancellations,
   classListings,
   parentRequestPrivate,
@@ -146,10 +147,23 @@ export async function findOwnRequest(
     .innerJoin(classCancellations, eq(classCancellations.classId, classListings.id))
     .where(eq(classListings.sourceRequestId, id))
     .get();
+  const currentTuition = await db
+    .select({ agreedTuitionPerSessionMinor: classAssignments.agreedTuitionPerSessionMinor })
+    .from(classListings)
+    .innerJoin(classAssignments, eq(classAssignments.classId, classListings.id))
+    .where(
+      and(
+        eq(classListings.sourceRequestId, id),
+        eq(classAssignments.status, 'active'),
+        inArray(classListings.status, ['active', 'completed']),
+      ),
+    )
+    .get();
   const { contactPhone, contactAddress, contactConsentAt, contactConsentVersion, ...publicRow } =
     row;
   return {
     ...summary(publicRow, windows),
+    agreedTuitionPerSessionMinor: currentTuition?.agreedTuitionPerSessionMinor ?? null,
     contactPhone,
     contactAddress,
     contactConsentAt,

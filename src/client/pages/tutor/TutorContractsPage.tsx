@@ -7,6 +7,7 @@ import { Button } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useAcknowledgeContract, useTutorContracts } from '../../features/terms-contracts/api';
+import { formatVnd } from '../../lib/format';
 
 function feeSummary(item: ClassContractRecord): string {
   if (item.feeOptionKey === 'lesson_multiplier_with_deposit') {
@@ -96,6 +97,12 @@ export function TutorContractsPage() {
                       <p className="text-sm text-muted">
                         Lớp {item.classCode} · phiên bản {item.contractRevision}
                       </p>
+                      <p className="mt-1 text-sm text-primary">
+                        Học phí đã chốt:{' '}
+                        {item.agreedTuitionPerSessionMinor === null
+                          ? 'Chưa ghi nhận khi phát hành'
+                          : `${formatVnd(item.agreedTuitionPerSessionMinor)}/buổi`}
+                      </p>
                     </div>
                   </div>
                   <Badge tone={item.status === 'acknowledged' ? 'success' : 'warning'}>
@@ -161,6 +168,12 @@ export function TutorContractsPage() {
             <div className="whitespace-pre-wrap break-words rounded-lg border border-border bg-bg p-5 text-sm leading-7">
               {selected.contractBodyText}
             </div>
+            <p className="mt-5 text-sm font-medium text-primary">
+              Học phí đã chốt khi phát hành:{' '}
+              {selected.agreedTuitionPerSessionMinor === null
+                ? 'Chưa ghi nhận'
+                : `${formatVnd(selected.agreedTuitionPerSessionMinor)}/buổi`}
+            </p>
             <section className="mt-5 rounded-lg border border-border bg-surface p-5">
               <h3 className="flex items-center gap-2 font-semibold text-primary">
                 <ReceiptText className="size-5" aria-hidden="true" />
@@ -183,7 +196,7 @@ export function TutorContractsPage() {
                   />
                   <span>
                     Tôi đã đọc nội dung hợp đồng phiên bản {selected.contractRevision} và phương án
-                    phí của lớp này.
+                    phí và học phí đã chốt của lớp này.
                   </span>
                 </label>
                 {acknowledge.isError && <Alert tone="danger">{acknowledge.error.message}</Alert>}

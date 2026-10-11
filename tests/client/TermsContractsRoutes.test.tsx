@@ -114,6 +114,7 @@ describe('tutor terms and contracts', () => {
       feePolicyText: 'Phương án phí do kiểm duyệt viên công bố.',
       rateBasisPoints: 2500,
       depositBasisPoints: null,
+      agreedTuitionPerSessionMinor: 180_000,
       issuedAt: '2026-10-11T00:00:00.000Z',
       acknowledgedAt: null,
     };
@@ -137,6 +138,7 @@ describe('tutor terms and contracts', () => {
     await user.click(await screen.findByRole('button', { name: 'Xem hợp đồng' }));
     expect(screen.getByText('Nội dung hợp đồng đã công bố.')).toBeTruthy();
     expect(screen.getByText(/25% học phí tháng/)).toBeTruthy();
+    expect(screen.getByText('Học phí đã chốt khi phát hành: 180.000 ₫/buổi')).toBeTruthy();
     await user.click(screen.getByRole('checkbox', { name: /Tôi đã đọc nội dung hợp đồng/ }));
     await user.click(screen.getByRole('button', { name: 'Xác nhận nội dung hợp đồng' }));
     await waitFor(() =>
@@ -281,6 +283,7 @@ describe('moderator terms and contracts', () => {
           feePolicyText: 'Chính sách phí đã công bố.',
           rateBasisPoints: 2500,
           depositBasisPoints: null,
+          agreedTuitionPerSessionMinor: 180_000,
           issuedAt: '2026-10-11T00:01:00.000Z',
           acknowledgedAt: null,
         };
@@ -294,6 +297,8 @@ describe('moderator terms and contracts', () => {
     await user.click(screen.getByRole('button', { name: 'Phát hành hợp đồng' }));
     await user.click(screen.getByRole('button', { name: 'Phát hành' }));
     expect(await screen.findByText(/Đã phát hành hồ sơ hợp đồng cho lớp LH-ABC/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Xem' }));
+    expect(screen.getByText('Học phí đã chốt khi phát hành: 180.000 ₫/buổi')).toBeTruthy();
     expect(
       calls.find((call) => call.path === `/admin/assignments/${quizId}/contracts`)?.body,
     ).toEqual({ assignmentVersion: 1, contentRevisionId: contentId });

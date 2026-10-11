@@ -8,9 +8,19 @@ export const assignClassSchema = z.strictObject({
   classVersion: z.number().int().min(1),
   applicationVersion: z.number().int().min(1),
   requestVersion: z.number().int().min(1),
+  agreedTuitionPerSessionMinor: z.number().int().min(1).max(100_000_000),
+  partiesAgreed: z.literal(true),
   note: z.string().trim().min(1).max(500).optional(),
 });
 export type AssignClassInput = z.infer<typeof assignClassSchema>;
+
+/** One-time recording for a legacy active assignment whose tuition is still unknown. */
+export const recordAssignmentTuitionSchema = z.strictObject({
+  assignmentVersion: z.number().int().min(1),
+  agreedTuitionPerSessionMinor: z.number().int().min(1).max(100_000_000),
+  partiesAgreed: z.literal(true),
+});
+export type RecordAssignmentTuitionInput = z.infer<typeof recordAssignmentTuitionSchema>;
 
 export const classLifecycleActionSchema = z.strictObject({
   classVersion: z.number().int().min(1),
@@ -36,6 +46,7 @@ export interface ClassLifecycleEvent {
   actorId: string;
   reason: string;
   createdAt: string;
+  agreedTuitionPerSessionMinor: number | null;
 }
 
 export interface ClassLifecycle {
@@ -47,6 +58,8 @@ export interface ClassLifecycle {
   assignmentId: string | null;
   assignmentVersion: number | null;
   tutorDisplayName: string | null;
+  /** Latest assigned tutor while active, or final tutor after completion. */
+  agreedTuitionPerSessionMinor: number | null;
   events: ClassLifecycleEvent[];
 }
 
@@ -59,6 +72,9 @@ export interface AdminAssignment {
   version: number;
   assignedBy: string;
   assignedAt: string;
+  agreedTuitionPerSessionMinor: number | null;
+  tuitionRecordedBy: string | null;
+  tuitionRecordedAt: string | null;
 }
 
 export const tutorAssignmentListSchema = z.strictObject({
@@ -79,6 +95,7 @@ export interface TutorAssignment {
   publicArea: string | null;
   status: 'active';
   assignedAt: string;
+  agreedTuitionPerSessionMinor: number | null;
 }
 
 /** Historical outcome only, with no parent identity or contact data. */
@@ -92,6 +109,7 @@ export interface TutorAssignmentHistory {
   outcome: 'revoked' | 'completed';
   reason: string;
   endedAt: string;
+  agreedTuitionPerSessionMinor: number | null;
 }
 
 /** Returned to only the tutor with an active assignment; never cached publicly. */

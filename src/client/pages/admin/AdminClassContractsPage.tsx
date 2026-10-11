@@ -11,6 +11,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { usePublishedContent } from '../../features/content/api';
+import { formatVnd } from '../../lib/format';
 import {
   useAdminContractCandidates,
   useAdminContracts,
@@ -237,6 +238,12 @@ export function AdminClassContractsPage() {
                       Phiên bản {item.contractRevision} · phát hành{' '}
                       {new Date(item.issuedAt).toLocaleString('vi-VN')}
                     </p>
+                    <p className="mt-2 text-sm text-primary">
+                      Học phí đã chốt:{' '}
+                      {item.agreedTuitionPerSessionMinor === null
+                        ? 'Chưa ghi nhận khi phát hành'
+                        : `${formatVnd(item.agreedTuitionPerSessionMinor)}/buổi`}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-3">
                     <Badge tone={item.status === 'acknowledged' ? 'success' : 'warning'}>
@@ -300,6 +307,12 @@ export function AdminClassContractsPage() {
             <p className="text-sm text-muted">
               Lớp {preview.classCode} · phiên bản {preview.contractRevision}
             </p>
+            <p className="text-sm font-medium text-primary">
+              Học phí đã chốt khi phát hành:{' '}
+              {preview.agreedTuitionPerSessionMinor === null
+                ? 'Chưa ghi nhận'
+                : `${formatVnd(preview.agreedTuitionPerSessionMinor)}/buổi`}
+            </p>
             <div className="whitespace-pre-wrap break-words rounded-lg bg-surface p-4 text-sm leading-7">
               {preview.contractBodyText}
             </div>
@@ -319,7 +332,7 @@ export function AdminClassContractsPage() {
           <>
             Phát hành mẫu “{template.data?.title}” cho lớp {selected?.classCode} của gia sư{' '}
             {selected?.tutorDisplayName}. Hồ sơ sẽ tham chiếu phiên bản hợp đồng và phương án phí đã
-            chọn.
+            chọn cùng học phí đã chốt của lần gán lớp này.
           </>
         }
         confirmLabel="Phát hành"

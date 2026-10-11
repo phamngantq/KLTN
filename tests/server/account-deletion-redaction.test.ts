@@ -198,6 +198,8 @@ describe('historical free-text redaction on account deletion', () => {
           applicationVersion: application.version,
           classVersion: beforeAssign.classVersion,
           requestVersion: beforeAssign.requestVersion,
+          agreedTuitionPerSessionMinor: 220_000,
+          partiesAgreed: true,
           note: `Đã trao đổi qua ${PRIVATE_MARKER}.`,
         },
         admin,

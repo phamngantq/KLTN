@@ -308,6 +308,11 @@ export const classAssignments = sqliteTable(
     mutationId: text('mutation_id').notNull(),
     assignedAt: text('assigned_at').notNull(),
     revokedAt: text('revoked_at'),
+    agreedTuitionPerSessionMinor: integer('agreed_tuition_per_session_minor'),
+    tuitionRecordedBy: text('tuition_recorded_by').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
+    tuitionRecordedAt: text('tuition_recorded_at'),
   },
   (t) => [
     uniqueIndex('class_assignments_application_uq').on(t.applicationId),
@@ -497,6 +502,7 @@ export const classContractRecords = sqliteTable(
     issuedAt: text('issued_at').notNull(),
     acknowledgedAt: text('acknowledged_at'),
     mutationId: text('mutation_id').notNull(),
+    agreedTuitionPerSessionMinor: integer('agreed_tuition_per_session_minor'),
   },
   (t) => [index('class_contract_records_tutor_idx').on(t.tutorUserId, desc(t.issuedAt))],
 );

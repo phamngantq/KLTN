@@ -3,6 +3,7 @@ import type {
   AdminAssignment,
   AssignClassInput,
   AssignedParentContact,
+  RecordAssignmentTuitionInput,
   TutorAssignment,
   TutorAssignmentListQuery,
 } from '../../../shared/schemas/admin-assignments';
@@ -11,6 +12,7 @@ import type { Db } from '../../db/client';
 import {
   auditLogs,
   classAssignments,
+  classContractRecords,
   classListings,
   feeOptionVersions,
   parentRequestPrivate,
@@ -50,6 +52,7 @@ export async function listTutorAssignments(
         publicArea: classListings.publicArea,
         status: classAssignments.status,
         assignedAt: classAssignments.assignedAt,
+        agreedTuitionPerSessionMinor: classAssignments.agreedTuitionPerSessionMinor,
       })
       .from(classAssignments)
       .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
@@ -91,6 +94,9 @@ async function getAssignment(db: Db, id: string): Promise<AdminAssignment> {
       version: classAssignments.version,
       assignedBy: classAssignments.assignedBy,
       assignedAt: classAssignments.assignedAt,
+      agreedTuitionPerSessionMinor: classAssignments.agreedTuitionPerSessionMinor,
+      tuitionRecordedBy: classAssignments.tuitionRecordedBy,
+      tuitionRecordedAt: classAssignments.tuitionRecordedAt,
     })
     .from(classAssignments)
     .where(eq(classAssignments.id, id))
@@ -269,6 +275,9 @@ export async function assignClass(
     mutationId: crypto.randomUUID(),
     assignedAt: nowIso,
     revokedAt: null,
+    agreedTuitionPerSessionMinor: input.agreedTuitionPerSessionMinor,
+    tuitionRecordedBy: moderatorId,
+    tuitionRecordedAt: nowIso,
   });
 
   const selectedAudit = db.insert(auditLogs).values({
@@ -335,6 +344,8 @@ export async function assignClass(
       classId,
       applicationId: input.applicationId,
       tutorUserId: application.tutorUserId,
+      agreedTuitionPerSessionMinor: input.agreedTuitionPerSessionMinor,
+      partiesAgreed: input.partiesAgreed,
       note: input.note ?? null,
     }),
     createdAt: nowIso,
@@ -359,13 +370,99 @@ export async function assignClass(
     if (
       isUniqueViolation(error, 'class_assignments.class_id') ||
       isUniqueViolation(error, 'class_assignments.application_id') ||
-      rootErrorMessage(error).includes('ASSIGNMENT_NOT_ELIGIBLE')
+      rootErrorMessage(error).includes('ASSIGNMENT_NOT_ELIGIBLE') ||
+      rootErrorMessage(error).includes('ASSIGNMENT_TUITION_REQUIRED')
     ) {
       throw stale();
     }
     throw error;
   }
   return getAssignment(db, id);
+}
+
+/** Records a verified amount once for an active pre-migration assignment. */
+export async function recordAssignmentTuition(
+  db: Db,
+  moderatorId: string,
+  assignmentId: string,
+  input: RecordAssignmentTuitionInput,
+  now = new Date(),
+): Promise<AdminAssignment> {
+  const [assignment, contract] = await Promise.all([
+    db
+      .select({
+        id: classAssignments.id,
+        classId: classAssignments.classId,
+        status: classAssignments.status,
+        version: classAssignments.version,
+        amount: classAssignments.agreedTuitionPerSessionMinor,
+        classStatus: classListings.status,
+      })
+      .from(classAssignments)
+      .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
+      .where(eq(classAssignments.id, assignmentId))
+      .get(),
+    db
+      .select({ id: classContractRecords.id })
+      .from(classContractRecords)
+      .where(eq(classContractRecords.assignmentId, assignmentId))
+      .get(),
+  ]);
+  if (!assignment) throw new AppError(404, 'ASSIGNMENT_NOT_FOUND', 'Không tìm thấy phân công lớp.');
+  if (assignment.amount !== null)
+    throw new AppError(409, 'TUITION_ALREADY_RECORDED', 'Học phí đã chốt đã được ghi nhận.');
+  if (
+    assignment.status !== 'active' ||
+    assignment.classStatus !== 'active' ||
+    assignment.version !== input.assignmentVersion
+  )
+    throw stale();
+  if (contract) throw new AppError(409, 'CONTRACT_ALREADY_ISSUED', 'Hợp đồng đã được phát hành.');
+
+  const mutationId = crypto.randomUUID();
+  const nowIso = now.toISOString();
+  const update = db
+    .update(classAssignments)
+    .set({
+      agreedTuitionPerSessionMinor: input.agreedTuitionPerSessionMinor,
+      tuitionRecordedBy: moderatorId,
+      tuitionRecordedAt: nowIso,
+      version: sql`${classAssignments.version} + 1`,
+      mutationId,
+    })
+    .where(
+      and(
+        eq(classAssignments.id, assignmentId),
+        eq(classAssignments.status, 'active'),
+        eq(classAssignments.version, input.assignmentVersion),
+        sql`${classAssignments.agreedTuitionPerSessionMinor} IS NULL`,
+        sql`EXISTS (SELECT 1 FROM class_listings
+          WHERE id = ${assignment.classId} AND status = 'active')`,
+        sql`NOT EXISTS (SELECT 1 FROM class_contract_records
+          WHERE assignment_id = ${assignmentId})`,
+      ),
+    )
+    .returning({ id: classAssignments.id });
+  const audit = db.insert(auditLogs).select(
+    sql`SELECT ${crypto.randomUUID()}, ${moderatorId}, 'assignment.tuition_recorded',
+      'class_assignment', ${assignmentId}, ${JSON.stringify({
+        classId: assignment.classId,
+        agreedTuitionPerSessionMinor: input.agreedTuitionPerSessionMinor,
+        partiesAgreed: input.partiesAgreed,
+        version: input.assignmentVersion + 1,
+      })}, ${nowIso}
+      WHERE EXISTS (SELECT 1 FROM class_assignments
+        WHERE id = ${assignmentId} AND mutation_id = ${mutationId})`,
+  );
+  try {
+    const [updated] = await db.batch([update, audit]);
+    if (updated.length !== 1) throw stale();
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    if (rootErrorMessage(error).includes('ASSIGNMENT_TUITION_BACKFILL_INVALID')) throw stale();
+    throw error;
+  }
+  return getAssignment(db, assignmentId);
 }
 
 /** Checked on every read; a revoked assignment never authorizes parent contact. */

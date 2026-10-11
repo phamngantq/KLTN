@@ -22,7 +22,7 @@ import type {
   AdminContractCandidate,
   ClassContractRecord,
 } from '../../src/shared/schemas/terms-contracts';
-import { api, createPublicTutor, jsonInit, register, type Session } from './helpers';
+import { api, createPublicTutor, errorCode, jsonInit, register, type Session } from './helpers';
 import {
   passAndAcknowledgeTutorTerms,
   publishTutorContract,
@@ -31,6 +31,7 @@ import {
 
 const PHONE = '0912345678';
 const ADDRESS = 'Số 10, đường thử nghiệm';
+const AGREED_TUITION = 220_000;
 
 async function makeModerator(): Promise<Session> {
   const account = await register('parent');
@@ -157,6 +158,8 @@ const assignmentBody = (
   classVersion: cls.version,
   requestVersion: request.version + 1,
   applicationVersion: application.version,
+  agreedTuitionPerSessionMinor: AGREED_TUITION,
+  partiesAgreed: true,
 });
 
 describe('moderator applications and assignment', () => {
@@ -215,7 +218,28 @@ describe('moderator applications and assignment', () => {
       tutorUserId: state.tutorA.userId,
       contractContentRevisionId: content.id,
       feeOptionVersionId: state.applicationA.feeOptionVersionId,
+      agreedTuitionPerSessionMinor: AGREED_TUITION,
     });
+    const snapshot = await env.DB.prepare(
+      'SELECT agreed_tuition_per_session_minor AS amount FROM class_contract_records WHERE id = ?',
+    )
+      .bind(contract.id)
+      .first<{ amount: number | null }>();
+    expect(snapshot?.amount).toBe(AGREED_TUITION);
+    await expect(
+      env.DB.prepare(
+        'UPDATE class_contract_records SET agreed_tuition_per_session_minor = ? WHERE id = ?',
+      )
+        .bind(310_000, contract.id)
+        .run(),
+    ).rejects.toThrow(/CONTRACT_TUITION_IMMUTABLE/);
+    await expect(
+      env.DB.prepare(
+        'UPDATE class_assignments SET agreed_tuition_per_session_minor = ? WHERE id = ?',
+      )
+        .bind(310_000, assignment.id)
+        .run(),
+    ).rejects.toThrow(/ASSIGNMENT_TUITION_IMMUTABLE/);
     expect(JSON.stringify(contract)).not.toContain(PHONE);
     expect(JSON.stringify(contract)).not.toContain(ADDRESS);
     expect(
@@ -269,6 +293,85 @@ describe('moderator applications and assignment', () => {
       'class_contract.issued',
       'class_contract.acknowledged',
     ]);
+  });
+
+  it('requires a legacy assignment to record agreed tuition before issuing a contract', async () => {
+    const state = await fixture();
+    const assignedResponse = await api(
+      `/admin/classes/${state.cls.id}/assign`,
+      jsonInit(
+        'POST',
+        assignmentBody(state.cls, state.request, state.applicationA),
+        state.moderator,
+      ),
+    );
+    expect(assignedResponse.status).toBe(200);
+    const assignment = (await assignedResponse.json<ApiSuccess<AdminAssignment>>()).data;
+    const content = await publishTutorContract(state.moderator);
+
+    // Recreate the shape of an assignment inserted before migration 0017. Test D1
+    // storage is isolated per test; production rows are never downgraded this way.
+    await env.DB.prepare('DROP TRIGGER class_assignments_tuition_immutable').run();
+    await env.DB.prepare(
+      `UPDATE class_assignments SET agreed_tuition_per_session_minor = NULL,
+         tuition_recorded_by = NULL, tuition_recorded_at = NULL WHERE id = ?`,
+    )
+      .bind(assignment.id)
+      .run();
+    await env.DB.prepare(
+      `CREATE TRIGGER class_assignments_tuition_immutable BEFORE UPDATE OF
+         agreed_tuition_per_session_minor, tuition_recorded_by, tuition_recorded_at
+       ON class_assignments WHEN OLD.agreed_tuition_per_session_minor IS NOT NULL
+       BEGIN SELECT RAISE(ABORT, 'ASSIGNMENT_TUITION_IMMUTABLE'); END`,
+    ).run();
+
+    const contractPath = `/admin/assignments/${assignment.id}/contracts`;
+    const issueBody = { assignmentVersion: assignment.version, contentRevisionId: content.id };
+    const blocked = await api(contractPath, jsonInit('POST', issueBody, state.moderator));
+    expect(blocked.status).toBe(409);
+    expect(await errorCode(blocked)).toBe('CONTRACT_TUITION_UNRECORDED');
+    const before = await env.DB.prepare(
+      'SELECT count(*) AS n FROM class_contract_records WHERE assignment_id = ?',
+    )
+      .bind(assignment.id)
+      .first<{ n: number }>();
+    expect(before?.n).toBe(0);
+
+    const tuitionPath = `/admin/assignments/${assignment.id}/tuition`;
+    const tuitionBody = {
+      assignmentVersion: assignment.version,
+      agreedTuitionPerSessionMinor: 240_000,
+      partiesAgreed: true,
+    };
+    expect((await api(tuitionPath, jsonInit('POST', tuitionBody, state.parent))).status).toBe(403);
+    expect((await api(tuitionPath, jsonInit('POST', tuitionBody, state.tutorA))).status).toBe(403);
+    expect(
+      (
+        await api(
+          tuitionPath,
+          jsonInit('POST', { ...tuitionBody, partiesAgreed: false }, state.moderator),
+        )
+      ).status,
+    ).toBe(422);
+    const recordedResponse = await api(tuitionPath, jsonInit('POST', tuitionBody, state.moderator));
+    expect(recordedResponse.status).toBe(200);
+    const recorded = (await recordedResponse.json<ApiSuccess<AdminAssignment>>()).data;
+    expect(recorded).toMatchObject({
+      agreedTuitionPerSessionMinor: 240_000,
+      tuitionRecordedBy: state.moderator.userId,
+      version: assignment.version + 1,
+    });
+    expect((await api(tuitionPath, jsonInit('POST', tuitionBody, state.moderator))).status).toBe(
+      409,
+    );
+    const issued = await api(
+      contractPath,
+      jsonInit('POST', { ...issueBody, assignmentVersion: recorded.version }, state.moderator),
+    );
+    expect(issued.status).toBe(201);
+    expect(
+      (await issued.json<ApiSuccess<ClassContractRecord>>()).data.agreedTuitionPerSessionMinor,
+    ).toBe(240_000);
   });
   it('lists applications without parent contact and rejects with versioned audit reason', async () => {
     const state = await fixture();
@@ -346,6 +449,18 @@ describe('moderator applications and assignment', () => {
     const path = `/admin/classes/${state.cls.id}/assign`;
     const body = assignmentBody(state.cls, state.request, state.applicationA);
 
+    for (const invalid of [
+      { ...body, agreedTuitionPerSessionMinor: 0 },
+      { ...body, agreedTuitionPerSessionMinor: 100_000_001 },
+      { ...body, agreedTuitionPerSessionMinor: 220_000.5 },
+      { ...body, agreedTuitionPerSessionMinor: undefined },
+      { ...body, partiesAgreed: false },
+    ]) {
+      expect((await api(path, jsonInit('POST', invalid, state.moderator))).status).toBe(422);
+    }
+    expect((await api(path, jsonInit('POST', body, state.parent))).status).toBe(403);
+    expect((await api(path, jsonInit('POST', body, state.tutorA))).status).toBe(403);
+
     const stale = await api(
       path,
       jsonInit('POST', { ...body, requestVersion: 1 }, state.moderator),
@@ -367,7 +482,34 @@ describe('moderator applications and assignment', () => {
       tutorUserId: state.tutorA.userId,
       status: 'active',
       assignedBy: state.moderator.userId,
+      agreedTuitionPerSessionMinor: AGREED_TUITION,
+      tuitionRecordedBy: state.moderator.userId,
     });
+    const storedTuition = await env.DB.prepare(
+      `SELECT agreed_tuition_per_session_minor AS amount, tuition_recorded_by AS actor
+       FROM class_assignments WHERE id = ?`,
+    )
+      .bind(assignment.id)
+      .first<{ amount: number | null; actor: string | null }>();
+    expect(storedTuition).toMatchObject({ amount: AGREED_TUITION, actor: state.moderator.userId });
+    const parentDetail = await api(`/parent/requests/${state.request.id}`, {
+      headers: { Cookie: state.parent.cookie },
+    });
+    expect((await parentDetail.json<ApiSuccess<OwnParentRequest>>()).data).toMatchObject({
+      expectedBudgetMinor: 250_000,
+      agreedTuitionPerSessionMinor: AGREED_TUITION,
+    });
+    const publicClass = await api(`/classes/${state.cls.id}`);
+    expect(publicClass.status).toBe(404);
+    expect(JSON.stringify(await publicClass.json())).not.toContain('agreedTuitionPerSessionMinor');
+    const otherParent = await register('parent');
+    expect(
+      (
+        await api(`/parent/requests/${state.request.id}`, {
+          headers: { Cookie: otherParent.cookie },
+        })
+      ).status,
+    ).toBe(404);
     const stored = await env.DB.prepare('SELECT status FROM class_listings WHERE id = ?')
       .bind(state.cls.id)
       .first<{ status: string }>();
@@ -403,6 +545,7 @@ describe('moderator applications and assignment', () => {
       classId: state.cls.id,
       applicationId: state.applicationA.id,
       status: 'active',
+      agreedTuitionPerSessionMinor: AGREED_TUITION,
     });
     expect(JSON.stringify(ownPage)).not.toContain(PHONE);
     expect(JSON.stringify(ownPage)).not.toContain(ADDRESS);
@@ -528,7 +671,15 @@ describe('moderator applications and assignment', () => {
       classStatus: 'open',
       requestStatus: 'sourcing',
       assignmentId: null,
+      agreedTuitionPerSessionMinor: null,
       events: [expect.objectContaining({ eventType: 'revoked', reason: body.reason })],
+    });
+    const reopenedParentDetail = await api(`/parent/requests/${state.request.id}`, {
+      headers: { Cookie: state.parent.cookie },
+    });
+    expect((await reopenedParentDetail.json<ApiSuccess<OwnParentRequest>>()).data).toMatchObject({
+      expectedBudgetMinor: 250_000,
+      agreedTuitionPerSessionMinor: null,
     });
     expect(
       (
@@ -552,6 +703,7 @@ describe('moderator applications and assignment', () => {
           assignmentId: assignment.id,
           outcome: 'revoked',
           reason: body.reason,
+          agreedTuitionPerSessionMinor: AGREED_TUITION,
         }),
       ]),
     );
@@ -587,6 +739,43 @@ describe('moderator applications and assignment', () => {
     );
     expect(repeatApplication.id).not.toBe(state.applicationA.id);
     expect(repeatApplication.status).toBe('submitted');
+    const reassignedResponse = await api(
+      `/admin/classes/${state.cls.id}/assign`,
+      jsonInit(
+        'POST',
+        {
+          applicationId: repeatApplication.id,
+          classVersion: revoked.classVersion,
+          requestVersion: revoked.requestVersion,
+          applicationVersion: repeatApplication.version,
+          agreedTuitionPerSessionMinor: 310_000,
+          partiesAgreed: true,
+        },
+        state.moderator,
+      ),
+    );
+    expect(reassignedResponse.status).toBe(200);
+    const reassigned = (await reassignedResponse.json<ApiSuccess<AdminAssignment>>()).data;
+    expect(reassigned.agreedTuitionPerSessionMinor).toBe(310_000);
+    const amounts = await env.DB.prepare(
+      `SELECT id, agreed_tuition_per_session_minor AS amount
+       FROM class_assignments WHERE class_id = ? ORDER BY assigned_at, id`,
+    )
+      .bind(state.cls.id)
+      .all<{ id: string; amount: number | null }>();
+    expect(amounts.results).toEqual(
+      expect.arrayContaining([
+        { id: assignment.id, amount: AGREED_TUITION },
+        { id: reassigned.id, amount: 310_000 },
+      ]),
+    );
+    const reassignedParentDetail = await api(`/parent/requests/${state.request.id}`, {
+      headers: { Cookie: state.parent.cookie },
+    });
+    expect(
+      (await reassignedParentDetail.json<ApiSuccess<OwnParentRequest>>()).data
+        .agreedTuitionPerSessionMinor,
+    ).toBe(310_000);
   });
 
   it('completes a class with reason, closes contact and releases completed obligations', async () => {
@@ -651,8 +840,16 @@ describe('moderator applications and assignment', () => {
     expect(completed).toMatchObject({
       classStatus: 'completed',
       requestStatus: 'fulfilled',
+      agreedTuitionPerSessionMinor: AGREED_TUITION,
       events: [expect.objectContaining({ eventType: 'completed', reason: body.reason })],
     });
+    const completedParentDetail = await api(`/parent/requests/${state.request.id}`, {
+      headers: { Cookie: state.parent.cookie },
+    });
+    expect(
+      (await completedParentDetail.json<ApiSuccess<OwnParentRequest>>()).data
+        .agreedTuitionPerSessionMinor,
+    ).toBe(AGREED_TUITION);
     expect(
       (
         await api(`/tutor/assignments/${assignment.id}/contact`, {

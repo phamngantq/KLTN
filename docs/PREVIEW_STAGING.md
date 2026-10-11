@@ -1,5 +1,9 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Học phí đã chốt theo lớp ngày 2026-10-12 — chờ phát hành
+
+Mã nguồn bổ sung migration `0017`: kiểm duyệt viên bắt buộc nhập học phí đã chốt theo buổi khi gán gia sư; D1 lưu theo từng lần gán và hợp đồng mới giữ snapshot khi phát hành. Assignment cũ chưa xác minh giữ `NULL`, có thể được kiểm duyệt viên ghi một lần khi còn hiệu lực và trước hợp đồng. **Chưa áp dụng migration `0017` hoặc deploy thay đổi này trên staging V2.** Migration `0016` và seed bảng giá bên dưới cũng còn chờ phát hành.
+
 ## Thay đổi bảng giá ngày 2026-10-12 — chờ phát hành
 
 Mã nguồn đã bổ sung hai bảng D1 cho học phí theo buổi và khoảng phí nhận lớp tham khảo. Hai mảng trong `.env.example` là nguồn nạp dữ liệu mẫu; sau khi áp dụng migration `0016` và chạy lại `seed:sample:staging:v2` trên đúng D1, hệ thống sẽ lưu sáu mức học phí và hai khoảng phí trong D1. Các lớp và ngân sách dự kiến của từng lớp đã nằm trong D1 từ lần phát hành trước. **Chưa ghi nhận áp dụng migration, seed lại hoặc deploy Worker cho thay đổi này trên staging.**

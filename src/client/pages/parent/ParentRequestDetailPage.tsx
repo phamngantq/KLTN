@@ -143,6 +143,18 @@ export function ParentRequestDetailPage() {
                   : formatVnd(request.expectedBudgetMinor)}
               </dd>
             </div>
+            {(request.status === 'assigned' || request.status === 'fulfilled') && (
+              <div>
+                <dt className="flex items-center gap-1 text-xs text-muted">
+                  <Wallet aria-hidden="true" className="size-3.5" /> Học phí đã chốt
+                </dt>
+                <dd className="mt-1 font-semibold text-primary">
+                  {request.agreedTuitionPerSessionMinor === null
+                    ? 'Chưa ghi nhận'
+                    : `${formatVnd(request.agreedTuitionPerSessionMinor)}/buổi`}
+                </dd>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <dt className="flex items-center gap-1 text-xs text-muted">
                 <Clock3 aria-hidden="true" className="size-3.5" /> Lịch học mong muốn

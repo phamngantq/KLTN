@@ -21,6 +21,7 @@ const ownRequest: OwnParentRequest = {
   mode: 'online',
   area: null,
   expectedBudgetMinor: null,
+  agreedTuitionPerSessionMinor: null,
   description: 'Cần gia sư hỗ trợ Toán.',
   status: 'draft',
   version: 1,

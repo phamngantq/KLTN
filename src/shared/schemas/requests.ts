@@ -143,6 +143,8 @@ export interface ParentRequestSummary {
 
 /** Returned only from an owner-authenticated detail/create/update endpoint. */
 export interface OwnParentRequest extends ParentRequestSummary {
+  /** Agreed VND per session for the current assignment; null before assignment or after revocation. */
+  agreedTuitionPerSessionMinor: number | null;
   cancellationReason?: string | null;
   contactPhone: string | null;
   contactAddress: string | null;

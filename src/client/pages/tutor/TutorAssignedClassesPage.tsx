@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Clock3, MapPin, Phone, UserRound } from 'lucide-react';
+import { BookOpen, Clock3, MapPin, Phone, UserRound, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type {
@@ -13,6 +13,7 @@ import { Button } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { api, toQuery } from '../../lib/api-client';
+import { formatVnd } from '../../lib/format';
 
 export function TutorAssignedClassesPage() {
   const { user } = useSession();
@@ -123,6 +124,13 @@ export function TutorAssignedClassesPage() {
                       {item.mode === 'online'
                         ? 'Trực tuyến'
                         : `Trực tiếp · ${item.publicArea ?? ''}`}
+                    </span>
+                    <span className="inline-flex items-center gap-2">
+                      <Wallet className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                      Học phí đã chốt:{' '}
+                      {item.agreedTuitionPerSessionMinor === null
+                        ? 'Chưa ghi nhận'
+                        : `${formatVnd(item.agreedTuitionPerSessionMinor)}/buổi`}
                     </span>
                   </div>
                   <div className="flex justify-end">
@@ -260,6 +268,12 @@ export function TutorAssignedClassesPage() {
                   </div>
                   <p className="mt-1 text-muted">
                     {new Date(item.endedAt).toLocaleString('vi-VN')} · {item.reason}
+                  </p>
+                  <p className="mt-1 text-muted">
+                    Học phí đã chốt:{' '}
+                    {item.agreedTuitionPerSessionMinor === null
+                      ? 'Chưa ghi nhận'
+                      : `${formatVnd(item.agreedTuitionPerSessionMinor)}/buổi`}
                   </p>
                 </li>
               ))}

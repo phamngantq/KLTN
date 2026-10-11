@@ -18,6 +18,7 @@ type ContextRow = {
   assignment_id: string | null;
   assignment_version: number | null;
   tutor_display_name: string | null;
+  agreed_tuition_per_session_minor: number | null;
 };
 type EventRow = {
   id: string;
@@ -27,6 +28,7 @@ type EventRow = {
   actor_id: string;
   reason: string;
   created_at: string;
+  agreed_tuition_per_session_minor: number | null;
 };
 
 const stale = () =>
@@ -44,7 +46,8 @@ export async function getClassLifecycle(db: D1Database, classId: string): Promis
       `SELECT c.id AS class_id, c.status AS class_status, c.version AS class_version,
         r.id AS request_id, r.status AS request_status, r.version AS request_version,
         a.id AS assignment_id, a.version AS assignment_version,
-        u.display_name AS tutor_display_name
+        u.display_name AS tutor_display_name,
+        a.agreed_tuition_per_session_minor
        FROM class_listings c
        JOIN parent_requests r ON r.id = c.source_request_id
        LEFT JOIN class_assignments a ON a.class_id = c.id AND a.status = 'active'
@@ -56,11 +59,13 @@ export async function getClassLifecycle(db: D1Database, classId: string): Promis
   if (!context) throw new AppError(404, 'CLASS_NOT_FOUND', 'Không tìm thấy lớp học.');
   const history = await db
     .prepare(
-      `SELECT id, class_id, assignment_id, event_type, actor_id, reason, created_at
-       FROM class_lifecycle_events WHERE class_id = ?
+      `SELECT e.id, e.class_id, e.assignment_id, e.event_type, e.actor_id,
+         e.reason, e.created_at, a.agreed_tuition_per_session_minor
+       FROM class_lifecycle_events e
+       JOIN class_assignments a ON a.id = e.assignment_id WHERE e.class_id = ?
        UNION ALL
        SELECT id, class_id, NULL AS assignment_id, 'cancelled' AS event_type,
-         actor_id, reason, created_at
+         actor_id, reason, created_at, NULL AS agreed_tuition_per_session_minor
        FROM class_cancellations WHERE class_id = ?
        ORDER BY created_at DESC, id DESC LIMIT 100`,
     )
@@ -75,6 +80,10 @@ export async function getClassLifecycle(db: D1Database, classId: string): Promis
     assignmentId: context.class_status === 'active' ? context.assignment_id : null,
     assignmentVersion: context.class_status === 'active' ? context.assignment_version : null,
     tutorDisplayName: context.class_status === 'active' ? context.tutor_display_name : null,
+    agreedTuitionPerSessionMinor:
+      context.class_status === 'active' || context.class_status === 'completed'
+        ? context.agreed_tuition_per_session_minor
+        : null,
     events: history.results.map((row) => ({
       id: row.id,
       classId: row.class_id,
@@ -83,6 +92,7 @@ export async function getClassLifecycle(db: D1Database, classId: string): Promis
       actorId: row.actor_id,
       reason: row.reason,
       createdAt: row.created_at,
+      agreedTuitionPerSessionMinor: row.agreed_tuition_per_session_minor,
     })),
   };
 }
@@ -294,6 +304,7 @@ type TutorHistoryRow = {
   event_type: 'revoked' | 'completed';
   reason: string;
   created_at: string;
+  agreed_tuition_per_session_minor: number | null;
 };
 
 export async function listTutorAssignmentHistory(
@@ -306,7 +317,8 @@ export async function listTutorAssignmentHistory(
     db
       .prepare(
         `SELECT e.assignment_id, e.class_id, c.code AS class_code,
-          s.name AS subject_name, c.grade, c.mode, e.event_type, e.reason, e.created_at
+          s.name AS subject_name, c.grade, c.mode, e.event_type, e.reason, e.created_at,
+          a.agreed_tuition_per_session_minor
          FROM class_lifecycle_events e
          JOIN class_assignments a ON a.id = e.assignment_id
          JOIN class_listings c ON c.id = e.class_id
@@ -335,6 +347,7 @@ export async function listTutorAssignmentHistory(
       outcome: row.event_type,
       reason: row.reason,
       endedAt: row.created_at,
+      agreedTuitionPerSessionMinor: row.agreed_tuition_per_session_minor,
     })),
     page,
     pageSize,
