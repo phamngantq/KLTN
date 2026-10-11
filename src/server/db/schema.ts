@@ -2,9 +2,10 @@
  * Drizzle mirror of migrations/*.sql. The SQL migrations are the source of truth;
  * keep this file in sync with the SQL by hand (a schema sync test is still TODO in TASK-02).
  */
-import { sql } from 'drizzle-orm';
+import { desc, sql } from 'drizzle-orm';
 import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
 import { BOOKING_STATUSES } from '../../shared/schemas/bookings';
+import { REQUEST_STATUSES } from '../../shared/schemas/requests';
 import {
   index,
   integer,
@@ -52,6 +53,63 @@ export const parentProfiles = sqliteTable('parent_profiles', {
   phone: text('phone'),
   ...timestamps(),
 });
+
+export const parentRequests = sqliteTable(
+  'parent_requests',
+  {
+    id: text('id').primaryKey(),
+    code: text('code').notNull(),
+    parentUserId: text('parent_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    subjectId: text('subject_id')
+      .notNull()
+      .references(() => subjects.id, { onDelete: 'restrict' }),
+    grade: text('grade').notNull(),
+    mode: text('mode', { enum: ['online', 'offline'] }).notNull(),
+    area: text('area'),
+    expectedBudgetMinor: integer('expected_budget_minor'),
+    description: text('description').notNull(),
+    status: text('status', { enum: REQUEST_STATUSES }).notNull().default('draft'),
+    version: integer('version').notNull().default(1),
+    mutationId: text('mutation_id').notNull(),
+    timezone: timezone(),
+    discussLater: integer('discuss_later', { mode: 'boolean' }).notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('parent_requests_code_uq').on(t.code),
+    index('parent_requests_owner_created_idx').on(t.parentUserId, desc(t.createdAt), t.id),
+    index('parent_requests_status_updated_idx').on(t.status, desc(t.updatedAt), t.id),
+  ],
+);
+
+export const parentRequestPrivate = sqliteTable('parent_request_private', {
+  requestId: text('request_id')
+    .primaryKey()
+    .references(() => parentRequests.id, { onDelete: 'cascade' }),
+  contactPhone: text('contact_phone'),
+  contactAddress: text('contact_address'),
+  contactConsentAt: text('contact_consent_at'),
+  contactConsentVersion: text('contact_consent_version'),
+});
+
+export const requestScheduleWindows = sqliteTable(
+  'request_schedule_windows',
+  {
+    requestId: text('request_id')
+      .notNull()
+      .references(() => parentRequests.id, { onDelete: 'cascade' }),
+    weekday: integer('weekday').notNull(),
+    startLocal: text('start_local').notNull(),
+    endLocal: text('end_local').notNull(),
+    timezone: timezone(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.requestId, t.weekday, t.startLocal] }),
+    index('request_schedule_windows_request_weekday_idx').on(t.requestId, t.weekday),
+  ],
+);
 
 export const authCredentials = sqliteTable('auth_credentials', {
   userId: text('user_id')

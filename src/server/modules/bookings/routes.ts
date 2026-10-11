@@ -47,12 +47,14 @@ bookingRoutes.post(
         studentId,
         input,
         new Date(),
-        (bookingId) => [idempotency.completeStatement(c.var.db, ctx, bookingId, 201)],
+        (bookingId) => ({
+          before: [idempotency.assertOwnedStatement(c.var.db, ctx, claim)],
+          after: [idempotency.completeStatement(c.var.db, ctx, claim, bookingId, 201)],
+        }),
       );
       return ok<Booking>(c, booking, 201);
     } catch (err) {
-      await idempotency.release(c.var.db, ctx);
-      throw err;
+      await idempotency.releaseAfterFailure(c.var.db, ctx, claim, err);
     }
   },
 );

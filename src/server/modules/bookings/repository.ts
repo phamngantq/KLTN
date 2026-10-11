@@ -50,9 +50,13 @@ export async function insertBookingWithClaims(
   booking: NewBooking,
   cellStartsUtc: string[],
   now: string,
-  extra: BatchItem<'sqlite'>[] = [],
+  extra: { before: BatchItem<'sqlite'>[]; after: BatchItem<'sqlite'>[] } = {
+    before: [],
+    after: [],
+  },
 ): Promise<void> {
-  await db.batch([
+  const statements: BatchItem<'sqlite'>[] = [
+    ...extra.before,
     db.insert(bookings).values(booking),
     ...cellStartsUtc.map((slotStartUtc) =>
       db
@@ -68,8 +72,9 @@ export async function insertBookingWithClaims(
       metadata: JSON.stringify({ status: booking.status, startsAtUtc: booking.startsAtUtc }),
       createdAt: now,
     }),
-    ...extra,
-  ]);
+    ...extra.after,
+  ];
+  await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
 }
 
 export function findBookingVersion(db: Db, id: string) {

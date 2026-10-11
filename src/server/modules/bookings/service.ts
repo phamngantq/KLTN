@@ -39,8 +39,11 @@ export async function createBooking(
   studentId: string,
   input: CreateBookingInput,
   now = new Date(),
-  /** Statements committed atomically with the booking (e.g. idempotency completion). */
-  extraStatements: (bookingId: string) => BatchItem<'sqlite'>[] = () => [],
+  /** Statements committed atomically with the booking (e.g. idempotency fencing/completion). */
+  extraStatements: (bookingId: string) => {
+    before: BatchItem<'sqlite'>[];
+    after: BatchItem<'sqlite'>[];
+  } = () => ({ before: [], after: [] }),
 ): Promise<Booking> {
   const tutor = await getPublicTutorById(db, input.tutorId); // 404 unless publicly listed
   const startMs = Date.parse(input.startUtc);

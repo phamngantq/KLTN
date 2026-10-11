@@ -128,6 +128,40 @@ test('student cancels after confirming the policy; the slot is offered again', a
   await expect(guest.getByRole('button', { name: '18:00–19:00' }).first()).toBeVisible();
 });
 
+test('parent submits a real find-tutor request only after explicit contact consent', async () => {
+  await studentPage.goto('/parent/request');
+  await expect(studentPage.getByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeVisible();
+  await studentPage.getByLabel('Môn học').selectOption('subj_math');
+  await studentPage.getByLabel('Lớp học').selectOption('Lớp 10');
+  await studentPage.getByLabel('Mô tả nhu cầu').fill('Cần gia sư Toán buổi tối.');
+  await studentPage.getByLabel('Số điện thoại liên hệ').fill('0912345678');
+
+  const send = studentPage.getByRole('button', { name: 'Gửi yêu cầu' });
+  await expect(send).toBeDisabled();
+  await studentPage.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/).check();
+  await expect(send).toBeEnabled();
+  await send.click();
+
+  await expect(studentPage).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
+  await expect(studentPage.getByText('Đã gửi', { exact: true })).toBeVisible();
+  await expect(studentPage.getByText(/Đã ghi nhận đồng ý chia sẻ liên hệ/)).toBeVisible();
+  await expect(studentPage.getByText('Số điện thoại: 0912345678')).toBeVisible();
+
+  const listResponse = await studentPage.context().request.get('/api/v1/parent/requests');
+  expect(listResponse.ok()).toBeTruthy();
+  const listJson = await listResponse.text();
+  expect(listJson).not.toContain('0912345678');
+
+  await studentPage.goto('/parent?status=submitted');
+  await expect(studentPage.getByText('1 yêu cầu', { exact: false })).toBeVisible();
+  await expect(studentPage.getByRole('link', { name: /YC-[A-F0-9]{12}/ })).toBeVisible();
+
+  await studentPage.setViewportSize({ width: 320, height: 900 });
+  await studentPage.goto('/parent/request');
+  await expect(studentPage.getByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeVisible();
+  await expectNoHorizontalOverflow(studentPage);
+});
+
 test('filters with no match show a recoverable empty state', async ({ browser }) => {
   const guest = await newPage(browser);
   await guest.goto('/tutors?subject=lich-su');

@@ -37,6 +37,17 @@ function insertClaim(tutorId: string, slot: string, bookingId: string) {
     .bind(tutorId, slot, bookingId);
 }
 
+function insertParentRequest(id: string, code: string, parentId: string, subjectId = 'subj_math') {
+  return db
+    .prepare(
+      `INSERT INTO parent_requests
+       (id, code, parent_user_id, subject_id, grade, mode, description,
+        mutation_id, discuss_later, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'Lớp 10', 'online', 'Need tutor', ?, 1, ?, ?)`,
+    )
+    .bind(id, code, parentId, subjectId, crypto.randomUUID(), NOW, NOW);
+}
+
 const drizzleTables = Object.values(schema as Record<string, unknown>).filter(
   (value: unknown): value is SQLiteTable => value instanceof SQLiteTable,
 );
@@ -51,7 +62,7 @@ describe('D1 migrations', () => {
       .map((r) => r.name)
       .filter((name) => !/^(sqlite_|d1_|_cf_)/.test(name));
     expect(appTables).toEqual(drizzleTables.map((t) => getTableConfig(t).name).sort());
-    expect(drizzleTables).toHaveLength(15);
+    expect(drizzleTables).toHaveLength(18);
   });
 
   it('is idempotent when re-applied', async () => {
@@ -100,6 +111,48 @@ describe('Drizzle schema mirrors the migrated database', () => {
 });
 
 describe('constraints', () => {
+  it('keeps request codes unique, subject FK valid and history safe from account cascade', async () => {
+    const parent = await insertUser();
+    const requestId = crypto.randomUUID();
+    await insertParentRequest(requestId, 'YC-123456ABCDEF', parent).run();
+    await expect(
+      insertParentRequest(crypto.randomUUID(), 'YC-123456ABCDEF', parent).run(),
+    ).rejects.toThrow(/UNIQUE/);
+    await expect(
+      insertParentRequest(crypto.randomUUID(), 'YC-987654ABCDEF', parent, 'missing-subject').run(),
+    ).rejects.toThrow(/FOREIGN KEY/);
+    await expect(db.prepare('DELETE FROM users WHERE id = ?').bind(parent).run()).rejects.toThrow(
+      /FOREIGN KEY/,
+    );
+  });
+
+  it('rejects overlapping request windows and incomplete consent pairs', async () => {
+    const parent = await insertUser();
+    const requestId = crypto.randomUUID();
+    await insertParentRequest(requestId, 'YC-ABCDEF123456', parent).run();
+    const insertWindow = (start: string, end: string) =>
+      db
+        .prepare(
+          `INSERT INTO request_schedule_windows
+           (request_id, weekday, start_local, end_local, timezone)
+           VALUES (?, 1, ?, ?, 'Asia/Ho_Chi_Minh')`,
+        )
+        .bind(requestId, start, end)
+        .run();
+    await insertWindow('18:00', '19:00');
+    await expect(insertWindow('18:30', '19:30')).rejects.toThrow(/REQUEST_WINDOWS_INVALID/);
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO parent_request_private
+           (request_id, contact_phone, contact_consent_at)
+           VALUES (?, '0912345678', ?)`,
+        )
+        .bind(requestId, NOW)
+        .run(),
+    ).rejects.toThrow(/CHECK/);
+  });
+
   it('keeps parent profiles tied to an existing account', async () => {
     await expect(
       db

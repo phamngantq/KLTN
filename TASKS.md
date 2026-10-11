@@ -248,7 +248,7 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 
 **Commit:** `feat(accounts): add parent roles and profiles`.
 
-### [ ] TASK-23 — Implement parent find-tutor requests
+### [x] TASK-23 — Implement parent find-tutor requests
 **Dependency:** TASK-22.
 
 **Scope:** Form, danh sách, lọc, chi tiết và trạng thái yêu cầu tìm gia sư của phụ huynh.
@@ -316,13 +316,13 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 ### [ ] TASK-28 — Implement complaints and sensitive-data controls
 **Dependency:** TASK-27.
 
-**Scope:** Khiếu nại parent/tutor/admin, file đính kèm nếu storage/policy được duyệt, hồ sơ xác minh gia sư nếu cần.
+**Scope:** Khiếu nại parent/tutor/admin, xóa tài khoản và contact riêng theo DEC-010, file đính kèm nếu storage/policy được duyệt, hồ sơ xác minh gia sư nếu cần.
 
-**Deliverables:** Complaint state machine/API/UI, audit, access/retention controls, tests.
+**Deliverables:** Complaint state machine/API/UI, audit, account deletion và PII purge giữ lịch sử không PII, access/retention controls, tests.
 
-**Implementation:** Thống nhất status giữa page user/admin; che PII và tài liệu học sinh/CCCD theo role, kiểm file size/type, không public raw upload. Không tạo storage remote khi chưa được phép.
+**Implementation:** Thống nhất status giữa page user/admin; xóa contact riêng, PII hồ sơ và vô hiệu hóa session khi xóa tài khoản, xử lý FK để giữ lịch sử nghiệp vụ không PII. Che PII và tài liệu học sinh/CCCD theo role, kiểm file size/type, không public raw upload. Không tạo storage remote khi chưa được phép.
 
-**Acceptance tests:** Owner/admin access, transition 409, file authorization nếu có, retention/empty/error states và lint/typecheck/test/build PASS.
+**Acceptance tests:** Owner/admin access, transition 409, account deletion xóa contact/PII/session nhưng giữ lịch sử không PII, file authorization nếu có, retention/empty/error states và lint/typecheck/test/build PASS.
 
 **Commit:** `feat(support): add complaint workflow and privacy controls`.
 

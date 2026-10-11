@@ -73,12 +73,16 @@ describe('Figma role route matrix', () => {
   });
 
   it('keeps parent pages behind the trusted student session role', async () => {
-    mockApi((req) => (req.path === '/me' ? sessionOf({ role: 'student' }) : undefined));
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/subjects') return { data: [{ id: 'math', slug: 'math', name: 'Toán' }] };
+      return undefined;
+    });
     const { router } = renderRoute('/parent/request');
-    expect(await screen.findByRole('heading', { name: 'Yêu cầu tìm gia sư' })).toBeTruthy();
-    await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
+    expect(await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeTruthy();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/parent/request'));
     expect(screen.getByRole('navigation', { name: 'Điều hướng Phụ huynh' })).toBeTruthy();
-    expect(screen.getByText(/chức năng gửi và theo dõi yêu cầu/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Lưu bản nháp' })).toBeTruthy();
   });
 
   it('shows tutor pages only to tutors and does not offer a fake application', async () => {

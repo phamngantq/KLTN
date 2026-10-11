@@ -155,13 +155,32 @@ const MODERATOR_PENDING = [
 const parentRoutes: RouteObject[] = [
   {
     index: true,
-    element: pending(
-      'parent',
-      'Yêu cầu tìm gia sư',
-      'Chức năng gửi và theo dõi yêu cầu tìm gia sư chưa mở.',
-    ),
+    ...page(async () => {
+      const { ParentRequestsPage } = await import('../pages/parent/ParentRequestsPage');
+      return <ParentRequestsPage />;
+    }),
   },
-  { path: 'request', element: <Navigate to="/parent" replace /> },
+  {
+    path: 'request',
+    ...page(async () => {
+      const { ParentRequestFormPage } = await import('../pages/parent/ParentRequestFormPage');
+      return <ParentRequestFormPage />;
+    }),
+  },
+  {
+    path: 'requests/:id',
+    ...page(async () => {
+      const { ParentRequestDetailPage } = await import('../pages/parent/ParentRequestDetailPage');
+      return <ParentRequestDetailPage />;
+    }),
+  },
+  {
+    path: 'requests/:id/edit',
+    ...page(async () => {
+      const { ParentRequestFormPage } = await import('../pages/parent/ParentRequestFormPage');
+      return <ParentRequestFormPage />;
+    }),
+  },
   { path: 'dashboard', element: <Navigate to="/parent" replace /> },
   { path: 'trang-chu', element: <HomePage /> },
   { path: 'gioi-thieu', element: <PublicInfoPage kind="about" /> },
