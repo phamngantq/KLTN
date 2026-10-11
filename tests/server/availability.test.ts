@@ -1,8 +1,11 @@
 import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 import type { ApiErrorBody, ApiSuccess } from '../../src/shared/api';
-import type { WeeklyAvailability } from '../../src/shared/schemas/availability';
-import { findOverlaps } from '../../src/server/modules/availability/overlap';
+import type {
+  WeeklyAvailability,
+  WeeklyAvailabilitySaveResult,
+} from '../../src/shared/schemas/availability';
+import { findOverlaps } from '../../src/shared/availability';
 import { api, errorCode, jsonInit, register, type Session } from './helpers';
 
 const PATH = '/tutor/availability';
@@ -60,7 +63,10 @@ describe('GET/PUT /tutor/availability', () => {
     const tutor = await register('tutor');
     const res = await put(tutor, { rules: [{ weekday: 1, start: '18:00', end: '19:00' }] });
     expect(res.status).toBe(200);
-    const saved = (await res.json<ApiSuccess<WeeklyAvailability>>()).data;
+    const { affectedBookings, ...saved } = (
+      await res.json<ApiSuccess<WeeklyAvailabilitySaveResult>>()
+    ).data;
+    expect(affectedBookings).toBe(0);
     expect(saved.timezone).toBe('Asia/Ho_Chi_Minh');
     expect(saved.rules).toEqual([
       {

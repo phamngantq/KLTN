@@ -106,7 +106,7 @@
 **Acceptance tests:** unapproved/private tutor never leaks details; filters deterministic; bad query 422; empty/loading/error; reload retains URL filters; useful D1 indexes.  
 **Commit:** `feat(discovery): add tutor listing search and details`.
 
-### [ ] TASK-09 — Availability exceptions and weekly schedule UI
+### [x] TASK-09 — Availability exceptions and weekly schedule UI
 **Dependency:** TASK-08.  
 **Scope:** Tutor overrides + weekly editor UI, không sửa booking.  
 **Deliverables:** `GET/POST/PATCH/DELETE /api/v1/tutor/availability/exceptions`, weekly schedule editor/toggle UI, validation/tests.  

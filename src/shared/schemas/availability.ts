@@ -76,3 +76,54 @@ export interface WeeklyAvailability {
   timezone: string;
   rules: WeeklyRule[];
 }
+
+export const MAX_UPCOMING_EXCEPTIONS = 200;
+
+/** Date-specific override. `closed` without times closes the whole local day. */
+export const exceptionInputSchema = z
+  .strictObject({
+    date: localDateSchema,
+    kind: z.enum(['closed', 'extra']),
+    start: startTime.nullish(),
+    end: endTime.nullish(),
+  })
+  .refine((e) => (e.start == null) === (e.end == null), {
+    message: 'Cần nhập cả giờ bắt đầu và giờ kết thúc.',
+    path: ['end'],
+  })
+  .refine((e) => e.kind === 'closed' || e.start != null, {
+    message: 'Khung giờ mở thêm cần có giờ bắt đầu và kết thúc.',
+    path: ['start'],
+  })
+  .refine(
+    (e) => e.start == null || e.end == null || timeToMinutes(e.start) < timeToMinutes(e.end),
+    {
+      message: 'Giờ bắt đầu phải trước giờ kết thúc (không vắt qua nửa đêm).',
+      path: ['end'],
+    },
+  );
+export type ExceptionInput = z.infer<typeof exceptionInputSchema>;
+
+export interface AvailabilityException {
+  id: string;
+  date: string;
+  kind: 'closed' | 'extra';
+  start: string | null;
+  end: string | null;
+}
+
+export interface ExceptionList {
+  timezone: string;
+  exceptions: AvailabilityException[];
+}
+
+/**
+ * Every availability mutation reports how many upcoming PENDING/CONFIRMED bookings are no longer
+ * covered by the new schedule. Bookings are never changed automatically (PLAN §3.2.6).
+ */
+export interface AffectedBookings {
+  affectedBookings: number;
+}
+
+export type WeeklyAvailabilitySaveResult = WeeklyAvailability & AffectedBookings;
+export type ExceptionSaveResult = { exception: AvailabilityException } & AffectedBookings;

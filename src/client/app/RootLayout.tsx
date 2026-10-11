@@ -15,6 +15,7 @@ interface NavItem {
  */
 const NAV: { to: string; label: string; roles: readonly (UserRole | 'guest')[] }[] = [
   { to: '/tutors', label: 'Tìm gia sư', roles: ['guest', 'student', 'tutor', 'admin'] },
+  { to: '/tutor/availability', label: 'Lịch dạy', roles: ['tutor'] },
   { to: '/tutor/profile', label: 'Hồ sơ gia sư', roles: ['tutor'] },
   { to: '/account', label: 'Tài khoản', roles: ['student', 'tutor', 'admin'] },
 ];
