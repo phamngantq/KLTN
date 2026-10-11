@@ -130,7 +130,7 @@
 **Acceptance tests:** two concurrent students booking same start: exactly one success and other 409; zero orphan bookings on partial failure; 60 vs 90m overlap rejected; no client-supplied price/role override; no booking in past.  
 **Commit:** `feat(booking): create bookings with atomic slot claims`.
 
-### [ ] TASK-12 — Booking idempotency and retry safety
+### [x] TASK-12 — Booking idempotency and retry safety
 **Dependency:** TASK-11.  
 **Scope:** `Idempotency-Key` for booking-create only.  
 **Deliverables:** idempotency middleware/service using existing table, tests for repeated/concurrent requests.  

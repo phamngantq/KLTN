@@ -1,4 +1,5 @@
 import { eq } from 'drizzle-orm';
+import type { BatchItem } from 'drizzle-orm/batch';
 import { alias } from 'drizzle-orm/sqlite-core';
 import type { Db } from '../../db/client';
 import { auditLogs, bookingSlotClaims, bookings, users } from '../../db/schema';
@@ -48,6 +49,7 @@ export async function insertBookingWithClaims(
   booking: NewBooking,
   cellStartsUtc: string[],
   now: string,
+  extra: BatchItem<'sqlite'>[] = [],
 ): Promise<void> {
   await db.batch([
     db.insert(bookings).values(booking),
@@ -65,5 +67,6 @@ export async function insertBookingWithClaims(
       metadata: JSON.stringify({ status: booking.status, startsAtUtc: booking.startsAtUtc }),
       createdAt: now,
     }),
+    ...extra,
   ]);
 }

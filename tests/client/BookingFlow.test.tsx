@@ -131,4 +131,41 @@ describe('booking request flow', () => {
       ),
     );
   });
+
+  it('sends an Idempotency-Key and reuses it when retrying after a network failure', async () => {
+    let attempts = 0;
+    const { calls } = api(sessionOf({ role: 'student' }), () => {
+      attempts += 1;
+      if (attempts === 1) throw new TypeError('network down');
+      return {
+        status: 201,
+        data: {
+          id: 'abcdef12-0000-4000-8000-000000000000',
+          tutorId: TUTOR_ID,
+          studentId: 'u1',
+          tutorName: 'Gia sư An',
+          studentName: 'Nguyễn An',
+          startsAtUtc: SLOT.startUtc,
+          endsAtUtc: SLOT.endUtc,
+          durationMinutes: 60,
+          status: 'PENDING',
+          hourlyRateMinor: 200_000,
+          priceMinor: 200_000,
+          currency: 'VND',
+          createdAt: '2099-01-01T00:00:00.000Z',
+          updatedAt: '2099-01-01T00:00:00.000Z',
+        },
+      };
+    });
+    renderRoute('/tutors/gia-su-an');
+    const user = await pickSlot();
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu đặt lịch' }));
+    await user.click(await screen.findByRole('button', { name: 'Gửi yêu cầu' }));
+    expect(await screen.findByText('Đã gửi yêu cầu đặt lịch', {}, { timeout: 3000 })).toBeTruthy();
+    const posts = calls.filter((c) => c.path === '/bookings');
+    expect(posts).toHaveLength(2);
+    const keys = posts.map((c) => c.headers.get('Idempotency-Key'));
+    expect(keys[0]).toMatch(/^bk-/);
+    expect(keys[1]).toBe(keys[0]);
+  });
 });

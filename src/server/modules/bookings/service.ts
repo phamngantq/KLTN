@@ -1,3 +1,4 @@
+import type { BatchItem } from 'drizzle-orm/batch';
 import { cellsOf, projectSlots } from '../../../shared/availability';
 import { SLOT_HORIZON_DAYS, SLOT_MINUTES } from '../../../shared/schemas/availability';
 import type { Booking, CreateBookingInput } from '../../../shared/schemas/bookings';
@@ -28,6 +29,8 @@ export async function createBooking(
   studentId: string,
   input: CreateBookingInput,
   now = new Date(),
+  /** Statements committed atomically with the booking (e.g. idempotency completion). */
+  extraStatements: (bookingId: string) => BatchItem<'sqlite'>[] = () => [],
 ): Promise<Booking> {
   const tutor = await getPublicTutorById(db, input.tutorId); // 404 unless publicly listed
   const startMs = Date.parse(input.startUtc);
@@ -89,7 +92,7 @@ export async function createBooking(
   };
   const cells = cellsOf(startMs, endMs).map((ms) => new Date(ms).toISOString());
   try {
-    await repo.insertBookingWithClaims(db, booking, cells, nowIso);
+    await repo.insertBookingWithClaims(db, booking, cells, nowIso, extraStatements(id));
   } catch (err) {
     if (isUniqueViolation(err, 'booking_slot_claims.')) throw slotUnavailable();
     throw err;

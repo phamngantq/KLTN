@@ -7,7 +7,7 @@ import {
   type Booking,
 } from '../../../shared/schemas/bookings';
 import { useSession } from '../../app/auth';
-import { useCreateBooking } from '../../features/bookings/api';
+import { newIdempotencyKey, useCreateBooking } from '../../features/bookings/api';
 import { isApiError } from '../../lib/api-client';
 import { formatDate, formatTimeRange, formatVnd } from '../../lib/format';
 import { Button, ButtonLink } from '../ui/Button';
@@ -28,12 +28,21 @@ export function BookingRequest({ tutor, selected, onBooked, onSlotLost }: Bookin
   const location = useLocation();
   const create = useCreateBooking();
   const [confirming, setConfirming] = useState(false);
+  // Created when the user opens the confirmation; a double submit or retry reuses it.
+  const [idempotencyKey, setIdempotencyKey] = useState(newIdempotencyKey);
   const price = (tutor.hourlyRateMinor * selected.duration) / 60;
   const when = `${formatDate(selected.startUtc, selected.timezone)}, ${formatTimeRange(selected.startUtc, selected.endUtc, selected.timezone)}`;
 
   function submit() {
     create.mutate(
-      { tutorId: tutor.id, startUtc: selected.startUtc, durationMinutes: selected.duration },
+      {
+        input: {
+          tutorId: tutor.id,
+          startUtc: selected.startUtc,
+          durationMinutes: selected.duration,
+        },
+        idempotencyKey,
+      },
       {
         onSuccess: (booking) => {
           setConfirming(false);
@@ -56,7 +65,13 @@ export function BookingRequest({ tutor, selected, onBooked, onSlotLost }: Bookin
     action = <p className="text-sm text-muted">Chỉ tài khoản học viên mới có thể đặt lịch.</p>;
   } else {
     action = (
-      <Button onClick={() => setConfirming(true)} loading={create.isPending}>
+      <Button
+        onClick={() => {
+          if (!create.isPending) setIdempotencyKey(newIdempotencyKey());
+          setConfirming(true);
+        }}
+        loading={create.isPending}
+      >
         Gửi yêu cầu đặt lịch
       </Button>
     );
