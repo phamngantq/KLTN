@@ -2,7 +2,14 @@ import { and, asc, eq, inArray } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import type { ApprovalStatus, Subject } from '../../../shared/schemas/tutors';
 import type { Db } from '../../db/client';
-import { subjects, tutorProfiles, tutorSubjects, users } from '../../db/schema';
+import {
+  subjects,
+  tutorPreferenceAreas,
+  tutorPreferenceGrades,
+  tutorProfiles,
+  tutorSubjects,
+  users,
+} from '../../db/schema';
 
 export function listSubjects(db: Db): Promise<Subject[]> {
   return db
@@ -42,6 +49,7 @@ export function findProfileRow(db: Db, userId: string) {
       currency: tutorProfiles.currency,
       teachesOnline: tutorProfiles.teachesOnline,
       teachesOffline: tutorProfiles.teachesOffline,
+      negotiableTime: tutorProfiles.negotiableTime,
       approvalStatus: tutorProfiles.approvalStatus,
       visibility: tutorProfiles.visibility,
       moderationNote: tutorProfiles.moderationNote,
@@ -50,6 +58,27 @@ export function findProfileRow(db: Db, userId: string) {
     .innerJoin(users, eq(users.id, tutorProfiles.userId))
     .where(eq(tutorProfiles.userId, userId))
     .get();
+}
+
+export async function classPreferencesByTutor(db: Db, userId: string) {
+  const [grades, areas] = await Promise.all([
+    db
+      .select({ grade: tutorPreferenceGrades.grade })
+      .from(tutorPreferenceGrades)
+      .where(eq(tutorPreferenceGrades.tutorId, userId))
+      .orderBy(asc(tutorPreferenceGrades.grade))
+      .all(),
+    db
+      .select({ area: tutorPreferenceAreas.area })
+      .from(tutorPreferenceAreas)
+      .where(eq(tutorPreferenceAreas.tutorId, userId))
+      .orderBy(asc(tutorPreferenceAreas.area))
+      .all(),
+  ]);
+  return {
+    preferredGrades: grades.map((row) => row.grade),
+    preferredAreas: areas.map((row) => row.area),
+  };
 }
 
 export async function subjectsByTutor(db: Db, tutorIds: string[]): Promise<Map<string, Subject[]>> {
@@ -84,6 +113,9 @@ export interface ProfileWrite {
   teachesOnline?: boolean | undefined;
   teachesOffline?: boolean | undefined;
   subjectIds?: string[] | undefined;
+  preferredGrades?: string[] | undefined;
+  preferredAreas?: string[] | undefined;
+  negotiableTime?: boolean | undefined;
 }
 
 /**
@@ -96,6 +128,7 @@ export async function upsertProfile(db: Db, write: ProfileWrite, now: string): P
     ...(write.hourlyRateMinor !== undefined && { hourlyRateMinor: write.hourlyRateMinor }),
     ...(write.teachesOnline !== undefined && { teachesOnline: write.teachesOnline }),
     ...(write.teachesOffline !== undefined && { teachesOffline: write.teachesOffline }),
+    ...(write.negotiableTime !== undefined && { negotiableTime: write.negotiableTime }),
   };
   const upsert = db
     .insert(tutorProfiles)
@@ -114,6 +147,22 @@ export async function upsertProfile(db: Db, write: ProfileWrite, now: string): P
     rest.push(db.delete(tutorSubjects).where(eq(tutorSubjects.tutorId, write.userId)));
     for (const subjectId of write.subjectIds) {
       rest.push(db.insert(tutorSubjects).values({ tutorId: write.userId, subjectId }));
+    }
+  }
+  if (write.preferredGrades !== undefined) {
+    rest.push(
+      db.delete(tutorPreferenceGrades).where(eq(tutorPreferenceGrades.tutorId, write.userId)),
+    );
+    for (const grade of write.preferredGrades) {
+      rest.push(db.insert(tutorPreferenceGrades).values({ tutorId: write.userId, grade }));
+    }
+  }
+  if (write.preferredAreas !== undefined) {
+    rest.push(
+      db.delete(tutorPreferenceAreas).where(eq(tutorPreferenceAreas.tutorId, write.userId)),
+    );
+    for (const area of write.preferredAreas) {
+      rest.push(db.insert(tutorPreferenceAreas).values({ tutorId: write.userId, area }));
     }
   }
   await db.batch([upsert, ...rest]);

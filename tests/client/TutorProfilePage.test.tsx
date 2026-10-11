@@ -24,6 +24,9 @@ function profile(overrides: Partial<TutorProfile> = {}): TutorProfile {
     currency: 'VND',
     teachesOnline: true,
     teachesOffline: false,
+    preferredGrades: [],
+    preferredAreas: [],
+    negotiableTime: false,
     subjects: [SUBJECTS[0]!],
     approvalStatus: 'draft',
     visibility: 'private',
@@ -97,6 +100,99 @@ describe('TutorProfilePage', () => {
     await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
     expect(await screen.findByText('Học phí phải là bội số của 1.000 ₫.')).toBeTruthy();
     expect(screen.getByLabelText(/Học phí/).getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('edits class preferences and saves the server-confirmed values', async () => {
+    let current = profile({
+      preferredGrades: ['Lớp 5'],
+      preferredAreas: ['Quận 1'],
+    });
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/subjects') return { data: SUBJECTS };
+      if (req.path === '/tutor/profile' && req.method === 'GET') return { data: current };
+      if (req.path === '/tutor/profile' && req.method === 'PATCH') {
+        current = profile({
+          preferredGrades: ['Lớp 5', 'Lớp 6'],
+          preferredAreas: ['Quận 3'],
+          negotiableTime: true,
+        });
+        return { data: current };
+      }
+      return undefined;
+    });
+    renderRoute('/tutor/profile');
+    const user = userEvent.setup();
+
+    const grade = (await screen.findByRole('checkbox', { name: 'Lớp 5' })) as HTMLInputElement;
+    expect(grade.checked).toBe(true);
+    await user.click(screen.getByRole('checkbox', { name: 'Lớp 6' }));
+    await user.click(screen.getByRole('button', { name: 'Xóa khu vực Quận 1' }));
+    await user.type(screen.getByRole('textbox', { name: 'Khu vực muốn nhận lớp' }), 'Quận 3');
+    await user.click(screen.getByRole('checkbox', { name: 'Có thể thương lượng lịch học' }));
+    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+
+    expect(await screen.findByText('Đã lưu.')).toBeTruthy();
+    const body = calls.find((call) => call.method === 'PATCH')?.body as Record<string, unknown>;
+    expect(body).toMatchObject({
+      preferredGrades: ['Lớp 5', 'Lớp 6'],
+      preferredAreas: ['Quận 3'],
+      negotiableTime: true,
+    });
+    expect((screen.getByRole('checkbox', { name: 'Lớp 6' }) as HTMLInputElement).checked).toBe(
+      true,
+    );
+    expect(screen.getByRole('button', { name: 'Xóa khu vực Quận 3' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Xóa khu vực Quận 1' })).toBeNull();
+  });
+
+  it('rejects a duplicate area before sending an update', async () => {
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/subjects') return { data: SUBJECTS };
+      if (req.path === '/tutor/profile' && req.method === 'GET') {
+        return { data: profile({ preferredAreas: ['Quận 1'] }) };
+      }
+      return undefined;
+    });
+    renderRoute('/tutor/profile');
+    const user = userEvent.setup();
+    const areaInput = await screen.findByRole('textbox', { name: 'Khu vực muốn nhận lớp' });
+    await user.type(areaInput, 'quận 1');
+    await user.click(screen.getByRole('button', { name: 'Thêm khu vực' }));
+    expect(screen.getByText('Khu vực này đã được chọn.')).toBeTruthy();
+    expect(areaInput.getAttribute('aria-invalid')).toBe('true');
+    expect(calls.some((call) => call.method === 'PATCH')).toBe(false);
+  });
+
+  it('shows server validation errors for a preferred area', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/subjects') return { data: SUBJECTS };
+      if (req.path === '/tutor/profile' && req.method === 'GET') return { data: profile() };
+      if (req.path === '/tutor/profile' && req.method === 'PATCH') {
+        return {
+          status: 422,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Dữ liệu không hợp lệ.',
+            details: [{ path: 'preferredAreas.0', message: 'Khu vực không hợp lệ.' }],
+          },
+        };
+      }
+      return undefined;
+    });
+    renderRoute('/tutor/profile');
+    const user = userEvent.setup();
+    await user.type(
+      await screen.findByRole('textbox', { name: 'Khu vực muốn nhận lớp' }),
+      'Quận 3',
+    );
+    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    expect(await screen.findByText('Khu vực không hợp lệ.')).toBeTruthy();
+    expect(
+      screen.getByRole('textbox', { name: 'Khu vực muốn nhận lớp' }).getAttribute('aria-invalid'),
+    ).toBe('true');
   });
 
   it('submits a complete profile for review', async () => {

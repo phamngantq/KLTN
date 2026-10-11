@@ -44,6 +44,15 @@ export const users = sqliteTable(
   (t) => [uniqueIndex('users_email_normalized_uq').on(t.emailNormalized)],
 );
 
+/** Minimal private parent contact. Existing student rows may have no profile until first edit. */
+export const parentProfiles = sqliteTable('parent_profiles', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  phone: text('phone'),
+  ...timestamps(),
+});
+
 export const authCredentials = sqliteTable('auth_credentials', {
   userId: text('user_id')
     .primaryKey()
@@ -82,6 +91,7 @@ export const tutorProfiles = sqliteTable(
     currency: currency(),
     teachesOnline: integer('teaches_online', { mode: 'boolean' }).notNull().default(false),
     teachesOffline: integer('teaches_offline', { mode: 'boolean' }).notNull().default(false),
+    negotiableTime: integer('negotiable_time', { mode: 'boolean' }).notNull().default(false),
     approvalStatus: text('approval_status', { enum: APPROVAL_STATUSES }).notNull().default('draft'),
     visibility: text('visibility', { enum: VISIBILITIES }).notNull().default('private'),
     ...timestamps(),
@@ -92,6 +102,28 @@ export const tutorProfiles = sqliteTable(
     index('tutor_profiles_public_rate_idx').on(t.approvalStatus, t.visibility, t.hourlyRateMinor),
     index('tutor_profiles_moderation_idx').on(t.approvalStatus, t.updatedAt),
   ],
+);
+
+export const tutorPreferenceGrades = sqliteTable(
+  'tutor_preference_grades',
+  {
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfiles.userId, { onDelete: 'cascade' }),
+    grade: text('grade').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tutorId, t.grade] })],
+);
+
+export const tutorPreferenceAreas = sqliteTable(
+  'tutor_preference_areas',
+  {
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfiles.userId, { onDelete: 'cascade' }),
+    area: text('area').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tutorId, t.area] })],
 );
 
 export const subjects = sqliteTable(

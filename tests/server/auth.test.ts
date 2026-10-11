@@ -23,11 +23,11 @@ import {
 afterEach(() => vi.restoreAllMocks());
 
 describe('POST /auth/register', () => {
-  it('creates a student, sets an HttpOnly session cookie and returns a csrf token', async () => {
+  it('creates a parent in legacy student storage and returns a csrf token', async () => {
     const email = uniqueEmail();
     const res = await api(
       '/auth/register',
-      jsonInit('POST', { email, password: 'longenough1', displayName: 'An', role: 'student' }),
+      jsonInit('POST', { email, password: 'longenough1', displayName: 'An', role: 'parent' }),
     );
     expect(res.status).toBe(201);
     const setCookie = res.headers.get('Set-Cookie') ?? '';
@@ -37,7 +37,22 @@ describe('POST /auth/register', () => {
     expect(res.headers.get('Cache-Control')).toBe('no-store');
 
     const body = await res.json<ApiSuccess<SessionPayload>>();
-    expect(body.data.user).toMatchObject({ email, displayName: 'An', role: 'student' });
+    expect(body.data.user).toMatchObject({
+      email,
+      displayName: 'An',
+      role: 'student',
+      productRole: 'parent',
+    });
+    const persisted = await env.DB.prepare('SELECT role FROM users WHERE id = ?')
+      .bind(body.data.user.id)
+      .first<{ role: string }>();
+    expect(persisted?.role).toBe('student');
+    const parentProfile = await env.DB.prepare(
+      'SELECT user_id FROM parent_profiles WHERE user_id = ?',
+    )
+      .bind(body.data.user.id)
+      .first<{ user_id: string }>();
+    expect(parentProfile?.user_id).toBe(body.data.user.id);
     expect(body.data.csrfToken).toMatch(/^[\w-]{43}$/);
     expect(JSON.stringify(body)).not.toMatch(/password|hash/i);
   });
@@ -85,20 +100,30 @@ describe('POST /auth/register', () => {
         email: s.email.toUpperCase(),
         password: 'longenough1',
         displayName: 'B',
-        role: 'student',
+        role: 'parent',
       }),
     );
     expect(res.status).toBe(409);
     expect(await errorCode(res)).toBe('EMAIL_TAKEN');
   });
 
-  it('rejects self-assigned admin role and unknown fields (no role escalation)', async () => {
+  it('rejects self-assigned moderator/admin and legacy student roles', async () => {
     const base = { email: uniqueEmail(), password: 'longenough1', displayName: 'X' };
     const asAdmin = await api('/auth/register', jsonInit('POST', { ...base, role: 'admin' }));
     expect(asAdmin.status).toBe(422);
+    const asModerator = await api(
+      '/auth/register',
+      jsonInit('POST', { ...base, role: 'moderator' }),
+    );
+    expect(asModerator.status).toBe(422);
+    const asLegacyStudent = await api(
+      '/auth/register',
+      jsonInit('POST', { ...base, role: 'student' }),
+    );
+    expect(asLegacyStudent.status).toBe(422);
     const extra = await api(
       '/auth/register',
-      jsonInit('POST', { ...base, role: 'student', status: 'active', isAdmin: true }),
+      jsonInit('POST', { ...base, role: 'parent', status: 'active', isAdmin: true }),
     );
     expect(extra.status).toBe(422);
     const row = await env.DB.prepare('SELECT count(*) AS n FROM users WHERE email_normalized = ?')
@@ -110,7 +135,7 @@ describe('POST /auth/register', () => {
   it('validates input: 422 for bad email/short password, 415 for non-JSON, 400 for bad JSON', async () => {
     const bad = await api(
       '/auth/register',
-      jsonInit('POST', { email: 'nope', password: 'short', displayName: '', role: 'student' }),
+      jsonInit('POST', { email: 'nope', password: 'short', displayName: '', role: 'parent' }),
     );
     expect(bad.status).toBe(422);
     expect(await errorCode(bad)).toBe('VALIDATION_ERROR');
@@ -137,7 +162,7 @@ describe('POST /auth/register', () => {
         email: uniqueEmail(),
         password: 'x'.repeat(70_000),
         displayName: 'X',
-        role: 'student',
+        role: 'parent',
       }),
     );
     expect(res.status).toBe(413);
@@ -153,7 +178,7 @@ describe('POST /auth/login', () => {
     );
     expect(res.status).toBe(200);
     const body = await res.json<ApiSuccess<SessionPayload>>();
-    expect(body.data.user).toMatchObject({ id: s.userId, role: 'tutor' });
+    expect(body.data.user).toMatchObject({ id: s.userId, role: 'tutor', productRole: 'tutor' });
     expect(sessionCookieFrom(res)).not.toBe(s.cookie);
   });
 
@@ -193,7 +218,21 @@ describe('GET /me and sessions', () => {
     expect(res.status).toBe(200);
     const body = await res.json<ApiSuccess<SessionPayload>>();
     expect(body.data.user.id).toBe(s.userId);
+    expect(body.data.user).toMatchObject({ role: 'student', productRole: 'parent' });
     expect(body.data.csrfToken).toBe(s.csrfToken);
+  });
+
+  it('derives moderator product role from an operator-provisioned admin account', async () => {
+    const account = await register('parent');
+    await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?").bind(account.userId).run();
+    const response = await api('/me', { headers: { Cookie: account.cookie } });
+    expect(response.status).toBe(200);
+    const body = await response.json<ApiSuccess<SessionPayload>>();
+    expect(body.data.user).toMatchObject({
+      id: account.userId,
+      role: 'admin',
+      productRole: 'moderator',
+    });
   });
 
   it('returns 401 without a session or with an unknown token', async () => {
@@ -256,7 +295,7 @@ describe('CSRF protection', () => {
       email: uniqueEmail(),
       password: 'longenough1',
       displayName: 'X',
-      role: 'student',
+      role: 'parent',
     };
     const crossOrigin = await api(
       '/auth/register',

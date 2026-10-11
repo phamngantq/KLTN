@@ -6,6 +6,23 @@ export const MAX_HOURLY_RATE = 10_000_000;
 export const RATE_STEP = 1_000;
 export const MAX_SUBJECTS_PER_TUTOR = 10;
 export const MAX_BIO_LENGTH = 2_000;
+export const GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp ${i + 1}`).concat([
+  'Ôn thi đại học',
+  'Tiếng Anh giao tiếp',
+]);
+export const MAX_PREFERRED_AREAS = 12;
+
+const preferredGradesSchema = z
+  .array(z.string().refine((grade) => GRADE_OPTIONS.includes(grade), 'Lớp học không hợp lệ.'))
+  .max(GRADE_OPTIONS.length)
+  .refine((grades) => new Set(grades).size === grades.length, 'Lớp học bị trùng.');
+const preferredAreasSchema = z
+  .array(z.string().trim().min(1).max(80))
+  .max(MAX_PREFERRED_AREAS)
+  .refine(
+    (areas) => new Set(areas.map((area) => area.toLocaleLowerCase('vi'))).size === areas.length,
+    'Khu vực bị trùng.',
+  );
 
 export const updateTutorProfileSchema = z
   .strictObject({
@@ -22,6 +39,9 @@ export const updateTutorProfileSchema = z
       .refine((v) => v % RATE_STEP === 0, 'Học phí phải là bội số của 1.000 ₫.'),
     teachesOnline: z.boolean(),
     teachesOffline: z.boolean(),
+    preferredGrades: preferredGradesSchema,
+    preferredAreas: preferredAreasSchema,
+    negotiableTime: z.boolean(),
   })
   .partial();
 export type UpdateTutorProfileInput = z.infer<typeof updateTutorProfileSchema>;
@@ -47,6 +67,9 @@ export interface TutorProfile {
   currency: 'VND';
   teachesOnline: boolean;
   teachesOffline: boolean;
+  preferredGrades: string[];
+  preferredAreas: string[];
+  negotiableTime: boolean;
   subjects: Subject[];
   approvalStatus: ApprovalStatus;
   visibility: Visibility;

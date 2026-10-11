@@ -49,11 +49,6 @@ function pendingRoutes(area: PendingArea, definitions: readonly PendingRoute[]):
 
 const PARENT_PENDING = [
   [
-    'profile',
-    'Hồ sơ phụ huynh',
-    'Hồ sơ phụ huynh theo luồng mới chưa mở. Tài khoản và lịch đặt hiện tại vẫn truy cập được.',
-  ],
-  [
     'khieu-nai',
     'Khiếu nại',
     'Kênh khiếu nại trực tuyến chưa mở; chưa có yêu cầu nào được gửi từ trang này.',
@@ -176,6 +171,13 @@ const parentRoutes: RouteObject[] = [
   { path: 'blog', element: <PublicInfoPage kind="blog-parent" /> },
   { path: 'lien-he', element: <PublicInfoPage kind="contact" /> },
   ...pendingRoutes('parent', PARENT_PENDING),
+  {
+    path: 'profile',
+    ...page(async () => {
+      const { ParentProfilePage } = await import('../pages/parent/ParentProfilePage');
+      return <ParentProfilePage />;
+    }),
+  },
 ];
 
 const tutorRoutes: RouteObject[] = [

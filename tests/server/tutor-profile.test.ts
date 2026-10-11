@@ -92,6 +92,39 @@ describe('tutor profile', () => {
     ).toBe('Nguyễn Văn Đức');
   });
 
+  it('persists bounded class preferences for the owner and replaces them atomically', async () => {
+    const tutor = await register('tutor');
+    const other = await register('tutor');
+    const first = await patch(tutor, {
+      preferredGrades: ['Lớp 10', 'Lớp 12'],
+      preferredAreas: ['Cầu Giấy', 'Thanh Xuân'],
+      negotiableTime: true,
+      teachesOnline: true,
+      teachesOffline: true,
+    });
+    expect(first.status).toBe(200);
+    expect(await getProfile(tutor)).toMatchObject({
+      preferredGrades: ['Lớp 10', 'Lớp 12'],
+      preferredAreas: ['Cầu Giấy', 'Thanh Xuân'],
+      negotiableTime: true,
+    });
+    expect(await getProfile(other)).toBeNull();
+
+    const second = await patch(tutor, { preferredGrades: ['Lớp 7'], preferredAreas: [] });
+    expect(second.status).toBe(200);
+    expect(await getProfile(tutor)).toMatchObject({
+      preferredGrades: ['Lớp 7'],
+      preferredAreas: [],
+      negotiableTime: true,
+    });
+    const gradeRows = await env.DB.prepare(
+      'SELECT grade FROM tutor_preference_grades WHERE tutor_id = ?',
+    )
+      .bind(tutor.userId)
+      .all<{ grade: string }>();
+    expect(gradeRows.results.map((row) => row.grade)).toEqual(['Lớp 7']);
+  });
+
   it.each([
     ['rate not a multiple of 1000', { hourlyRateMinor: 250_500 }],
     ['rate below minimum', { hourlyRateMinor: 5_000 }],
@@ -101,6 +134,11 @@ describe('tutor profile', () => {
     ['visibility field', { visibility: 'public' }],
     ['slug field', { slug: 'chosen' }],
     ['owner override', { userId: 'someone-else' }],
+    ['unknown grade', { preferredGrades: ['Lớp 13'] }],
+    ['duplicate grade', { preferredGrades: ['Lớp 10', 'Lớp 10'] }],
+    ['too many areas', { preferredAreas: Array.from({ length: 13 }, (_, i) => `Area ${i}`) }],
+    ['duplicate areas', { preferredAreas: ['Cầu Giấy', 'cầu giấy'] }],
+    ['invalid negotiable time', { negotiableTime: 'yes' }],
   ])('rejects %s with 422', async (_label, body) => {
     const tutor = await register('tutor');
     const res = await patch(tutor, body);

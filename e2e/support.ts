@@ -23,7 +23,7 @@ export async function newPage(
 
 export async function signUp(page: Page, role: 'student' | 'tutor', name: string, email: string) {
   await page.goto('/sign-up');
-  await page.getByLabel(role === 'tutor' ? /Gia sư — tạo hồ sơ/ : /Học viên \/ Phụ huynh/).check();
+  await page.getByLabel(role === 'tutor' ? /Gia sư — tạo hồ sơ/ : /Phụ huynh/).check();
   await page.getByLabel(/Họ và tên/).fill(name);
   await page.getByLabel(/^Email/).fill(email);
   await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);

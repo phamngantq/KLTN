@@ -1,4 +1,9 @@
-import type { LoginInput, PublicUser, RegisterInput } from '../../../shared/schemas/auth';
+import {
+  productRoleFor,
+  type LoginInput,
+  type PublicUser,
+  type RegisterInput,
+} from '../../../shared/schemas/auth';
 import type { Db } from '../../db/client';
 import { randomToken, sha256Hex } from '../../lib/crypto';
 import { AppError, isUniqueViolation } from '../../lib/errors';
@@ -38,7 +43,7 @@ export async function register(
     email: input.email.trim(),
     emailNormalized: normalizeEmail(input.email),
     displayName: input.displayName,
-    role: input.role, // Zod restricts this to student|tutor; admin cannot be self-assigned.
+    role: input.role === 'parent' ? 'student' : 'tutor',
     passwordHash: await hashPassword(input.password),
   };
   const session = await newSession(user.id, now);
@@ -51,7 +56,13 @@ export async function register(
     throw err;
   }
   return {
-    user: { id: user.id, email: user.email, displayName: user.displayName, role: user.role },
+    user: {
+      id: user.id,
+      email: user.email,
+      displayName: user.displayName,
+      role: user.role,
+      productRole: productRoleFor(user.role),
+    },
     token: session.token,
     expiresAt: session.expiresAt,
   };
@@ -74,7 +85,7 @@ export async function login(db: Db, input: LoginInput, now = new Date()): Promis
   await repo.insertSession(db, session.record, now.toISOString());
   const { id, email, displayName, role } = candidate;
   return {
-    user: { id, email, displayName, role },
+    user: { id, email, displayName, role, productRole: productRoleFor(role) },
     token: session.token,
     expiresAt: session.expiresAt,
   };

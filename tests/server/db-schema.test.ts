@@ -51,7 +51,7 @@ describe('D1 migrations', () => {
       .map((r) => r.name)
       .filter((name) => !/^(sqlite_|d1_|_cf_)/.test(name));
     expect(appTables).toEqual(drizzleTables.map((t) => getTableConfig(t).name).sort());
-    expect(drizzleTables).toHaveLength(12);
+    expect(drizzleTables).toHaveLength(15);
   });
 
   it('is idempotent when re-applied', async () => {
@@ -100,6 +100,17 @@ describe('Drizzle schema mirrors the migrated database', () => {
 });
 
 describe('constraints', () => {
+  it('keeps parent profiles tied to an existing account', async () => {
+    await expect(
+      db
+        .prepare(
+          'INSERT INTO parent_profiles (user_id, phone, created_at, updated_at) VALUES (?, ?, ?, ?)',
+        )
+        .bind('missing-user', null, NOW, NOW)
+        .run(),
+    ).rejects.toThrow(/FOREIGN KEY/);
+  });
+
   it('enforces foreign keys', async () => {
     await expect(
       db

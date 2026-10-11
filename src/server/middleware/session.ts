@@ -1,4 +1,5 @@
 import { createMiddleware } from 'hono/factory';
+import { productRoleFor } from '../../shared/schemas/auth';
 import { resolveSession } from '../modules/auth/service';
 import { deriveCsrfToken, readSessionCookie } from '../modules/auth/session';
 import type { AppEnv } from '../types';
@@ -11,7 +12,7 @@ export const sessionMiddleware = createMiddleware<AppEnv>(async (c, next) => {
     const session = await resolveSession(c.var.db, token);
     if (session) {
       c.set('auth', {
-        user: session.user,
+        user: { ...session.user, productRole: productRoleFor(session.user.role) },
         sessionId: session.sessionId,
         csrfToken: await deriveCsrfToken(token),
       });

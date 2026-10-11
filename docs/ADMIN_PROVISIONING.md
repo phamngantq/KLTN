@@ -1,12 +1,12 @@
 # Cấp quyền quản trị (admin) — thao tác operator có kiểm soát
 
-> Quy trình này dành cho schema `student` của MVP hiện tại. TASK-22 cần cập nhật bước đăng ký sang role `parent` sau khi chốt migration; tuyệt đối không dùng lựa chọn `admin` trong form đăng ký của code export `./figma` làm quyền thật.
+> TASK-22 dùng nhãn `parent` khi đăng ký công khai, D1 vẫn lưu role `student`. Operator có thể cấp role D1 `admin` cho tài khoản này; sản phẩm hiển thị actor `moderator` (kiểm duyệt viên). Không dùng lựa chọn `admin` trong form của code export `./figma` làm quyền thật.
 
-Không có API, seed hay form nào tạo admin. Đăng ký công khai chỉ tạo `student` hoặc `tutor` (xem [ADR_AUTH.md](ADR_AUTH.md)).
+Không có API, seed hay form công khai nào tạo admin. Đăng ký công khai chỉ nhận `parent` hoặc `tutor` (xem [ADR_AUTH.md](ADR_AUTH.md)).
 
 ## Quy trình
 
-1. Người được cấp quyền **tự đăng ký tài khoản học viên** trên môi trường đích (không dùng mật khẩu do người khác đặt).
+1. Người được cấp quyền **tự đăng ký tài khoản phụ huynh** trên môi trường đích (không dùng mật khẩu do người khác đặt).
 2. Operator có quyền Cloudflare của môi trường đó chạy:
 
    ```bash

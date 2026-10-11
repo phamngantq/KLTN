@@ -1,6 +1,6 @@
 # ADR: Authentication, sessions, RBAC và CSRF (MVP)
 
-> Quyết định này ghi nhận auth của MVP hiện tại. Mục tiêu `./figma` cần role `parent`; TASK-20/22 phải chốt migration từ `student` và mở rộng RBAC. Vẫn giữ xác thực, session và CSRF phía server; không sử dụng `AuthContext.tsx` mock của export làm nguồn quyền.
+> TASK-22 mở rộng auth cho sản phẩm `./figma`: đăng ký nhận `parent|tutor`, D1 tiếp tục lưu `student|tutor|admin` để giữ ID, FK, session và booking lịch sử. `/me` trả thêm `productRole: parent|tutor|moderator` suy ra từ session; `role` lưu trữ còn dùng cho route/API cũ. Xác thực, session và CSRF vẫn ở server; không dùng `AuthContext.tsx` mock của export làm nguồn quyền.
 
 - Trạng thái: Accepted — 2026-10-11 (TASK-03)
 - Phạm vi: `POST /api/v1/auth/register`, `/auth/login`, `/auth/logout`, `GET /api/v1/me`
@@ -35,7 +35,7 @@
 
 ### 4. RBAC
 
-- Roles: `student`, `tutor`, `admin`. Đăng ký chỉ cho `student|tutor` (Zod `strictObject` — field lạ như `status`, `isAdmin` → 422).
+- Role D1: `student`, `tutor`, `admin`; actor sản phẩm: `parent`, `tutor`, `moderator`. Đăng ký chỉ nhận `parent|tutor` (Zod `strictObject` — field lạ như `status`, `isAdmin` → 422); `parent` lưu D1 `student`, `/me` trả product role từ server.
 - **Admin chỉ được cấp bằng thao tác operator có kiểm soát phía server** (TASK-15 sẽ tài liệu hóa); không có endpoint/seed production nào tạo admin.
 - `requireAuth` → 401, `requireRole(...)` → 403. Kiểm tra ownership tài nguyên nằm ở service từng module, không ở guard.
 

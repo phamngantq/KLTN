@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { Db } from '../../db/client';
-import { authCredentials, authSessions, users } from '../../db/schema';
+import { authCredentials, authSessions, parentProfiles, users } from '../../db/schema';
 
 const publicUserColumns = {
   id: users.id,
@@ -39,6 +39,9 @@ export async function insertUserWithSession(
   const { passwordHash, ...profile } = user;
   await db.batch([
     db.insert(users).values({ ...profile, status: 'active', createdAt: now, updatedAt: now }),
+    ...(user.role === 'student'
+      ? [db.insert(parentProfiles).values({ userId: user.id, createdAt: now, updatedAt: now })]
+      : []),
     db.insert(authCredentials).values({ userId: user.id, passwordHash, updatedAt: now }),
     sessionInsert(db, session, now),
   ]);

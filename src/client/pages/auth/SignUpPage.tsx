@@ -18,7 +18,7 @@ export function SignUpPage() {
     email: '',
     password: '',
     displayName: '',
-    role: params.get('role') === 'tutor' ? 'tutor' : 'student',
+    role: params.get('role') === 'tutor' ? 'tutor' : 'parent',
   });
 
   if (isLoading) return <PageLoading />;
@@ -51,7 +51,7 @@ export function SignUpPage() {
           <legend className="mb-1 text-sm font-medium">Bạn là</legend>
           {(
             [
-              ['student', 'Học viên / Phụ huynh — tìm và đặt lịch học'],
+              ['parent', 'Phụ huynh'],
               ['tutor', 'Gia sư — tạo hồ sơ và nhận lịch dạy'],
             ] as const
           ).map(([value, label]) => (
@@ -71,6 +71,10 @@ export function SignUpPage() {
             </label>
           ))}
         </fieldset>
+        <p className="text-sm text-muted">
+          Phụ huynh hiện có thể tìm gia sư và đặt lịch học. Luồng gửi yêu cầu tìm gia sư đang được
+          xây dựng.
+        </p>
         <TextField
           label="Họ và tên"
           name="displayName"

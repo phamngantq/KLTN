@@ -5,7 +5,7 @@ import { vi } from 'vitest';
 import { createQueryClient } from '../../src/client/lib/query-client';
 import { routes } from '../../src/client/app/router';
 import { setCsrfToken } from '../../src/client/lib/api-client';
-import type { PublicUser } from '../../src/shared/schemas/auth';
+import { productRoleFor, type PublicUser } from '../../src/shared/schemas/auth';
 
 type Handler = (req: { method: string; path: string; body: unknown; headers: Headers }) =>
   | {
@@ -47,7 +47,13 @@ export const anonymous = {
 export function sessionOf(user: Partial<PublicUser> & Pick<PublicUser, 'role'>) {
   return {
     data: {
-      user: { id: 'u1', email: 'a@example.com', displayName: 'Nguyễn An', ...user },
+      user: {
+        id: 'u1',
+        email: 'a@example.com',
+        displayName: 'Nguyễn An',
+        productRole: productRoleFor(user.role),
+        ...user,
+      },
       csrfToken: 'csrf-test-token',
     },
   };

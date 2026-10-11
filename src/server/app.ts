@@ -12,6 +12,7 @@ import { tutorAvailabilityRoutes } from './modules/availability/routes';
 import { adminRoutes } from './modules/admin/routes';
 import { bookingRoutes } from './modules/bookings/routes';
 import { discoveryRoutes } from './modules/discovery/routes';
+import { parentProfileRoutes } from './modules/parents/routes';
 import { subjectRoutes, tutorProfileRoutes } from './modules/tutors/routes';
 import type { AppEnv } from './types';
 
@@ -55,6 +56,7 @@ export function createApp() {
   );
   api.route('/auth', authRoutes);
   api.route('/me', meRoutes);
+  api.route('/parent/profile', parentProfileRoutes);
   api.route('/tutor/availability', tutorAvailabilityRoutes);
   api.route('/subjects', subjectRoutes);
   api.route('/tutor/profile', tutorProfileRoutes);

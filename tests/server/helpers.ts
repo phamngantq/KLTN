@@ -51,14 +51,20 @@ export function uniqueEmail(prefix = 'user') {
 }
 
 export async function register(
-  role: 'student' | 'tutor' = 'student',
+  role: 'student' | 'parent' | 'tutor' = 'student',
   overrides: Record<string, unknown> = {},
 ): Promise<Session & { email: string; password: string }> {
   const email = uniqueEmail(role);
   const password = 'correct horse battery';
   const res = await api(
     '/auth/register',
-    jsonInit('POST', { email, password, displayName: 'Người dùng thử', role, ...overrides }),
+    jsonInit('POST', {
+      email,
+      password,
+      displayName: 'Người dùng thử',
+      role: role === 'student' ? 'parent' : role,
+      ...overrides,
+    }),
   );
   if (res.status !== 201) throw new Error(`register failed: ${res.status} ${await res.text()}`);
   const body = await res.json<ApiSuccess<SessionPayload>>();

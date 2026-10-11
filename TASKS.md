@@ -235,7 +235,7 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 
 **Commit:** `feat(ui): establish figma product shells and routes`.
 
-### [ ] TASK-22 — Migrate parent accounts and profile data
+### [x] TASK-22 — Migrate parent accounts and profile data
 **Dependency:** TASK-21.
 
 **Scope:** Mô hình role `parent`, profile phụ huynh và các trường gia sư/sở thích cần cho nhận lớp.
