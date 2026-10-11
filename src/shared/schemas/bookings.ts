@@ -56,3 +56,24 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
 /** Shown before any cancellation (DEC-005). */
 export const CANCELLATION_POLICY =
   'Có thể hủy yêu cầu hoặc buổi học đã xác nhận trước giờ bắt đầu. Sau giờ bắt đầu không thể hủy trên hệ thống.';
+
+export const BOOKING_ACTIONS = ['confirm', 'reject', 'cancel', 'complete'] as const;
+export type BookingAction = (typeof BOOKING_ACTIONS)[number];
+
+/** Tabs/filters accept one or more statuses, e.g. `?status=CANCELLED,REJECTED,EXPIRED`. */
+export const bookingListSchema = z.object({
+  status: z
+    .string()
+    .transform((v) => v.split(',').filter(Boolean))
+    .pipe(z.array(z.enum(BOOKING_STATUSES)).min(1).max(BOOKING_STATUSES.length))
+    .optional(),
+  order: z.enum(['asc', 'desc']).default('asc'),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+});
+export type BookingListQuery = z.infer<typeof bookingListSchema>;
+
+/** Which actions the viewer may attempt now (server re-checks every rule on submit). */
+export interface BookingWithActions extends Booking {
+  allowedActions: BookingAction[];
+}

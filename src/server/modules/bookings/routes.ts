@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
-import { createBookingSchema, type Booking } from '../../../shared/schemas/bookings';
+import {
+  bookingListSchema,
+  createBookingSchema,
+  type Booking,
+  type BookingAction,
+  type BookingWithActions,
+} from '../../../shared/schemas/bookings';
+import type { Page } from '../../../shared/schemas/discovery';
 import { ok } from '../../lib/respond';
-import { parseJsonBody } from '../../lib/validate';
+import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import * as idempotency from '../idempotency/service';
@@ -43,3 +50,31 @@ bookingRoutes.post('/', requireRole('student'), async (c) => {
     throw err;
   }
 });
+
+/** Own bookings only: students see bookings they made, tutors bookings made with them. */
+bookingRoutes.get('/', requireRole('student', 'tutor'), async (c) => {
+  const query = parseQuery(c, bookingListSchema);
+  const { id, role } = authOf(c).user;
+  return ok<Page<BookingWithActions>>(c, await service.listBookings(c.var.db, { id, role }, query));
+});
+
+bookingRoutes.get('/:id', requireRole('student', 'tutor'), async (c) => {
+  const { id, role } = authOf(c).user;
+  return ok<BookingWithActions>(
+    c,
+    await service.getBookingFor(c.var.db, { id, role }, c.req.param('id')),
+  );
+});
+
+bookingRoutes.post(
+  '/:id/:action{confirm|reject|cancel|complete}',
+  requireRole('student', 'tutor'),
+  async (c) => {
+    const { id, role } = authOf(c).user;
+    const action = c.req.param('action') as BookingAction;
+    return ok<BookingWithActions>(
+      c,
+      await service.transition(c.var.db, { id, role }, c.req.param('id'), action),
+    );
+  },
+);

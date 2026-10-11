@@ -171,6 +171,7 @@ export const bookings = sqliteTable(
     priceMinor: integer('price_minor').notNull(),
     currency: currency(),
     ...timestamps(),
+    version: integer('version').notNull().default(0),
   },
   (t) => [
     index('bookings_tutor_starts_idx').on(t.tutorId, t.startsAtUtc),

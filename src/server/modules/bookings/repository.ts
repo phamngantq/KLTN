@@ -1,6 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { and, asc, count, desc, eq, exists, inArray, sql, type SQL } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import { alias } from 'drizzle-orm/sqlite-core';
+import type { BookingListQuery, BookingStatus } from '../../../shared/schemas/bookings';
 import type { Db } from '../../db/client';
 import { auditLogs, bookingSlotClaims, bookings, users } from '../../db/schema';
 
@@ -69,4 +70,102 @@ export async function insertBookingWithClaims(
     }),
     ...extra,
   ]);
+}
+
+export function findBookingVersion(db: Db, id: string) {
+  return db
+    .select({
+      id: bookings.id,
+      tutorId: bookings.tutorId,
+      studentId: bookings.studentId,
+      status: bookings.status,
+      version: bookings.version,
+      startsAtUtc: bookings.startsAtUtc,
+      endsAtUtc: bookings.endsAtUtc,
+    })
+    .from(bookings)
+    .where(eq(bookings.id, id))
+    .get();
+}
+
+export interface TransitionWrite {
+  id: string;
+  from: BookingStatus;
+  to: BookingStatus;
+  version: number;
+  releaseClaims: boolean;
+  actorId: string;
+  action: string;
+  now: string;
+}
+
+/**
+ * Compare-and-set transition in one D1 batch. The claim release and audit insert only take effect
+ * when this batch's UPDATE produced (status = to, version = version + 1), so concurrent requests
+ * cannot double-release or double-audit. Returns false when another request won the race.
+ */
+export async function applyTransition(db: Db, t: TransitionWrite): Promise<boolean> {
+  const committed = and(
+    eq(bookings.id, t.id),
+    eq(bookings.status, t.to),
+    eq(bookings.version, t.version + 1),
+  );
+  const update = db
+    .update(bookings)
+    .set({ status: t.to, version: sql`${bookings.version} + 1`, updatedAt: t.now })
+    .where(and(eq(bookings.id, t.id), eq(bookings.status, t.from), eq(bookings.version, t.version)))
+    .returning({ id: bookings.id });
+  const metadata = JSON.stringify({ from: t.from, to: t.to });
+  // Parameterised INSERT … SELECT … WHERE EXISTS: audit row only when this transition committed.
+  // Values follow audit_logs column order (id, actor_id, action, target_type, target_id, metadata, created_at).
+  const audit = db.insert(auditLogs).select(
+    sql`SELECT ${crypto.randomUUID()}, ${t.actorId}, ${t.action}, 'booking', ${t.id}, ${metadata}, ${t.now}
+        WHERE EXISTS (SELECT 1 FROM bookings
+                      WHERE id = ${t.id} AND status = ${t.to} AND version = ${t.version + 1})`,
+  );
+  if (t.releaseClaims) {
+    const release = db.delete(bookingSlotClaims).where(
+      and(
+        eq(bookingSlotClaims.bookingId, t.id),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(bookings)
+            .where(committed),
+        ),
+      ),
+    );
+    const [updated] = await db.batch([update, release, audit]);
+    return updated.length === 1;
+  }
+  const [updated] = await db.batch([update, audit]);
+  return updated.length === 1;
+}
+
+/** Bookings where the viewer participates in the given role. */
+export async function listBookingsFor(
+  db: Db,
+  participant: { id: string; as: 'tutor' | 'student' },
+  query: BookingListQuery,
+) {
+  const conditions: SQL[] = [
+    participant.as === 'tutor'
+      ? eq(bookings.tutorId, participant.id)
+      : eq(bookings.studentId, participant.id),
+  ];
+  if (query.status) conditions.push(inArray(bookings.status, query.status));
+  const where = and(...conditions);
+  const order = query.order === 'asc' ? asc(bookings.startsAtUtc) : desc(bookings.startsAtUtc);
+  // Not db.batch(): D1 batch results are keyed objects, and the two aliased users.display_name
+  // columns collide, shifting every following value. Plain queries use positional rows.
+  const [rows, totals] = await Promise.all([
+    selectBookings(db)
+      .where(where)
+      .orderBy(order, asc(bookings.id))
+      .limit(query.pageSize)
+      .offset((query.page - 1) * query.pageSize)
+      .all(),
+    db.select({ total: count() }).from(bookings).where(where).all(),
+  ]);
+  return { rows, total: totals[0]?.total ?? 0 };
 }

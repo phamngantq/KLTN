@@ -1,12 +1,22 @@
 import type { BatchItem } from 'drizzle-orm/batch';
 import { cellsOf, projectSlots } from '../../../shared/availability';
 import { SLOT_HORIZON_DAYS, SLOT_MINUTES } from '../../../shared/schemas/availability';
-import type { Booking, CreateBookingInput } from '../../../shared/schemas/bookings';
+import type { UserRole } from '../../../shared/schemas/auth';
+import {
+  BOOKING_STATUS_LABELS,
+  type Booking,
+  type BookingAction,
+  type BookingListQuery,
+  type BookingWithActions,
+  type CreateBookingInput,
+} from '../../../shared/schemas/bookings';
+import type { Page } from '../../../shared/schemas/discovery';
 import { addDays, todayIn, utcToLocal } from '../../../shared/time';
 import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import { loadSchedule } from '../availability/service';
 import { getPublicTutorById } from '../discovery/service';
+import { actorAllowed, allowedActions, TRANSITIONS, type Participant } from './lifecycle';
 import * as repo from './repository';
 
 const CELL_MS = SLOT_MINUTES * 60_000;
@@ -100,4 +110,99 @@ export async function createBooking(
   const created = await repo.findBooking(db, id);
   if (!created) throw new Error('Booking missing after insert');
   return created;
+}
+
+export interface Viewer {
+  id: string;
+  role: UserRole;
+}
+
+const bookingNotFound = () => new AppError(404, 'BOOKING_NOT_FOUND', 'Không tìm thấy lịch học.');
+
+/** The viewer's role in this booking, or null for non-participants (who get 404, not 403). */
+function participantOf(
+  booking: { tutorId: string; studentId: string },
+  viewer: Viewer,
+): Participant | null {
+  if (viewer.role === 'tutor' && booking.tutorId === viewer.id) return 'tutor';
+  if (viewer.role === 'student' && booking.studentId === viewer.id) return 'student';
+  return null;
+}
+
+function withActions(booking: Booking, participant: Participant, now: Date): BookingWithActions {
+  return { ...booking, allowedActions: allowedActions(booking, participant, now) };
+}
+
+export async function getBookingFor(
+  db: Db,
+  viewer: Viewer,
+  id: string,
+  now = new Date(),
+): Promise<BookingWithActions> {
+  const booking = await repo.findBooking(db, id);
+  const participant = booking && participantOf(booking, viewer);
+  if (!booking || !participant) throw bookingNotFound();
+  return withActions(booking, participant, now);
+}
+
+export async function listBookings(
+  db: Db,
+  viewer: Viewer,
+  query: BookingListQuery,
+  now = new Date(),
+): Promise<Page<BookingWithActions>> {
+  const as: Participant = viewer.role === 'tutor' ? 'tutor' : 'student';
+  const { rows, total } = await repo.listBookingsFor(db, { id: viewer.id, as }, query);
+  return {
+    items: rows.map((row) => withActions(row, as, now)),
+    page: query.page,
+    pageSize: query.pageSize,
+    total,
+  };
+}
+
+/** Applies (actor, current state, action) rules, then a compare-and-set batch. */
+export async function transition(
+  db: Db,
+  viewer: Viewer,
+  id: string,
+  action: BookingAction,
+  now = new Date(),
+): Promise<BookingWithActions> {
+  const current = await repo.findBookingVersion(db, id);
+  const participant = current && participantOf(current, viewer);
+  if (!current || !participant) throw bookingNotFound();
+
+  const rule = TRANSITIONS[action];
+  if (!actorAllowed(rule, participant)) {
+    throw new AppError(403, 'FORBIDDEN', 'Bạn không có quyền thực hiện thao tác này.');
+  }
+  if (!rule.from.includes(current.status)) {
+    throw new AppError(
+      409,
+      'INVALID_TRANSITION',
+      `Không thể thực hiện thao tác khi lịch học đang ở trạng thái "${BOOKING_STATUS_LABELS[current.status]}".`,
+    );
+  }
+  if (!rule.timing(current, now)) {
+    throw new AppError(409, 'TRANSITION_NOT_ALLOWED', rule.timingMessage);
+  }
+  const applied = await repo.applyTransition(db, {
+    id,
+    from: current.status,
+    to: rule.to,
+    version: current.version,
+    releaseClaims: rule.releasesClaims,
+    actorId: viewer.id,
+    action: `booking.${action}`,
+    now: now.toISOString(),
+  });
+  if (!applied) {
+    throw new AppError(
+      409,
+      'STALE_BOOKING',
+      'Lịch học vừa được cập nhật bởi người khác. Vui lòng tải lại.',
+    );
+  }
+  return getBookingFor(db, viewer, id, now);
 }

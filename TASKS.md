@@ -138,7 +138,7 @@
 **Acceptance tests:** rapid double-click returns one booking; 2 concurrent identical requests create one; replay different payload 409; retries after response-loss safe; different user may reuse key.  
 **Commit:** `feat(booking): make booking creation idempotent`.
 
-### [ ] TASK-13 — Booking state machine, cancellation and claim release
+### [x] TASK-13 — Booking state machine, cancellation and claim release
 **Dependency:** TASK-12.  
 **Scope:** Confirm/reject/cancel/complete transitions and ownership enforcement.  
 **Deliverables:** `GET /api/v1/bookings`, `POST /api/v1/bookings/:id/{confirm,reject,cancel,complete}`, audit logs, tests.  
