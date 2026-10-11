@@ -1,6 +1,10 @@
 # dependencies
 node_modules/
 
+# local Figma Make export contains unreviewed example PII and screenshots
+# Keep it as a design reference; integrate reviewed code under src/ instead.
+figma/
+
 # build output
 dist/
 .wrangler/

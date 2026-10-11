@@ -7,8 +7,8 @@ import { dirname, resolve } from 'node:path';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const file = readFileSync(resolve(root, 'TASKS.md'), 'utf8');
 const matches = [...file.matchAll(/^### \[([ x])\] (TASK-(\d{2})) — (.+)$/gm)];
-if (matches.length !== 18) {
-  console.error(`INVALID_TASK_QUEUE: expected 18 tasks, found ${matches.length}`);
+if (matches.length < 18) {
+  console.error(`INVALID_TASK_QUEUE: expected at least 18 tasks, found ${matches.length}`);
   process.exit(2);
 }
 for (let i = 0; i < matches.length; i++) {

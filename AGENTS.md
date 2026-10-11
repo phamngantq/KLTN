@@ -6,7 +6,7 @@
 
 1. Đây là **authorization để tự động thực hiện 01 task kế tiếp** được định nghĩa trong `TASKS.md` tại repository hiện tại. Không hỏi task ID, không yêu cầu paste lại prompt, không làm thêm task thứ hai.
 2. Đọc đủ `TASKS.md`, `PLAN.md`, `DESIGN_RULES.md`, và source code thực tế. `TASKS.md` là **queue** và chứa toàn bộ acceptance criteria; `PLAN.md` là architecture/backlog; `DESIGN_RULES.md` là UI contract.
-3. Chạy `node scripts/next-task.mjs` để lấy **task đầu tiên `[ ]`** theo thứ tự `TASK-01` → `TASK-18` (nếu thiếu Node, đọc `TASKS.md` trực tiếp). Kiểm tra dependency: tất cả task trước phải tick DONE hoặc thực sự được xác minh hoàn thành. Không tự đảo/sắp xếp lại task.
+3. Chạy `node scripts/next-task.mjs` để lấy **task đầu tiên `[ ]`** theo thứ tự ID tăng dần trong `TASKS.md` (nếu thiếu Node, đọc `TASKS.md` trực tiếp). Kiểm tra dependency: tất cả task trước phải tick DONE hoặc thực sự được xác minh hoàn thành. Không tự đảo/sắp xếp lại task.
 4. Kiểm tra `pwd`, `git status --porcelain`, `git branch --show-current`, `git remote -v`, `git config user.name`, `git config user.email`, `gh auth status` (nếu `gh` có sẵn). Dùng **local Git identity sẵn có**; không xem/hiển thị token. Không tự login hoặc tạo GitHub repository.
 5. Nếu đang trên `main`/`master`, tạo **một** working branch `feat/tutor-platform-task-queue` (hoặc reuse nếu đang đúng branch). Nếu working tree có thay đổi chưa commit từ ngoài scope, bảo toàn nguyên vẹn; nếu không tách biệt an toàn được thì báo BLOCKED, không đè file.
 6. Phân tích task hiện tại, đọc test/code có liên quan, sửa/triển khai trong phạm vi task; thêm/điều chỉnh tests và migration local phù hợp. Nếu code đã có, validate so với acceptance criteria; sửa thiếu hoặc chỉ ghi nhận verified state.
@@ -24,15 +24,15 @@
 
 ## Mandatory project constraints
 
-1. Figma Make **chưa được xác minh trực tiếp** ở lần lập plan này. Không tự nhận pixel-perfect, không sáng tác frame IDs/assets/screens. TASK-05 cần có quyền đọc Figma/export; thiếu là BLOCKED_EXTERNAL và phải dừng.
+1. Code export do người dùng đặt tại `./figma` là nguồn tham chiếu UI/luồng cho mục tiêu mới theo DEC-007; Figma Make live/frame IDs **chưa được xác minh trực tiếp**. Không tự nhận pixel-perfect hoặc coi mock data/auth/payment trong export là nghiệp vụ thật. `FIGMA_INVENTORY.md` và `FIGMA_GAP_LOG.md` ghi bằng chứng/gap; TASK-05 là lịch sử MVP cũ.
 2. Cloudflare-native modular monolith: React/Vite frontend + Hono Worker + D1/Drizzle + Wrangler. Không thêm microservices, queues, KV, Redis, OAuth vendor, realtime chat, payment gateway nếu không cần.
-3. Backend luôn enforce validation, authentication, RBAC, ownership, all state transitions và input quotas. Reject client-supplied role, student_id, prices, booking status, availability as authority.
+3. Backend luôn enforce validation, authentication, RBAC, ownership, mọi chuyển trạng thái và input quotas. Không tin role, parent/student ID, giá/phí, trạng thái request/lớp/ứng tuyển/gán lớp hoặc lịch do client gửi làm nguồn thẩm quyền.
 4. SQL parameterized; D1 migration source-controlled. Never run migrations with `--remote` automatically. Use local D1 for tests.
-5. Slot claims UNIQUE `(tutor_id,slot_start_utc)` với 30-minute granularity; booking and claims inserted atomically in D1 `batch()`; competing request returns 409 and leaves no orphan booking.
-6. Bookings saved as UTC instants; recurring hours as local hours plus timezone. Default timezone `Asia/Ho_Chi_Minh`.
+5. Ràng buộc slot claims UNIQUE `(tutor_id,slot_start_utc)` và D1 `batch()` tiếp tục bảo vệ dữ liệu booking lịch sử. Với request/lớp/ứng tuyển/gán lớp mới, thiết kế ràng buộc và transaction chống tranh chấp theo TASK-20; không dùng slot claim 30 phút làm mô hình lớp mới.
+6. Giữ thời điểm tuyệt đối ở UTC và giờ lặp theo giờ địa phương kèm timezone, mặc định `Asia/Ho_Chi_Minh`. Quy tắc này áp dụng cho lịch sử booking và lịch lớp mới khi được định nghĩa trong TASK-20.
 7. Strict TypeScript, Zod validation, password secure slow hashing, session token hash at rest, HttpOnly/Secure cookie, CSRF protection; no fake success or silent failed writes.
-8. UI obeys audited Figma, design tokens, WCAG 2.2 AA, responsive states and keyboard navigation.
-9. Optional MVP features excluded: payment, messaging, reviews, notifications, intelligent matching, calendar integration until authorized.
+8. UI theo bằng chứng code export `./figma`, tokens đã ánh xạ và WCAG 2.2 AA; kiểm tra responsive/keyboard. Pixel fidelity với frame Figma chỉ được tuyên bố sau khi xem/đối chiếu frame gốc.
+9. Mục tiêu mới có UI phí nhận lớp và nhiều module hơn MVP cũ. Không thêm payment gateway, thông báo thật, review/rating thật, intelligent matching hoặc calendar integration khi chưa có task/policy rõ; không báo thành công giả.
 
 ## Completion report — Vietnamese, concise
 

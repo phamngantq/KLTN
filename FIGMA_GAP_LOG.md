@@ -1,16 +1,55 @@
 # FIGMA_GAP_LOG
 
-| ID | Category | Question | Status | Decision / tạm thời |
-|---|---|---|---|---|
-| FIG-001 | Access | Không đọc được Figma Make (JS shell, thumbnail trắng, API 403) | BLOCKED | DEC-001: design system tạm thời, mọi màn hình `UNVERIFIED` |
-| FIG-002 | UI | Danh sách màn hình, frame ID, điều hướng thật? | OPEN | Dùng `FIGMA_INVENTORY.md` (PRV-01..11) từ `PLAN.md` §2 |
-| FIG-003 | Tokens | Font, màu, spacing, radius, breakpoint gốc? | OPEN | `src/client/styles/tokens.css` = giá trị placeholder `DESIGN_RULES.md` §C; font hệ thống |
-| FIG-004 | Booking | Auto-confirm hay gia sư duyệt? | OPEN | Gia sư duyệt (PENDING → CONFIRMED) theo `TASKS.md` §A.6 |
-| FIG-005 | Scheduling | Granularity, thời lượng buổi? | OPEN | 30 phút; 30/60/90/120 phút, mặc định 60 |
-| FIG-006 | Scope | Thanh toán/chat/đánh giá có trong UI? | OPEN | Ngoài MVP; không hiển thị rating/review giả |
-| FIG-007 | Copy | Nội dung tiếng Việt, tên thương hiệu, logo? | OPEN | Tên tạm "Tutor Matching", không logo |
-| FIG-008 | Imagery | Ảnh đại diện gia sư? | OPEN | Avatar chữ cái đầu (không R2) |
-| FIG-009 | Policy | Chính sách hủy/đổi lịch hiển thị cho người dùng? | OPEN | DEC-005: hủy được trước giờ bắt đầu; hiển thị trước khi xác nhận hủy |
-| FIG-010 | Moderation | Sửa hồ sơ đã duyệt có cần duyệt lại? | OPEN | DEC-006: giữ approved; admin có thể ẩn |
-| FIG-011 | Layout | Desktop search có sidebar filter hay filter bar? | OPEN | Filter bar trên đầu danh sách, xếp dọc trên mobile |
-| FIG-012 | Dark mode | Có biến thể tối? | OPEN | Không thêm (DESIGN_RULES §C1) |
+> Nguồn sản phẩm và giao diện mục tiêu cho **toàn bộ project**: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1). Bản mã người dùng tải về ở `./figma/` thay thế giả định sản phẩm của MVP đặt lịch trực tiếp trước đây. Giữ các ràng buộc bảo mật, toàn vẹn dữ liệu và kiến trúc Cloudflare khi triển khai.
+
+## Phạm vi bằng chứng
+
+- Đã đọc `figma/src/app/routes.tsx`, các page theo vai trò, `figma/src/app/contexts/AuthContext.tsx` và code/schema hiện tại. Đây là **bằng chứng về UI và luồng thể hiện trong source**, chưa xác nhận frame ID hay pixel fidelity của Figma Make đang chạy.
+- Lần thử URL ngày 2026-10-11 không đọc được Make project (JS shell / thumbnail trắng / API 403). Export giải quyết thiếu nguồn để ánh xạ mã UI; quyền đọc Figma trực tiếp và screenshot đối chiếu vẫn mở.
+- Nhiều page export dùng dữ liệu hardcode, `useState`, `localStorage`, `alert` hoặc toast. Ví dụ: `TutorRequestPage.tsx:85-148,389-403`, `AdminFindTutorRequestsPage.tsx:80-139,231-253`, `AuthContext.tsx`. Đây **không phải API, dữ liệu giao dịch thật hay chính sách đã duyệt**.
+- TASK-01–18 trong `TASKS.md` hoàn thành cho MVP cũ; không coi là đã triển khai sản phẩm `./figma`. Cần queue migration riêng. DEC-001 giải thích design tạm trước khi có export; DEC-004/005/006 chỉ áp cho nghiệp vụ cũ cho đến khi có quyết định thay thế rõ ràng.
+- Export `./figma` hiện là **LOCAL_ONLY** và Git ignore; liên kết tương đối tới source trong Markdown chỉ kiểm được tại workspace có bản export. Baseline build/render độc lập ngày 2026-10-11 được ghi ở `FIGMA_INVENTORY.md`, không phải xác minh Figma frame hay Worker đã tích hợp.
+
+## Các gap đã ghi trước khi có export
+
+| ID | Nhóm | Trạng thái sau export | Bằng chứng / việc còn mở |
+|---|---|---|---|
+| FIG-001 | Quyền truy cập | PARTIAL | Có source `./figma`; URL Make trực tiếp và frame IDs chưa kiểm chứng. |
+| FIG-002 | Màn hình/điều hướng | PARTIAL | Inventory đã ánh xạ 59 route source theo public/parent/tutor/admin và smoke trang `/`; chưa xác minh frame IDs hoặc toàn bộ điều hướng/luồng thực chạy. |
+| FIG-003 | Tokens | PARTIAL | Có CSS trong `figma/src/styles/` và giá trị trực tiếp trong page; navy/vàng/gradient đã được ánh xạ vào `src/client/styles/tokens.css`. Còn chuẩn hóa font, spacing, radius, breakpoint và QA toàn bộ màn hình. |
+| FIG-004 | Booking | SUPERSEDED | PENDING → CONFIRMED là state của đặt lịch trực tiếp cũ. Source mới thể hiện yêu cầu tìm gia sư → gán/ứng tuyển → nhận lớp → tạo lớp; xem FIG-013/014. |
+| FIG-005 | Lịch học | SUPERSEDED | Slot claim 30 phút cũ không quyết định lịch lớp. `TutorRequestPage.tsx:59-67` dùng các khung 90 phút hằng tuần và có “Trao đổi sau”; cần quy tắc lịch lớp, timezone, trùng lịch. |
+| FIG-006 | Phạm vi | OBSERVED | Source có phí nhận lớp, gói dịch vụ, hợp đồng, khiếu nại, blog, báo cáo và rating mẫu. UI không tự cho phép payment gateway, hoàn tiền, rating thật hoặc doanh thu giả; xem FIG-016/019/020/021. |
+| FIG-007 | Nội dung/thương hiệu | PARTIAL | Source có tên “Trung Tâm Gia Sư Đỗ Hằng”, địa chỉ, điện thoại, email và tài khoản ngân hàng trong copy (`AdminContractsPage.tsx:99-124,165-170`). Cần xác nhận trước khi công bố, nhất là thông tin thanh toán. |
+| FIG-008 | Hình ảnh | PARTIAL | Có asset `figma/src/imports/` và image references trong page; cần rà quyền dùng và tách ảnh minh họa khỏi avatar/tài liệu thật. |
+| FIG-009 | Hủy/đổi lịch | SUPERSEDED | DEC-005 chỉ áp cho booking cũ, không định nghĩa hủy yêu cầu, rút ứng tuyển, hủy gán, hủy lớp hay hoàn phí. |
+| FIG-010 | Duyệt hồ sơ | OPEN | Tutor profile có xác minh CCCD/bằng cấp (`TutorProfilePage.tsx:191-209,330-394`); `/admin/tutor-approval` mới là placeholder (`routes.tsx`). Chưa rõ sửa hồ sơ đã duyệt có duyệt lại; DEC-006 là chính sách MVP cũ. |
+| FIG-011 | Search layout | SUPERSEDED | Filter bar tìm tutor cũ không quyết định layout danh sách lớp `/lop-hoc`, `/tutor/new-classes` hoặc admin requests. Ánh xạ từng page export. |
+| FIG-012 | Dark mode | OPEN | Chưa có bằng chứng biến thể tối trong export. |
+
+## Gap của nguồn đích `./figma`
+
+| ID | Ưu tiên | Quan sát từ source | Cần định nghĩa/triển khai |
+|---|---|---|---|
+| FIG-013 | P0 | Parent `TutorRequestPage.tsx:18-55,79-82` dùng `searching/matched/confirmed`; admin `AdminFindTutorRequestsPage.tsx:16-47` dùng `pending/assigned/completed/cancelled`. Form gồm học sinh, liên hệ, khu vực, môn/lớp, học phí đề xuất, lịch, yêu cầu và gia sư được gán. | Một entity và state machine request; ý nghĩa từng status, ai chuyển, thời điểm phụ huynh xác nhận, audit và owner-only access. Không đồng nhất status của hai page theo tên gọi. |
+| FIG-014 | P0 | `TutorNewClassesPage.tsx:17-35,145-170` cho gia sư đăng ký lớp; `TutorClassRequestsPage.tsx:15-75` có ứng tuyển/lớp được gán/lớp đã nhận; `AdminAcceptClassRequestsPage.tsx:14-35,148-177` duyệt/từ chối; `AdminClassesPage.tsx:14-40` lưu lớp và số buổi. | Quan hệ request → class → application/assignment → active/completed/cancelled, cạnh tranh đơn, quyền admin, một lớp/một gia sư, thu hồi và kiểm thử race. `with_tutor/without_tutor` không đồng nghĩa hoàn thành (`AdminClassesPage.tsx:129-130`). |
+| FIG-015 | P0 | Export dùng `parent/tutor/admin`; `RegisterPage.tsx:129-140` cho chọn cả admin; `AuthContext.tsx` và `routes.tsx` tin `localStorage`/role do client chọn. App hiện dùng `student/tutor/admin` và session/RBAC server. | Chốt `parent` là role mới hay đổi tên `student`, quan hệ phụ huynh–học sinh, migration user/URL. Giữ server authority, password/session/CSRF/RBAC; không port auth mock hay self-register admin. |
+| FIG-016 | P0 | Giá/phí mâu thuẫn: `PricingPage.tsx:101-106,248-253` nói gia sư đóng 50% học phí buổi đầu; `AdminContractsPage.tsx:99-124` nói phí = 3 lần học phí/buổi, cọc 50%, hoàn phí; `TutorContractsPage.tsx:110-139` nói 30–50% học phí tháng. Admin giá/phí là CRUD `useState`. | Chốt bảng giá có hiệu lực, người định giá, thời điểm khóa giá, công thức phí, cọc/nợ/hoàn và chứng từ. Không hiển thị đã trả/doanh thu hoặc hướng dẫn chuyển khoản như giao dịch thật khi chưa có nguồn xác thực. Không tự thêm gateway. |
+| FIG-017 | P0 | `TutorNewClassesPage.tsx:525-541` và `TutorResponsibilityTermsPage.tsx:87-108` lưu kết quả test điều khoản vào `localStorage`; `AdminContractsPage.tsx:172-174` chỉ toast đã lưu. | Chốt phiên bản điều khoản/hợp đồng, người phê duyệt, chứng cứ đồng ý/ký, hiệu lực và audit phía server. `termsTestPassed` và toast không có giá trị xác nhận. |
+| FIG-018 | P0 | Request chứa điện thoại và đặc điểm học sinh; admin request có tên/tuổi (`AdminFindTutorRequestsPage.tsx:29-46`); tutor profile nhận CCCD hai mặt và bằng cấp (`TutorProfilePage.tsx:191-197,330-394`). | Chốt tối thiểu dữ liệu, quyền xem trước/sau gán, điều kiện lộ liên hệ, consent với dữ liệu trẻ em, retention/deletion và storage upload bảo mật. Không đưa PII thật vào public bundle. |
+| FIG-019 | P1 | Parent/tutor `ComplaintsPage.tsx:22-49` dùng `draft/sent/received/resolved`, file đính kèm; admin `AdminComplaintsPage.tsx:14-23` dùng `pending/processing/resolved/rejected`. Cả hai giữ mảng local. | Thống nhất status, quyền tạo/xem/xử lý, audit, file, thời hạn; quyết định khiếu nại có kéo theo hoàn phí hay chỉ là case management. |
+| FIG-020 | P1 | Public/parent/tutor có blog, giá, dịch vụ; `AdminBlogPage.tsx` và `AdminServicesPage.tsx` dùng CRUD `useState`; ảnh blog đọc FileReader. | Content model, draft/publish, quyền biên tập, versioning, giá/gói công bố và storage ảnh. Tách marketing copy khỏi đăng ký gói/giao dịch thật. |
+| FIG-021 | P1 | `AdminReportsConversionPage.tsx`, `AdminReportsNoTutorPage.tsx`, `AdminReportsRevenuePage.tsx:27-51` dùng mảng số mẫu và xuất PDF từ local data. | Chốt KPI, nguồn DB, khoảng thời gian/timezone, quyền export và empty state khi chưa có nguồn doanh thu. Không dùng số mẫu làm báo cáo vận hành. |
+| FIG-022 | P0 | `routes.tsx` có object rỗng sau `/admin/users`; `ServicePackagesPage` được import nhưng chưa mount. `TutorNewClassesPage` và `TutorMatchedClassesPage` **đã mount** tại `/tutor/new-classes` và `/tutor/matched-classes`. `RegisterPage.tsx:40-58` truyền sai chữ ký `register`, kiểm `Promise<void>` như boolean và chuyển đến `/parent/dashboard`, `/tutor/dashboard`, `/admin/dashboard` không khai báo. Nhiều form chỉ set state/alert. | Sửa route và đăng ký, typecheck nghiêm, nối API thật từng action, xử lý loading/error/empty/success. Build Vite độc lập PASS không chứng minh TypeScript hay nghiệp vụ đúng. Không copy nguyên export vào production. |
+| FIG-023 | P0 | Schema/API hiện tại (`src/server/db/schema.ts`, `src/server/app.ts`) chỉ có user, tutor, availability, booking, slot claim và tutor moderation; chưa có request, class, application, contract, fee, complaint, content hoặc reporting source. Staging đang phục vụ MVP đặt lịch cũ. | D1 migration forward-only và kế hoạch dữ liệu/URL/API; ngừng hiển thị luồng booking cũ theo DEC-007 nhưng giữ dữ liệu lịch sử và tránh tự chuyển sang lớp mới. Không sửa DB remote hoặc coi cập nhật tài liệu là đã deploy sản phẩm mới. |
+| FIG-024 | P0 | Export local 126 file có bốn PNG không được import ở `figma/src/imports/`: một ảnh chụp dự án Figma khác với tên/email/điện thoại, một ảnh trường CCCD đã điền, một ảnh thông tin liên hệ/bản đồ và một ảnh form mẫu. Source TSX còn chứa tên/điện thoại/email mẫu (`parent/TutorRequestPage.tsx`, `admin/AdminUsersPage.tsx`), CCCD điền sẵn (`tutor/TutorProfilePage.tsx:332`), thông tin chuyển khoản (`tutor/TutorClassRequestsPage.tsx:1406-1407`, `admin/AdminContractsPage.tsx:119-123`) và số/email/địa chỉ kinh doanh chưa xác minh. `ATTRIBUTIONS.md` chỉ quy chiếu shadcn/ui MIT và Unsplash; provenance/quyền công bố screenshot và toàn bundle chưa rõ. Pattern scan không tìm thấy private key/API token rõ ràng nhưng không xác nhận an toàn toàn diện. | Giữ `figma/` LOCAL_ONLY, không stage/push ảnh hoặc toàn export. Xác nhận chủ sở hữu và tính công khai của thông tin liên hệ/ngân hàng; bỏ/ẩn PII và dữ liệu demo, loại bốn PNG không dùng, rà giấy phép và scan lại trước khi cân nhắc đưa phần source đã chọn vào Git. |
+| FIG-025 | P1 | Bản copy export build với Vite 6.3.5 PASS; Edge headless render `/` ở 320×900, 768×900, 1280×800. Ở 320 px hero, CTA điện thoại và thẻ thống kê tràn/cắt ngang. JS chính 1.887,09 kB (gzip 506,50 kB), Vite cảnh báo chunk lớn. Export tải ảnh từ Unsplash, iframe Google Maps; CSP hiện tại trong `public/_headers` chỉ cho tài nguyên cùng origin, nên port nguyên trạng sẽ chặn tài nguyên đó. | Sửa responsive 320 px, xác thực ảnh/iframe và chính sách CSP hoặc thay bằng asset được duyệt, tách bundle theo route; kiểm lại đủ role và viewport trước release. Screenshot baseline chỉ giữ tạm, không đưa thông tin liên hệ mẫu lên Git. |
+| FIG-026 | P1 | `figma/package.json` chỉ có `dev`/`build`, không có `tsconfig.json`, lint, typecheck, test; root `tsconfig.app.json` chỉ include `src/client` và `src/shared`, nên export không được root kiểm kiểu. Root `index.html` vẫn trỏ `src/client/main.tsx`. | Không coi build export PASS là đã tích hợp Worker hoặc hoàn tất chất lượng. Port có chọn lọc vào app chính, giữ Hono/D1/session, chạy lint/typecheck/test/build và E2E theo từng task. |
+
+## Thứ tự xử lý đề xuất cho queue mới
+
+1. Chốt role `parent`, state machine request–class–application và chính sách giá/phí/điều khoản. Khi các page Figma mâu thuẫn, ghi quyết định rõ thay vì chọn ngầm một page.
+2. Chuẩn hóa route inventory, token/component và QA màn hình từ `./figma`; dùng nhãn source-observed, chưa gán frame IDs hoặc pixel fidelity khi chưa xem Make trực tiếp.
+3. Thiết kế D1 migration, API và RBAC cho parent requests, class listings/applications, admin assignment/approval; nối UI và test race, ownership, PII.
+4. Bổ sung profile/xác minh, hợp đồng/đồng ý, khiếu nại, content/gói dịch vụ, báo cáo theo chính sách đã chốt; dùng dữ liệu thật hoặc empty state.
+5. Chạy lint, typecheck, test, build, E2E ba vai trò, a11y/responsive và staging migration/smoke theo runbook trước khi xem xét production.

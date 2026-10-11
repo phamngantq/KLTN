@@ -1,33 +1,35 @@
 # TASKS — Execution Queue / Tutor Matching Platform
 
-> Version: 1.0 — 2026-10-11  
+> Version: 2.0 — 2026-10-11
 > **ĐÂY LÀ SOURCE OF TRUTH CHO THỨ TỰ TASK VÀ TRẠNG THÁI.** `PLAN.md` mô tả kiến trúc/roadmap cấp cao; `DESIGN_RULES.md` mô tả UI; `AGENTS.md` mô tả cách agent thực thi.  
 > Kích hoạt bằng đúng câu **“Tiếp tục thực hiện”** trong coding agent chạy tại thư mục gốc repository.  
 > Mặc định **01 lần gọi = tối đa 01 task = 01 commit local, không push, không deploy**.
 
+> **DEC-007:** `./figma` là code export của mục tiêu sản phẩm thay thế toàn bộ MVP đặt lịch trực tiếp trước đây. TASK-01–18 bên dưới ghi lịch sử đã hoàn thành cho MVP cũ; TASK-19 trở đi xây dựng hệ thống theo export. Không coi checkbox cũ là bằng chứng sản phẩm mới đã triển khai.
+
 ## A. Chính sách cố định (đã quyết định để agent không phải hỏi lại)
 
-1. **Stack:** TypeScript strict, React + Vite + Cloudflare Vite plugin, Tailwind/shadcn/ui, Hono on Workers, Drizzle + D1, Zod, Wrangler. Sử dụng npm trừ khi repo hiện có lockfile của package manager khác; giữ nguyên package manager đã được chọn.
+1. **Stack:** TypeScript strict, React + Vite + Cloudflare Vite plugin, Tailwind CSS và accessible UI primitives (tham chiếu shadcn/Radix từ export khi phù hợp), Hono on Workers, Drizzle + D1, Zod, Wrangler. Giữ npm/package-lock của app chính; không thay bằng `figma/package.json` hoặc chuyển package manager chỉ vì export.
 2. **Runtime:** Single Worker phục vụ API `/api/v1/*` và React SPA static assets. Có thể tổ chức modules nội bộ; không tách microservices.
-3. **Role:** `student`, `tutor`, `admin`. Self-registration chỉ tạo `student` hoặc `tutor`; admin được cấp qua thao tác server-side đã kiểm soát.
+3. **Role:** App MVP hiện có `student`, `tutor`, `admin`; mục tiêu `./figma` là `parent`, `tutor`, `admin`. TASK-20 chốt cách chuyển `student` sang `parent`, TASK-22 triển khai. Trong mọi giai đoạn, self-registration chỉ tạo role người dùng hợp lệ do server quyết định; admin được cấp qua thao tác server-side đã kiểm soát.
 4. **Auth strategy cho phiên bản đầu:** email + password; credentials lưu password **hash chậm kèm salt riêng, có phiên bản thuật toán/chi phí, tương thích Workers và đã được kiểm thử**, không lưu plaintext/reversible secret. Ưu tiên Argon2id nếu chạy được an toàn trong Workers; nếu dùng phương án fallback bảo mật phù hợp phải ghi ADR giải thích. Session token random, lưu **hash** ở D1, cookie HttpOnly/Secure/SameSite và bảo vệ CSRF. Email verification/reset có thể cần email delivery integration; không được giả vờ email đã gửi.
-5. **MVP booking:** 30 phút/claim; lịch lặp theo `Asia/Ho_Chi_Minh` nhưng có trường timezone; booking instant lưu UTC; độ dài mặc định 60 phút, tùy chọn 30/60/90/120 phút nếu nằm trong availability; horizon tìm slot tối đa 30 ngày; booking **PENDING chiếm slot**.
-6. **Booking status:** PENDING → CONFIRMED → COMPLETED; PENDING → REJECTED/CANCELLED/EXPIRED; CONFIRMED → CANCELLED. Không tự động thanh toán hoặc hoàn tiền; lịch cũ chỉ thay đổi qua explicit transition. Chưa chốt chính sách tự động hết hạn → chỉ tạo thủ công/logic có test, không bật Cron làm thay đổi booking thật.
-7. **Figma:** Chưa xác minh trực tiếp. `FIGMA_INVENTORY.md`/`FIGMA_GAP_LOG.md` ghi thực tế. **Không được đánh dấu task fidelity hoàn thành nếu chưa có access/export thiết kế.** Nếu Figma chưa truy cập được tại TASK-05, trả trạng thái BLOCKED; không tự sáng tác màn hình và không nhảy đến task sau.
+5. **Legacy booking TASK-01–18:** 30 phút/claim; lịch lặp theo `Asia/Ho_Chi_Minh`, booking instant lưu UTC, PENDING chiếm slot. Đây là nghiệp vụ MVP cũ cần bảo toàn dữ liệu/migration, không dùng để định nghĩa lịch lớp trong mục tiêu `./figma`.
+6. **Legacy booking status TASK-01–18:** PENDING → CONFIRMED → COMPLETED; PENDING → REJECTED/CANCELLED/EXPIRED; CONFIRMED → CANCELLED. Không tự chuyển booking cũ thành yêu cầu/lớp mới. Luồng mới cần state machine riêng theo PLAN §13 và FIG-013/014.
+7. **Figma:** `./figma` cung cấp bằng chứng code về route/UI/luồng cho toàn project; Make live/frame ID vẫn chưa xác minh. `FIGMA_INVENTORY.md`/`FIGMA_GAP_LOG.md` ghi phần đã quan sát và phần còn mở. Không gán nhãn pixel-perfect, không tự tạo frame ID. TASK-05 và DEC-001 ghi lịch sử trước khi có export.
 8. **Git:** chỉ local commit trên branch hiện tại nếu không phải `main`/`master`; trên protected/default branch, tạo branch `feat/tutor-platform-task-queue` từ HEAD sau khi kiểm tra sạch/sự thay đổi sẵn có. Không tự tạo GitHub repo, đổi remote, push, PR, merge hay deploy. Cần xác minh `git remote -v` và identity; `gh auth status` thất bại không được chặn local commit nếu Git identity đã có.
 9. **Database:** test/local `wrangler d1 migrations apply <db> --local` hoặc script chuẩn của repo. Không dùng `--remote`, không động đến D1 production, không tạo resource trong tài khoản người dùng nếu chưa có yêu cầu riêng.
-10. **External services:** ảnh/avatar R2, email, thanh toán, chat, calendar sync, reviews, AI matching = ngoài scope nếu chưa duyệt. UI cần ảnh có thể dùng placeholder local hợp lệ, không giả dữ liệu thật trong production.
+10. **External services:** export có UI ảnh, email, phí nhận lớp, rating và matching; chưa có bằng chứng các dịch vụ vận hành. R2/email/payment gateway/chat/calendar/reviews/AI matching chỉ tích hợp khi task/policy tương ứng được duyệt. UI không được báo đã trả tiền, gửi email hay ghép lớp nếu backend chưa xác nhận.
 11. **Quy tắc precedence:** bảo mật + integrity > nội dung Figma đã xác minh > `PLAN.md`/`DESIGN_RULES.md` > `TASKS.md` > library default. Khi các quy tắc khác nhau, ghi vào `TASK_DECISIONS.md`, chọn cách chặn thay vì âm thầm đổi nghiệp vụ.
 
 ## B. State machine của task
 
 - `[ ]` = PENDING (chưa hoàn thành); `[x]` = DONE (đã verify, có commit); không sửa dấu checkbox chỉ vì source code có tên giống task.
-- Trong **mỗi lần** nhận “Tiếp tục thực hiện”, agent chọn **task đầu tiên `[ ]` từ TASK-01 đến TASK-18**.
+- Trong **mỗi lần** nhận “Tiếp tục thực hiện”, agent chọn **task đầu tiên `[ ]` theo thứ tự ID trong file này**.
 - Agent kiểm tra dependencies và code thực tế, làm đúng task đó, thêm test, chạy quality gates. Khi pass thì tick `[x]` và ghi một dòng vào `TASK_LOG.md` trong **cùng commit** với code.
 - Nếu chưa có thư mục `src` hoặc file tham khảo thì khởi tạo **chỉ trong scope task hiện tại**. Không áp dụng nhiệm vụ phía sau.
 - Nếu code feature đã tồn tại từ trước: kiểm tra acceptance criteria, bổ sung test/sửa thiếu; nếu hoàn toàn đạt và chưa được tick, chỉ cập nhật checklist + verification log rồi commit `docs(tasks): verify TASK-XX` (không tạo empty commit).
 - Nếu lỗi kiểm thử **không giải quyết được trong phạm vi task**, đánh dấu `BLOCKED` trong báo cáo chat, **không tick**, **không commit**, không nhảy task; giữ các thay đổi để lần “Tiếp tục thực hiện” sau tiếp tục cùng task và mô tả dirty files.
-- Task Figma cần asset/export nhưng thiếu quyền = `BLOCKED_EXTERNAL`; không thay bằng thiết kế tưởng tượng. Không tự skip.
+- Task cần bằng chứng Figma trực tiếp mà export không chứa (frame ID, screenshot gốc) = `BLOCKED_EXTERNAL` cho tiêu chí đó; không thay bằng thiết kế tưởng tượng. Các task chỉ cần code export có thể dùng `./figma` với nguồn và giới hạn ghi rõ.
 - `TASK_LOG.md` mỗi dòng ghi: `TaskID | YYYY-MM-DD | tests thực chạy | commit message | status`; **không ghi commit hash vào cùng commit** (self-referential). Báo hash từ `git rev-parse --short HEAD` sau commit.
 
 ## C. Quality gates mặc định
@@ -186,6 +188,166 @@
 **Acceptance tests:** `npm run build` and local smoke pass; docs contain explicit manual review gates and rollback; no secret or account-specific identifiers in Git; no production changes.  
 **Commit:** `docs(release): prepare cloudflare deployment runbook`.
 
-## E. Sau TASK-18
+## E. TASK-01–18 là lịch sử MVP đặt lịch
 
-Khi tất cả checkbox `[x]`, lần nhận “Tiếp tục thực hiện” tiếp theo **không được tạo task mới, không tạo commit rỗng**. Chỉ báo `ALL_TASKS_COMPLETE` với thống kê kiểm thử và commit cuối. Thanh toán, chat, đánh giá, tự động matching, notification là **backlog ngoài MVP**; thêm task ID mới chỉ khi user phê duyệt riêng.
+Các checkbox `[x]` ở TASK-01–18 xác nhận phạm vi MVP cũ đã hoàn thành. Người dùng đã cung cấp `./figma` và xác nhận nó **thay thế hoàn toàn** mục tiêu sản phẩm đó (DEC-007); không dùng trạng thái cũ để tuyên bố hệ thống mới đã hoàn thành. Queue mới dưới đây được thêm theo yêu cầu ánh xạ export để xây dựng hệ thống. Mỗi lần “Tiếp tục thực hiện” vẫn chỉ chọn **một** task `[ ]` đầu tiên; không tự chạy hết queue. Khi không còn `[ ]`, báo `ALL_TASKS_COMPLETE`, không tạo commit rỗng.
+
+## F. TASK QUEUE — chuyển đổi sang mục tiêu `./figma`
+
+Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, `FIGMA_GAP_LOG.md`, `docs/FIGMA_COMPONENT_MAP.md` và code export trong `./figma`. Code export chỉ là tham chiếu UI/luồng; các mutation phải dùng API, D1, auth/RBAC/ownership thật. Mỗi task mới có test/quality gates phù hợp; migration chỉ chạy local trừ khi user yêu cầu remote riêng. Không copy mock PII, role do client chọn hoặc thông báo trả phí/gửi email thành công giả.
+
+### [x] TASK-19 — Baseline and verify the Figma code export
+**Dependency:** TASK-18.
+
+**Scope:** Khóa nguồn tham chiếu `./figma`, rà route/page/action/component/asset và kiểm tra khả năng render của code export trước khi port.
+
+**Deliverables:** `FIGMA_INVENTORY.md`, `FIGMA_GAP_LOG.md`, `docs/FIGMA_COMPONENT_MAP.md`, nguồn/provenance có thể tái kiểm; nếu đưa export vào Git phải rà secret, PII mẫu, license và kích thước trước khi stage.
+
+**Implementation:** Xác minh 59 route cụ thể, wildcard, alias, placeholder, page không mounted, style thực dùng, mock/localStorage, lỗi router/đăng ký. Không sửa hoặc chạy code export như backend production.
+
+**Acceptance tests:** Source map đầy đủ public/parent/tutor/admin và trạng thái `CODE_EXPORTED` khác frame VERIFIED; render/screenshot local ở các viewport khi môi trường cho phép hoặc ghi blocker thật; `git diff --check`, Markdown links/provenance kiểm được; không stage source nhạy cảm.
+
+**Commit:** `docs(figma): baseline exported product screens`.
+
+### [ ] TASK-20 — Define the replacement domain and migration contract
+**Dependency:** TASK-19.
+
+**Scope:** Chốt actor, dữ liệu và state machine cho yêu cầu phụ huynh → lớp → ứng tuyển/gán → nhận lớp; lập cách ngừng hiển thị booking cũ mà vẫn giữ dữ liệu lịch sử.
+
+**Deliverables:** `PLAN.md` §13, `TASK_DECISIONS.md`, API/ownership/transition matrix, kế hoạch D1 forward migration và URL compatibility.
+
+**Implementation:** Định nghĩa `parent` tương ứng user `student` cũ thế nào, quyền xem thông tin học sinh/liên hệ, lịch tuần/timezone, trạng thái hủy/rút/duyệt và idempotency/concurrency. Các công thức phí mâu thuẫn trong export phải được ghi gap/chờ quyết định, không chọn ngầm.
+
+**Acceptance tests:** Matrix có actor/action/from→to/ownership/PII, migration không xóa dữ liệu cũ, không self-register admin; những chính sách chưa đủ bằng chứng phải được user quyết định trước khi triển khai mutation liên quan.
+
+**Commit:** `docs(domain): define figma product migration contract`.
+
+### [ ] TASK-21 — Build target navigation and design foundation
+**Dependency:** TASK-20.
+
+**Scope:** Tích hợp brand values có bằng chứng, shared public/parent/tutor/admin shells, route table và guards vào React app hiện tại.
+
+**Deliverables:** tokens/components/layouts, route mapping/aliases, trang home/404 và test navigation/responsive/keyboard.
+
+**Implementation:** Dùng `./figma` làm tham chiếu hiển thị; bỏ object route rỗng, redirect sai và placeholder giả; CTA trỏ route thật hoặc thể hiện trạng thái chưa sẵn sàng. Không import auth mock/package export nguyên khối.
+
+**Acceptance tests:** Route/role matrix hoạt động ở 320/768/1280 px, không dead CTA hoặc horizontal overflow; WCAG labels/focus, CSP, lint/typecheck/test/build PASS.
+
+**Commit:** `feat(ui): establish figma product shells and routes`.
+
+### [ ] TASK-22 — Migrate parent accounts and profile data
+**Dependency:** TASK-21.
+
+**Scope:** Mô hình role `parent`, profile phụ huynh và các trường gia sư/sở thích cần cho nhận lớp.
+
+**Deliverables:** D1 migration local, Zod DTO, API/session/RBAC, UI đăng nhập/đăng ký/profile, tests.
+
+**Implementation:** Giữ session cookie hash/CSRF, lấy role/id từ server; bảo toàn user `student` cũ theo contract TASK-20. Hồ sơ xác minh CCCD/bằng cấp chỉ có upload sau khi storage/retention được chốt.
+
+**Acceptance tests:** Parent/tutor/admin không leo quyền; admin không tự đăng ký; owner-only read/write, input quota, migration local và lint/typecheck/test/build PASS.
+
+**Commit:** `feat(accounts): add parent roles and profiles`.
+
+### [ ] TASK-23 — Implement parent find-tutor requests
+**Dependency:** TASK-22.
+
+**Scope:** Form, danh sách, lọc, chi tiết và trạng thái yêu cầu tìm gia sư của phụ huynh.
+
+**Deliverables:** D1 tables/migration, API create/list/detail/update theo matrix TASK-20, UI `/parent` và `/parent/request`, tests.
+
+**Implementation:** Server đặt owner/status/code, validate môn/lớp/khu vực/lịch mong muốn/giá dự kiến, timezone và PII; lưu thật, audit transitions, không đồng nhất với booking slot cũ.
+
+**Acceptance tests:** Owner-only, 401/403/404/409/422, idempotency và quota, lỗi form không báo thành công; D1 local migration + lint/typecheck/test/build PASS.
+
+**Commit:** `feat(requests): add parent tutor requests`.
+
+### [ ] TASK-24 — Publish class listings and accept tutor applications
+**Dependency:** TASK-23.
+
+**Scope:** Lớp công khai/lớp mới, filter/detail, tutor đăng ký/thu hồi ứng tuyển, sở thích lớp phù hợp.
+
+**Deliverables:** Class/application schema, admin create/publish API tối thiểu, public `/lop-hoc`, tutor `/tutor/new-classes` và `/tutor/matched-classes`, tests.
+
+**Implementation:** Class chỉ xuất bản từ dữ liệu admin hợp lệ; che liên hệ/PII học sinh trước khi đủ quyền. Một tutor không có hai ứng tuyển còn hiệu lực cùng lớp; filter/sort deterministic, pagination. Không hiện matchScore/rating mẫu như dữ liệu thật.
+
+**Acceptance tests:** Approved tutor/application RBAC, duplicate/race → 409 không orphan, public DTO không PII, loading/empty/error và lint/typecheck/test/build/D1 local PASS.
+
+**Commit:** `feat(classes): publish classes and tutor applications`.
+
+### [ ] TASK-25 — Build admin matching and class assignment
+**Dependency:** TASK-24.
+
+**Scope:** Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển, gán/rút gán gia sư và quản lý trạng thái lớp.
+
+**Deliverables:** Admin APIs/UI cho users/requests/classes/accept-class, audit và tests; reuse tutor moderation cũ khi đúng domain.
+
+**Implementation:** Server enforce from→to, một assignment active mỗi lớp, optimistic concurrency/atomic D1 batch, lý do từ chối/hủy, thông tin liên hệ chỉ lộ sau transition được duyệt. Không tuyên bố đã gửi notification khi chưa có dịch vụ.
+
+**Acceptance tests:** Ma trận auth/ownership, concurrent assignment, stale action 409, audit actor/reason, không lộ PII, local D1 migration + lint/typecheck/test/build PASS.
+
+**Commit:** `feat(admin): manage class assignment workflow`.
+
+### [ ] TASK-26 — Complete tutor class lifecycle and terms
+**Dependency:** TASK-25.
+
+**Scope:** Dashboard/lịch sử/đã nhận lớp, bài kiểm tra điều khoản, chấp nhận/từ chối lớp và hợp đồng theo version.
+
+**Deliverables:** Tutor class APIs/UI, server-side terms result/acknowledgement, contract records, lifecycle tests.
+
+**Implementation:** Không tin `termsTestPassed`/`pendingClassAccept` trong localStorage; trạng thái, quyền đọc thông tin phụ huynh và version điều khoản được lưu/audit phía server. Phần thu phí chỉ mở khi có policy TASK-20/FIG-016 được phê duyệt.
+
+**Acceptance tests:** Role/ownership/terms gating, idempotent action, stale 409, không báo thanh toán/email thành công giả; lint/typecheck/test/build PASS.
+
+**Commit:** `feat(tutors): manage accepted classes and terms`.
+
+### [ ] TASK-27 — Add approved content, services and fee presentation
+**Dependency:** TASK-26.
+
+**Scope:** Public/parent/tutor pages giới thiệu, dịch vụ, blog, liên hệ, FAQ/hướng dẫn và admin content/pricing management.
+
+**Deliverables:** Content/service/fee schema và API, draft/publish UI, ảnh dùng hợp lệ, public pages theo export, tests.
+
+**Implementation:** Chỉ công bố copy/địa chỉ/hotline/bảng giá đã duyệt; phí do server tính từ policy, giá đã công bố có version/effective date. CTA trả tiền chỉ hoạt động với chính sách/đối tác/xác nhận giao dịch được duyệt; nếu chưa có, phải được product owner chấp thuận ẩn/hoãn CTA và hiển thị tình trạng trung thực. Không tự thêm gateway.
+
+**Acceptance tests:** Không có CRUD chỉ đổi `useState`/toast; admin-only mutation, public chỉ thấy published, input/upload validation, không có giá hoặc bank info mẫu trong production; lint/typecheck/test/build PASS.
+
+**Commit:** `feat(content): publish service and pricing content`.
+
+### [ ] TASK-28 — Implement complaints and sensitive-data controls
+**Dependency:** TASK-27.
+
+**Scope:** Khiếu nại parent/tutor/admin, file đính kèm nếu storage/policy được duyệt, hồ sơ xác minh gia sư nếu cần.
+
+**Deliverables:** Complaint state machine/API/UI, audit, access/retention controls, tests.
+
+**Implementation:** Thống nhất status giữa page user/admin; che PII và tài liệu học sinh/CCCD theo role, kiểm file size/type, không public raw upload. Không tạo storage remote khi chưa được phép.
+
+**Acceptance tests:** Owner/admin access, transition 409, file authorization nếu có, retention/empty/error states và lint/typecheck/test/build PASS.
+
+**Commit:** `feat(support): add complaint workflow and privacy controls`.
+
+### [ ] TASK-29 — Back dashboards and reports with real data
+**Dependency:** TASK-28.
+
+**Scope:** Parent/tutor/admin dashboard và báo cáo conversion, lớp thiếu gia sư, doanh thu theo dữ liệu được phép.
+
+**Deliverables:** Report definitions/API, UI/PDF export, date/timezone/role tests.
+
+**Implementation:** Chỉ đếm event/fee có nguồn D1 thật; nếu chưa có nguồn thu hợp lệ thì revenue hiển thị empty/unavailable, không số mẫu. Không xuất PII trái quyền.
+
+**Acceptance tests:** KPI formula có nguồn, pagination/timezone, auth, PDF số liệu kiểm được, zero-data states và lint/typecheck/test/build PASS.
+
+**Commit:** `feat(reports): add verified product dashboards`.
+
+### [ ] TASK-30 — Verify complete Figma-target journeys and release readiness
+**Dependency:** TASK-29.
+
+**Scope:** E2E parent→admin→tutor→class, security/privacy, responsive/a11y/visual QA và cập nhật runbook cho sản phẩm mới.
+
+**Deliverables:** Playwright journey, local D1 migration/smoke, release checklist/rollback/operations docs; khác biệt visual/frame ghi gap.
+
+**Implementation:** Test mọi CTA P0 với dữ liệu thật; kiểm route alias/placeholder, race, CSRF/RBAC/ownership, no mock PII/payment success, ảnh và bundles. Staging/prod deploy là hành động riêng cần user cho phép trong lượt tương ứng.
+
+**Acceptance tests:** secret-scan/format/lint/typecheck/unit/integration/build/E2E/local migration PASS; mobile/keyboard và dữ liệu ba vai trò đồng nhất; không claim pixel fidelity khi chưa xem frame Figma gốc.
+
+**Commit:** `test(e2e): verify figma product journeys`.

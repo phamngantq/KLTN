@@ -1,14 +1,15 @@
 # DESIGN RULES — Tutor Matching Platform
 
-> Version 0.1 / 2026-10-11  
+> Version 0.2 / 2026-10-11
 > Dùng như specification cho UI/UX, code review và AI coding assistant.  
-> **Cảnh báo:** Không thể đọc trực tiếp Figma Make trong lần audit này. Mọi token/screen/interaction dưới đây là **quy tắc triển khai đề xuất**, không phải thông số lấy từ Figma.
+> Nguồn thiết kế cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1).
+> **Nguồn kiểm chứng hiện có:** thư mục `figma/` là code export người dùng cung cấp cho cùng project. Có thể xác minh route, component và giá trị style được dùng trong code export; chưa kiểm chứng trực tiếp frame, node ID, Auto Layout hay trạng thái đang xuất bản trên Figma Make. Quy tắc nghiệp vụ/a11y bên dưới vẫn là yêu cầu của hệ thống, không mặc nhiên là hành vi đã xác nhận từ export.
 
 ## A. Priority / source of truth
 
 Thứ tự ưu tiên khi có xung đột:
 1. Security, privacy, business invariants và accessibility bắt buộc.
-2. Figma đã được đối chiếu và product requirement được xác nhận.
+2. UI có bằng chứng trong `figma/` và product requirement được xác nhận; khi truy cập được Figma trực tiếp, đối chiếu thêm frame/variant trước khi chốt độ trung thực hình ảnh.
 3. `PLAN.md` (domain model, API, flows).
 4. File này (`DESIGN_RULES.md`) và `AGENTS.md`.
 5. Default library/component styles.
@@ -18,11 +19,10 @@ Không tự sáng tác trạng thái, màn hình, button hoặc feature không c
 ## B. Figma-to-code fidelity
 
 ### B1. Audit trước khi code UI
-- Mỗi Figma frame phải có: `frame_id`, screenshot, screen route, desktop/mobile breakpoint, target role, các CTA và navigation destination.
-- Extract style tokens: font family/weight/size/line-height, color system, spacing, radii, border widths, icons, shadows, container max-width.
-- Extract component variants (default/hover/focus/pressed/disabled/loading/error/success) và layout behavior (Auto Layout, constraints).
-- Tạo component mapping `Figma component -> React component -> props/variants`; ưu tiên 1 React component dùng lại thay vì copy UI.
-- Đối chiếu bằng screenshot Playwright ở cùng viewport; sửa layout trước micro-styling.
+- Với mỗi route trong export, ghi file page/layout tương ứng, vai trò, CTA, navigation, dữ liệu đang mock và trạng thái tương tác; đối chiếu với route/API hiện tại trong `FIGMA_INVENTORY.md` và `FIGMA_GAP_LOG.md`.
+- Từ code export chỉ ghi nhận giá trị thực sự xuất hiện: màu, font, spacing, radius, border, icon, shadow, container và responsive class. Không gán `frame_id`, viewport thiết kế, Auto Layout, constraints hoặc pixel-perfect khi chưa có bằng chứng trực tiếp từ Figma.
+- Ánh xạ component export sang component React hiện tại trong `docs/FIGMA_COMPONENT_MAP.md`; tách phần có thể dùng lại về mặt hiển thị khỏi luồng nghiệp vụ/API cần thiết kế hoặc xác nhận thêm.
+- Khi có frame/screenshot gốc, ghi node ID, viewport, variant (default/hover/focus/pressed/disabled/loading/error/success) và đối chiếu screenshot tại cùng viewport. Kiểm tra layout trước micro-styling.
 
 ### B2. Không làm
 - Không dùng ảnh screenshot nguyên trang thay cho UI tương tác.
@@ -31,17 +31,32 @@ Không tự sáng tác trạng thái, màn hình, button hoặc feature không c
 - Không hardcode pixel rải rác trong JSX; đưa về token hoặc variant.
 - Không import/export cả code bundle tự sinh từ Figma Make rồi đưa lên production mà chưa review dependency, semantics, auth và API.
 
-## C. Design tokens — khung quản lý, giá trị cần điền từ Figma
+## C. Design tokens — bằng chứng từ code export và ánh xạ trong app
+
+Code export **không khai báo bộ brand token riêng**. `figma/src/styles/theme.css` và `figma/default_shadcn_theme.css` là theme shadcn mặc định (`--primary: #030213`, `--radius: 0.625rem`); `figma/src/styles/fonts.css` rỗng. Màu thương hiệu dưới đây lặp lại dưới dạng Tailwind arbitrary values trong các page/layout, vì vậy đây là **giá trị quan sát từ JSX**, chưa phải token do Figma công bố:
+
+| Vai trò quan sát | Giá trị | Bằng chứng |
+|---|---|---|
+| Navy: header/footer, chữ, nút | `#0e2f5f` | `figma/src/app/pages/public/PublicLayout.tsx`, `figma/src/app/components/Layout.tsx` |
+| Vàng: CTA, trạng thái nav, điểm nhấn | `#ffda68` | `figma/src/app/pages/public/PublicLayout.tsx`, `figma/src/app/pages/public/HomePage.tsx` |
+| Navy sáng: điểm cuối gradient | `#1a4d8f` | `figma/src/app/pages/public/HomePage.tsx`, `figma/src/app/pages/parent/ParentDashboard.tsx` |
+| Nền chính | `#ffffff` | `figma/src/styles/theme.css`; các layout dùng `bg-white` |
+
+Các bố cục dùng Tailwind utilities (`px-4`, `py-16`/`py-20`, `gap-*`, `rounded-lg`/`rounded-xl`/`rounded-2xl`) chứ chưa có spacing/radius brand scale được khai báo. Export đặt cỡ chữ gốc 16px, heading qua Tailwind và không chỉ định font family riêng. Public navigation chuyển sang mobile tại `lg`; layout đã đăng nhập và admin tại `md`; `figma/src/app/components/ui/use-mobile.ts` dùng mốc 768px. Chưa có bằng chứng về các viewport frame gốc.
+
+Ba màu brand đã được áp dụng vào `src/client/styles/tokens.css` trên nhánh triển khai; đoạn dưới là phần ánh xạ chính. Màu ngữ nghĩa còn lại, focus, radius và spacing vẫn là placeholder cần kiểm tra contrast/visual trước khi phát hành:
 
 ```css
 :root {
-  /* Replace values after Figma audit. These are development placeholders. */
+  /* Brand values observed in export JSX; semantic mapping is proposed. */
   --color-bg: #ffffff;
   --color-surface: #f8fafc;
   --color-fg: #0f172a;
   --color-muted: #64748b;
-  --color-primary: #2563eb;
+  --color-primary: #0e2f5f;
   --color-on-primary: #ffffff;
+  --color-accent: #ffda68;
+  --color-primary-gradient-end: #1a4d8f;
   --color-border: #e2e8f0;
   --color-danger: #b91c1c;
   --color-success: #15803d;
@@ -60,17 +75,18 @@ Không tự sáng tác trạng thái, màn hình, button hoặc feature không c
 
 ### C1. Token rules
 - Colors dùng semantic names (`primary`, `surface`, `danger`, `success`, `muted`, `border`) thay vì đặt tên `blue600` trong component API.
-- Hệ spacing gợi ý 4px/8px baseline; **không coi đây là thông số gốc của Figma**.
-- Typography có các styles display/heading/body/label/caption, map lại từ Figma trước khi chốt.
+- Hệ spacing 4px/8px trong snippet là baseline app hiện tại; class Tailwind trong export không chứng minh đây là thông số gốc của Figma.
+- Typography trong export dùng base 16px và utility sizes/weights; font family cụ thể chưa được xác minh. Style display/heading/body/label/caption của app cần đối chiếu từng màn hình.
+- `--radius: 0.625rem` trong export là mặc định shadcn, không áp đặt lên toàn app khi các page dùng nhiều `rounded-*` khác nhau.
 - Mọi page dùng chung layout grid, max-width, horizontal gutters và breakpoint tokens.
-- Dark mode **không tự thêm** nếu không có yêu cầu hoặc Figma variants.
+- Dù theme shadcn có selector `.dark`, **không tự thêm** dark mode khi các page export không chứng minh đây là biến thể sản phẩm.
 - Không dùng màu là tín hiệu trạng thái duy nhất; luôn có text/icon được định nghĩa dễ hiểu.
 
 ## D. Responsive & accessibility
 
 ### D1. Responsive
 - Thiết kế mobile-first; kiểm thử ít nhất 320/375/768/1024/1440 px.
-- Desktop search: sidebar filter + grid cards **nếu Figma thể hiện**; mobile chuyển filter thành sheet/dialog với nút áp dụng và xóa bộ lọc.
+- Danh sách lớp `/lop-hoc` và `/tutor/new-classes` dùng filter thực có trong export; mobile phải giữ nút áp dụng/xóa bộ lọc, không che CTA xem/nhận lớp. Tutor directory cũ không quyết định layout mới.
 - Navigation mobile phải giữ CTA quan trọng, không ẩn route bắt buộc.
 - Không tạo horizontal overflow ngoài các thành phần chủ đích cuộn ngang có chỉ báo.
 - List dài: pagination hoặc infinite scroll có load/retry/empty; search params nằm trên URL.
@@ -86,6 +102,8 @@ Không tự sáng tác trạng thái, màn hình, button hoặc feature không c
 - Localize content nhất quán: tiếng Việt rõ nghĩa, giờ 24h, thứ Hai -> Chủ nhật.
 
 ## E. Screen rules theo nghiệp vụ
+
+Các mục E1–E5 mô tả luồng tutor discovery/slot booking của MVP đã xây trước khi có export. Chúng tiếp tục là ràng buộc cho code đang tồn tại, nhưng không tự động trở thành luồng chính của giao diện export. Luồng yêu cầu tìm gia sư, nhận lớp và điều phối lớp được ánh xạ riêng trong `FIGMA_INVENTORY.md`, `PLAN.md` và `docs/FIGMA_COMPONENT_MAP.md`.
 
 ### E1. Landing / Tutor Search
 - Filter và search phản ánh đúng URL query; refresh không làm mất filter.
@@ -124,6 +142,21 @@ Không tự sáng tác trạng thái, màn hình, button hoặc feature không c
 - Date groups rõ timezone; biến cố trạng thái có notification/toast và cập nhật list.
 - Empty state theo tab, tránh bảng trắng.
 - Trang admin tách navigation/permission; không để link admin trên UI chưa đủ quyền.
+
+### E6. Phụ huynh tạo yêu cầu tìm gia sư (mục tiêu `./figma`)
+- `/parent` và `/parent/request` là cùng luồng; form gồm môn/lớp, khu vực, hình thức, mức học phí dự kiến, lịch mong muốn hoặc “Trao đổi sau”, yêu cầu khác và thông tin học sinh tối thiểu.
+- Danh sách/chi tiết/tabs hiển thị trạng thái do API trả về; không lấy `MOCK` trong export làm dữ liệu thật. Chỉ phụ huynh sở hữu và admin được xem số điện thoại/đặc điểm học sinh theo policy.
+- Khi lỗi submit, giữ giá trị form và thông báo tại field; khi thành công, hiển thị mã yêu cầu/trạng thái server trả về.
+
+### E7. Gia sư tìm và nhận lớp
+- `/tutor/new-classes`, `/tutor/matched-classes`, `/tutor/class-requests` dùng class DTO và application state riêng, không map trực tiếp booking cũ.
+- Chỉ hiển thị PII phụ huynh sau transition được phép; hồ sơ/điều khoản/điều kiện nhận lớp được server kiểm tra. Không dùng `termsTestPassed` trong localStorage làm quyền.
+- Trạng thái ứng tuyển/được gán/đã nhận, rút ứng tuyển, từ chối và xác nhận cần message thật, 409 stale và retry hợp lệ.
+
+### E8. Quản trị yêu cầu và lớp
+- Admin xem yêu cầu, tạo/xuất bản lớp, duyệt ứng tuyển, gán/rút gán gia sư; mỗi mutation cần xác nhận khi cần, audit actor/reason và render kết quả API.
+- Một lớp chỉ có một assignment active theo domain contract. Không hiện match score, rating hoặc notification đã gửi từ mock export.
+- Các trang CRUD nội dung/bảng giá, hỗ trợ và báo cáo chỉ công bố dữ liệu được duyệt và có nguồn thật; placeholder trong export không được xem là chức năng đã hoàn thành.
 
 ## F. States và interaction contract
 
@@ -164,7 +197,7 @@ Mỗi interactive UI cần đủ trạng thái:
 - Mutation critical phải auth, ownership, schema validation, role check, rate limit và idempotency khi phù hợp.
 - D1 query qua Drizzle ORM hoặc prepared statement `.bind`; cấm SQL nối chuỗi từ input.
 - Mọi query nhiều dữ liệu: limit/pagination, index review.
-- Slot booking dùng UNIQUE database constraint + `batch()` atomic; không tin chỉ UI availability.
+- Slot booking cũ vẫn dùng UNIQUE database constraint + `batch()` atomic khi còn tồn tại; request/class/application/assignment mới cần constraint và transaction riêng, không tin trạng thái UI.
 - Không xóa lịch sử booking; dùng status/audit log; dữ liệu PII xóa theo chính sách retention.
 - Không đưa D1/R2 secrets xuống Vite `VITE_*`.
 - Khi migration DB: review, local test, staging test, prod backup, deploy có thứ tự; rollback bằng migration bù/restore có kế hoạch.
@@ -182,21 +215,21 @@ Mỗi interactive UI cần đủ trạng thái:
 ## H. Testing và design QA
 
 ### H1. Visual review
-- Screenshot tests với cùng viewport và data fixtures cho từng Figma frame.
+- Screenshot tests với cùng viewport và data fixtures cho từng page export đã ánh xạ; khi có frame Figma gốc, đối chiếu thêm với viewport/node tương ứng. Không coi export code là screenshot gốc.
 - Review: alignment, typography, padding/gaps, border, color, responsiveness, images, hover/focus/disabled.
 - Checklist mobile touch and keyboard navigation.
 - No horizontal overflow at 320px except intentional scroller.
 
 ### H2. Functional acceptance
-- Form recurrence add/edit/delete nhiều khung giờ/ngày; không cho overlap.
-- Exception date không xóa recurring rule.
-- 2 bookings overlap theo tutor chỉ 1 thành công, test concurrent.
-- Retry request idempotency, role bypass, ownership bypass, session expiry.
-- Response lỗi API phải hiện UI phù hợp và giữ dữ liệu form.
+- Phụ huynh tạo yêu cầu tìm gia sư; dữ liệu học sinh/môn/địa điểm/hình thức/thời gian được validate, lưu thật và chỉ hiện với đúng vai trò/chủ sở hữu. Lỗi submit không được báo thành công.
+- Gia sư xem lớp phù hợp và gửi yêu cầu nhận lớp theo trạng thái hợp lệ; admin xem xét, ghép/duyệt và phân công gia sư. Cạnh tranh cùng lớp phải được xử lý atomically theo quy tắc nghiệp vụ đã chốt; client không được quyết định trạng thái hay phí.
+- Parent, tutor và admin nhìn cùng một trạng thái lớp/yêu cầu từ backend sau mỗi chuyển trạng thái; thử role bypass, ownership bypass, request trùng, thao tác lặp, session expiry và stale update.
+- Trong giai đoạn migration, booking/weekly availability cũ không được mất dữ liệu hoặc hồi quy nếu API còn phục vụ; UI đích là luồng yêu cầu/lớp theo DEC-007.
+- Retry request cần idempotency cho mutation dễ gửi lặp; response lỗi API phải hiện UI phù hợp và giữ dữ liệu form.
 - Performance: route splitting, image optimization, pagination, không import bundle nặng không dùng.
 
 ### H3. Definition of Done per screen
-- [ ] Screen frame ID / expected screenshot documented (hoặc flagged blocked).
+- [ ] Source file/route export và expected screenshot documented; frame ID chỉ điền nếu đã kiểm chứng trực tiếp (hoặc flagged blocked).
 - [ ] Component reuse & design tokens, không CSS lặp không kiểm soát.
 - [ ] Responsive mobile/tablet/desktop.
 - [ ] Loading/empty/error/success/disabled states.
@@ -204,14 +237,14 @@ Mỗi interactive UI cần đủ trạng thái:
 - [ ] Backend API & RBAC, no fake operations.
 - [ ] Unit/integration/E2E tests cho critical action.
 - [ ] No console errors, no secrets/PII leaked.
-- [ ] Screenshot comparison reviewed against Figma.
+- [ ] Screenshot comparison reviewed against export render; kiểm chứng thêm với frame Figma khi có quyền truy cập.
 
 ## I. Định nghĩa hoàn thành toàn bộ ứng dụng
 
 Release chỉ được coi là hoàn thành nếu:
-- Mỗi P0 screen đã được đối chiếu với Figma hoặc được product owner phê duyệt khác biệt.
-- Student có thể tìm Tutor; Tutor có thể khai báo weekly slots; booking flow hoàn chỉnh nếu được duyệt trong scope.
-- Test double-booking, authorization, cancellation và timezone đã pass.
+- Mỗi màn hình P0 của export đã được ánh xạ route/component/API, kết nối dữ liệu thật, review responsive/a11y và đối chiếu visual với bản render export. Các khác biệt với frame Figma gốc vẫn cần đối chiếu hoặc được product owner phê duyệt khi truy cập được thiết kế.
+- Phụ huynh tạo/theo dõi yêu cầu tìm gia sư; gia sư xem lớp/gửi yêu cầu nhận lớp; admin duyệt, ghép và phân công theo chính sách đã chốt. Trạng thái, quyền và lịch sử thao tác được backend enforce, không lấy mock state từ export làm dữ liệu thật.
+- Test authorization, ownership, cạnh tranh nhận/ghép lớp, thao tác lặp, stale update và timezone đạt. Dữ liệu booking/availability lịch sử được bảo toàn trong migration.
 - D1 local/staging/prod tách độc lập, migrations/recovery runbook có thể thực thi.
 - Production không có fake data, không có client-side role trust, không có hardcoded secrets.
 
@@ -219,12 +252,12 @@ Release chỉ được coi là hoàn thành nếu:
 
 | ID | Category | Question | Status | Decision |
 |---|---|---|---|---|
-| FIG-001 | Access | Chưa đọc được Figma Make link | BLOCKED | cần access/export |
-| FIG-002 | UI | Các trang, frame ID và interaction thực tế? | OPEN | audit Phase 0 |
-| FIG-003 | Tokens | Font, colors, spacing, breakpoints gốc? | OPEN | tạm dùng semantic tokens |
-| FIG-004 | Booking | Có auto-confirm hay tutor approval? | OPEN | tạm chờ duyệt |
-| FIG-005 | Scheduling | Granularity và thời lượng buổi học? | OPEN | tạm 30 phút |
-| FIG-006 | Billing | Payment/chat/reviews có thật trong UI? | OPEN | giữ Phase 5 |
+| FIG-001 | Access | Đã có code export; frame/node Figma trực tiếp chưa truy cập được | PARTIAL | dùng export làm bằng chứng code, không tạo frame ID |
+| FIG-002 | UI | Route/component đã đọc từ export; viewport và tương tác trong Figma gốc? | PARTIAL | đối chiếu khi có quyền truy cập |
+| FIG-003 | Tokens | Có màu brand trong JSX; font/spacing/breakpoint gốc? | PARTIAL | map màu có bằng chứng, giữ phần chưa xác minh là provisional |
+| FIG-004 | Class flow | Quy tắc duyệt, ghép và phân công khi nhiều gia sư nhận cùng lớp? | OPEN | chốt state transitions trước triển khai |
+| FIG-005 | Legacy booking | Luồng slot booking/availability hiện tại sẽ được giữ thế nào? | OPEN | không đồng nhất với yêu cầu tìm gia sư trong export |
+| FIG-006 | Billing | Giá/phí trong UI export được tính, thu, xác nhận ra sao? | OPEN | không tạo payment gateway từ mock UI |
 
 ---
 

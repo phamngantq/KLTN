@@ -1,14 +1,17 @@
 # PLAN — Tutor Matching Platform trên Cloudflare
 
-> Version: 0.1 — 2026-10-11  
-> Trạng thái: **provisional / chờ đối chiếu Figma Make**  
-> Design source: https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform  
+> Version: 0.2 — 2026-10-11
+> Trạng thái: **đã ánh xạ code export `./figma` / chờ đối chiếu frame Figma Make**
+> Design source cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1)
 > Stack bắt buộc: Cloudflare Workers + Wrangler + Cloudflare D1
+
+> **Cập nhật mục tiêu 2026-10-11:** Bản code người dùng đặt tại `./figma` **thay thế hoàn toàn** mục tiêu sản phẩm đặt lịch trực tiếp của TASK-01–18. Các mục 0–12 dưới đây là kế hoạch/lịch sử của MVP cũ; dùng mục 13, `FIGMA_INVENTORY.md`, `FIGMA_GAP_LOG.md` và queue mới trong `TASKS.md` cho công việc tiếp theo. Không coi mã export là backend hoặc bằng chứng đã kiểm thử Figma frame.
 
 ## 0. Phạm vi xác minh và giả định
 
 ### Đã biết
 - Tên dự án theo URL là **Tutor Matching Platform**.
+- Người dùng xác nhận Figma Make ở trên là nguồn thiết kế cho toàn bộ project.
 - Mục tiêu là build hệ thống từ bản thiết kế Figma, triển khai trên Cloudflare Workers bằng Wrangler và D1.
 - Link Figma Make chưa truy xuất được trong phiên nghiên cứu này: **không thể xác nhận số màn hình, màu sắc, typography, component, nội dung hay nghiệp vụ cụ thể**.
 
@@ -407,15 +410,54 @@ Chỉ thêm `r2_buckets` vào Wrangler sau khi đã tạo bucket; không giả s
 
 ---
 
-**Release principle:** Design fidelity -> correctness of booking -> security/authorization -> observability -> deployment. Không đánh đổi tính đúng đắn của lịch dạy để làm UI nhanh hơn.
+**Release principle của MVP cũ:** Design fidelity -> correctness of booking -> security/authorization -> observability -> deployment. Với mục tiêu `./figma`, áp dụng domain/quality gates ở mục 13 và TASK-19–30.
 
 
 ## 12. Deterministic execution queue — AI Coding Agent
 
-`TASKS.md` là **nguồn duy nhất cho thứ tự TASK-01 ... TASK-18 và trạng thái `[ ]`/`[x]`**. Các checklist phase trong mục 7 chỉ là roadmap tổng quan, **không dùng** để agent tự suy ra task tiếp theo.
+`TASKS.md` là **nguồn duy nhất cho thứ tự và trạng thái `[ ]`/`[x]`**. TASK-01–18 ghi lịch sử MVP cũ; queue từ TASK-19 dành cho mục tiêu `./figma`. Các checklist phase trong mục 7 chỉ là roadmap lịch sử, **không dùng** để agent tự suy ra task tiếp theo.
 
 - User gửi **“Tiếp tục thực hiện”** -> coding agent đọc `AGENTS.md` và làm đúng task `[ ]` đầu tiên của `TASKS.md`.
 - 01 prompt = tối đa 01 task = 01 commit local hoàn chỉnh. Commit bao gồm code/tests + tick task + `TASK_LOG.md`.
 - Không push GitHub, không deploy Cloudflare, không remote D1 migration khi chỉ được yêu cầu “Tiếp tục thực hiện”.
-- Nếu task trước đã có code nhưng chưa được đánh dấu, validate lại DoD trước khi tick; nếu Figma không truy cập được tại TASK-05, dừng ở BLOCKED_EXTERNAL, không bịa design.
+- Nếu task trước đã có code nhưng chưa được đánh dấu, validate lại DoD trước khi tick; ở TASK-19 dùng export `./figma` để kiểm chứng source và ghi rõ phần frame Figma Make chưa kiểm chứng, không bịa design.
 - Xem `CONTINUE_PROMPT.md` cho hướng dẫn khởi động lần đầu.
+
+## 13. Mục tiêu thay thế từ bản code `./figma`
+
+### 13.1. Nguồn và giới hạn bằng chứng
+
+- `./figma/src/app/routes.tsx` và các trang trong `./figma/src/app/pages/` là nguồn tham chiếu **màn hình, điều hướng, nội dung mẫu và trạng thái UI**. `FIGMA_INVENTORY.md` ánh xạ các route này sang app hiện tại. Code export không chứa frame ID/Auto Layout/ảnh chụp Figma gốc, nên pixel fidelity vẫn cần kiểm tra riêng.
+- `./figma/src/styles/` và JSX cho biết màu, typography, breakpoint và component đã dùng trong export; `docs/FIGMA_COMPONENT_MAP.md` ghi phần có bằng chứng và phần còn cần xác nhận. Không tự xem theme mặc định là brand token.
+- Export dùng mock data, mutation bằng React state/alert/toast và xác thực `localStorage` với role do client chọn. Chỉ lấy UI/luồng làm tham chiếu; API, dữ liệu, phân quyền, trạng thái và giao dịch phải do Worker/D1 quản lý. Không port demo login, dữ liệu cá nhân mẫu hay thông báo thành công giả vào app chính.
+- Giữ React/Vite + Hono Worker + D1/Drizzle + Wrangler và các yêu cầu bảo mật đã có. D1 migrations mới là additive/forward-only, kiểm tra dữ liệu staging trước khi thay route hoặc schema cũ; không tự migrate remote hay deploy production.
+
+### 13.2. Target product và ánh xạ hiện trạng
+
+| Miền | Bằng chứng trong export | Hiện trạng app chính | Hướng triển khai |
+|---|---|---|---|
+| Public | Trang chủ, giới thiệu, dịch vụ, bảng giá, danh sách lớp, blog, liên hệ | Trang chủ + tìm hồ sơ gia sư | Dựng shell/route theo export, dữ liệu xuất bản do backend cung cấp; không hiển thị số liệu/ảnh/địa chỉ mẫu như dữ liệu thật. |
+| Tài khoản | `parent`, `tutor`, `admin`; đăng nhập/đăng ký | `student`, `tutor`, `admin` với session cookie | Định nghĩa `parent` và chuyển đổi vai trò `student` an toàn; giữ xác thực/RBAC server-side, không dùng mock `localStorage`. |
+| Phụ huynh | Yêu cầu tìm gia sư, lịch tuần, hồ sơ, khiếu nại | Student đặt lịch trực tiếp theo slot | Tạo domain yêu cầu gia sư; trạng thái, ownership và dữ liệu học sinh do server xác thực. |
+| Gia sư | Danh sách lớp, đăng ký nhận lớp, lớp được gán, điều khoản/test, hợp đồng, hồ sơ | Hồ sơ, lịch rảnh và booking | Tạo domain lớp/đơn ứng tuyển/được gán; gate điều khoản và quyền xem thông tin liên hệ do server kiểm soát. |
+| Quản trị | Quản lý user, yêu cầu, lớp, gán gia sư, nội dung, dịch vụ, giá/phí, khiếu nại, báo cáo | Duyệt hồ sơ gia sư | Dùng API admin có audit, transition và kiểm tra dữ liệu; chỉ hiển thị báo cáo tính từ dữ liệu thật. |
+| Phí/chi trả | UI có phí nhận lớp và thông báo thanh toán thành công | Không có thanh toán | Chờ quyết định phương thức thu, xác nhận, hoàn tiền và chứng từ; không tạo trạng thái paid hoặc mở dữ liệu phụ huynh từ nút demo. |
+
+### 13.3. Domain và quy tắc tích hợp
+
+1. `parent_request` lưu người tạo từ session, môn/lớp/khu vực/hình thức, lịch mong muốn, mức chi dự kiến và thông tin học sinh tối thiểu; xử lý PII học sinh theo quyền và retention. Lịch tuần trong export là khung tham khảo, không dùng để tự sinh booking/claim cũ.
+2. `class_listing` do admin xuất bản từ yêu cầu hợp lệ hoặc tạo có audit; chỉ thông tin công khai được đưa vào danh sách lớp. `tutor_application` gắn tutor từ session, có trạng thái riêng. `assignment` và `class` có chuyển trạng thái do server kiểm soát; phân biệt phụ huynh được ghép, gia sư chấp nhận và lớp bắt đầu.
+3. Hồ sơ gia sư, môn, thông tin xác thực và các quyền duyệt hiện có có thể tái dùng sau khi đối chiếu trường dữ liệu. Không tự chuyển booking cũ thành yêu cầu/lớp mới; giữ lịch sử và bảo đảm migration không làm mất dữ liệu.
+4. Giá buổi, phí nhận lớp, hợp đồng, bài kiểm tra điều khoản, khiếu nại và doanh thu cần policy + schema riêng trước mutation. Mọi giá/fee/status/role từ client chỉ là input yêu cầu; server quyết định giá và transition. Payment success, email sent, match score, rating và báo cáo doanh thu chỉ hiển thị khi có bằng chứng backend thật.
+5. Các route export có alias, placeholder và lỗi cấu hình; route chính thức được chọn trong từng task. Không copy cả `routes.tsx` hoặc `package.json` của export vào app chính. Cần loading/empty/error/403/404, mobile/keyboard và test E2E cho mỗi luồng.
+
+### 13.4. Cổng quyết định trước khi phát hành
+
+- Chốt vòng đời yêu cầu → lớp → ứng tuyển/gán/chấp nhận, quy tắc hủy/chuyển gia sư và thời điểm lộ liên hệ phụ huynh.
+- Chốt bảng giá/phí nhận lớp, cách xác nhận thu tiền/hoàn tiền, điều khoản và bằng chứng giao dịch. Không thêm gateway hay tự ghi `paid` khi chưa có quyết định này.
+- Chốt xử lý dữ liệu học sinh, địa chỉ/số điện thoại, ảnh và nội dung CMS; thay mock data/public stock content bằng dữ liệu được duyệt.
+- Đối chiếu visual với bản Figma mở được hoặc ảnh export và chạy quality gates/QA trên staging mới trước khi thay thế bản staging hiện tại.
+
+### 13.5. Contract triển khai đề xuất
+
+[PRODUCT_DOMAIN.md](docs/PRODUCT_DOMAIN.md) là bản thiết kế **đề xuất** cho entity, API, quyền đọc/ghi, chuyển trạng thái, chống tranh chấp và migration D1 của sản phẩm thay thế. Các tên trạng thái trong export khác nhau giữa trang phụ huynh và admin; tài liệu không coi chúng là trạng thái backend đã được duyệt. TASK-20 phải chốt các điểm mở trong tài liệu đó trước khi TASK-22–29 ghi dữ liệu thật, đặc biệt là ánh xạ `student` → `parent`, thứ tự xác nhận lớp, thời điểm lộ liên hệ, giá/phí/điều khoản và thời hạn lưu dữ liệu học sinh. TASK-19–30 vẫn ở trạng thái theo `TASKS.md`; việc viết contract không đánh dấu hoàn thành task.

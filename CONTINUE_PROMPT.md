@@ -1,5 +1,7 @@
 # One-line agent command
 
+> Sau DEC-007, `./figma` thay thế hoàn toàn mục tiêu sản phẩm MVP đặt lịch. TASK-01–18 là lịch sử; queue hiện tại bắt đầu ở TASK-19. Đọc `FIGMA_INVENTORY.md` và `FIGMA_GAP_LOG.md` khi thực hiện task mới; source export là bằng chứng UI/luồng, không phải backend đã hoàn thiện.
+
 Mở Codex CLI, Claude Code hoặc Cursor Agent **tại thư mục root repo** có `AGENTS.md`, `TASKS.md`, `PLAN.md`, `DESIGN_RULES.md`.
 
 Gửi đúng một dòng:

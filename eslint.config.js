@@ -11,6 +11,7 @@ export default tseslint.config(
       'node_modules',
       'playwright-report',
       'test-results',
+      'figma/**',
       'src/server/worker-configuration.d.ts',
     ],
   },
