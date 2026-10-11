@@ -5,7 +5,9 @@ import { SignUpPage } from '../pages/auth/SignUpPage';
 import { TutorDetailPage } from '../pages/discovery/TutorDetailPage';
 import { TutorsPage } from '../pages/discovery/TutorsPage';
 import { HomePage } from '../pages/HomePage';
+import { StudentBookingsPage } from '../pages/student/StudentBookingsPage';
 import { TutorAvailabilityPage } from '../pages/tutor/TutorAvailabilityPage';
+import { TutorBookingsPage } from '../pages/tutor/TutorBookingsPage';
 import { TutorProfilePage } from '../pages/tutor/TutorProfilePage';
 import { NotFoundPage, RouteErrorPage } from './errors';
 import { RequireRole } from './guards';
@@ -43,6 +45,22 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole roles={['tutor']}>
             <TutorAvailabilityPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'student/bookings',
+        element: (
+          <RequireRole roles={['student']}>
+            <StudentBookingsPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'tutor/bookings',
+        element: (
+          <RequireRole roles={['tutor']}>
+            <TutorBookingsPage />
           </RequireRole>
         ),
       },

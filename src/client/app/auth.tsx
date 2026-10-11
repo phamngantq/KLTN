@@ -12,7 +12,14 @@ export const ME_KEY = ['me'] as const;
 
 /** Where each role lands after signing in (only routes that exist are listed). */
 export function homePathFor(role: UserRole): string {
-  return role === 'tutor' ? '/tutor/profile' : '/account';
+  switch (role) {
+    case 'student':
+      return '/student/bookings';
+    case 'tutor':
+      return '/tutor/bookings';
+    case 'admin':
+      return '/account';
+  }
 }
 
 /** Only same-origin relative paths are accepted as post-login targets (no open redirect). */

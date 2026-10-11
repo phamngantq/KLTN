@@ -146,7 +146,7 @@
 **Acceptance tests:** tutor A cannot confirm tutor B; student A cannot read B; invalid transitions 409; cancelling frees slot exactly once; parallel cancel/confirm preserves integrity; audit actor exists.  
 **Commit:** `feat(booking): enforce booking lifecycle transitions`.
 
-### [ ] TASK-14 — Student and tutor booking dashboards
+### [x] TASK-14 — Student and tutor booking dashboards
 **Dependency:** TASK-13.  
 **Scope:** Role-specific booking list/details/actions, from verified Figma.  
 **Deliverables:** StudentBookings/TutorBookings pages, BookingCard/StatusBadge/BookingActions, query/load/error handling, UI tests.  

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useLocation } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import type { PublicTutor } from '../../../shared/schemas/discovery';
 import {
   BOOKING_STATUS_LABELS,
@@ -145,6 +145,11 @@ export function BookingCreatedNotice({
         {formatVnd(booking.priceMinor)}
       </p>
       <p>Buổi học chỉ được tính là đã xác nhận khi gia sư chấp nhận yêu cầu.</p>
+      <p>
+        <Link to="/student/bookings" className="text-primary underline">
+          Xem lịch học của tôi
+        </Link>
+      </p>
     </Alert>
   );
 }
