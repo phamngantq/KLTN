@@ -3,6 +3,7 @@ import { loginSchema, registerSchema, type SessionPayload } from '../../../share
 import { ok } from '../../lib/respond';
 import { parseJsonBody } from '../../lib/validate';
 import { authOf, requireAuth } from '../../middleware/guards';
+import { clientIp, rateLimit } from '../../middleware/rate-limit';
 import type { AppEnv } from '../../types';
 import * as service from './service';
 import { clearSessionCookie, deriveCsrfToken, writeSessionCookie } from './session';
@@ -13,14 +14,14 @@ async function sessionResponse(issued: service.IssuedSession): Promise<SessionPa
   return { user: issued.user, csrfToken: await deriveCsrfToken(issued.token) };
 }
 
-authRoutes.post('/register', async (c) => {
+authRoutes.post('/register', rateLimit('AUTH_LIMITER', clientIp), async (c) => {
   const input = await parseJsonBody(c, registerSchema);
   const issued = await service.register(c.var.db, input);
   writeSessionCookie(c, issued.token, issued.expiresAt);
   return ok(c, await sessionResponse(issued), 201);
 });
 
-authRoutes.post('/login', async (c) => {
+authRoutes.post('/login', rateLimit('AUTH_LIMITER', clientIp), async (c) => {
   const input = await parseJsonBody(c, loginSchema);
   const issued = await service.login(c.var.db, input);
   writeSessionCookie(c, issued.token, issued.expiresAt);

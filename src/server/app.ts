@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { secureHeaders } from 'hono/secure-headers';
 import type { HealthStatus } from '../shared/api';
 import { createDb } from './db/client';
 import { AppError, safeErrorSummary } from './lib/errors';
@@ -26,6 +27,15 @@ export function createApp() {
   });
 
   const api = new Hono<AppEnv>();
+  // JSON API responses never render HTML: deny everything (SPA headers live in public/_headers).
+  api.use(
+    '*',
+    secureHeaders({
+      contentSecurityPolicy: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+      xFrameOptions: 'DENY',
+      referrerPolicy: 'no-referrer',
+    }),
+  );
   api.get('/health', (c) => ok<HealthStatus>(c, { status: 'ok' }));
 
   api.use(

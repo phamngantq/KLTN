@@ -10,8 +10,16 @@ export interface Session {
   userId: string;
 }
 
+/** A fresh client IP per call unless one is given, so per-IP rate limits only bite where a test means it. */
+function randomIp(): string {
+  const b = crypto.getRandomValues(new Uint8Array(3));
+  return `10.${b[0]}.${b[1]}.${b[2]}`;
+}
+
 export function api(path: string, init: RequestInit = {}) {
-  return exports.default.fetch(`${BASE}/api/v1${path}`, init);
+  const headers = new Headers(init.headers);
+  if (!headers.has('CF-Connecting-IP')) headers.set('CF-Connecting-IP', randomIp());
+  return exports.default.fetch(`${BASE}/api/v1${path}`, { ...init, headers });
 }
 
 export function jsonInit(

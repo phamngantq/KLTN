@@ -162,7 +162,7 @@
 **Acceptance tests:** non-admin always 403; approved profile appears public only after approval; rejected/hidden disappears; audit record with actor and target; pagination.  
 **Commit:** `feat(admin): implement tutor moderation queue`.
 
-### [ ] TASK-16 — Security, privacy and operational hardening
+### [x] TASK-16 — Security, privacy and operational hardening
 **Dependency:** TASK-15.  
 **Scope:** Audit and fix concrete risks; no feature creep.  
 **Deliverables:** `docs/SECURITY_CHECKLIST.md`, hardening patches, tests, security headers/CSRF/rate limit setup; Turnstile only where design/flow requires it.  
