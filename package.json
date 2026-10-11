@@ -7,16 +7,18 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "npm run build && vite preview",
-    "typecheck": "npm run cf-typegen --silent && tsc -b",
+    "typecheck": "wrangler types src/server/worker-configuration.d.ts --env-interface CloudflareBindings --strict-vars=false --check && tsc -b",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest",
-    "cf-typegen": "wrangler types src/server/worker-configuration.d.ts --env-interface CloudflareBindings",
+    "cf-typegen": "wrangler types src/server/worker-configuration.d.ts --env-interface CloudflareBindings --strict-vars=false",
     "deploy": "npm run build && wrangler deploy",
-    "pretest": "npm run cf-typegen --silent"
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:seed:local": "wrangler d1 execute DB --local --file src/server/db/seed.dev.sql"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

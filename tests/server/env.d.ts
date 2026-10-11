@@ -1,5 +1,10 @@
+// Test-only bindings injected by vitest.config.ts.
 declare namespace Cloudflare {
-  interface GlobalProps {
-    mainModule: typeof import('../../src/server/index');
+  interface Env {
+    TEST_MIGRATIONS: import('cloudflare:test').D1Migration[];
   }
+}
+declare module '*?raw' {
+  const content: string;
+  export default content;
 }

@@ -50,7 +50,7 @@
 **Acceptance tests:** `/api/v1/health` trả `{data:{status:"ok"}}` và 200; UI bootstrap render; local start, typecheck, lint, tests, production build đều pass; `.dev.vars` và credentials bị ignore.  
 **Commit:** `chore(setup): initialize cloudflare fullstack app`.
 
-### [ ] TASK-02 — D1 schema, migrations, local DB setup
+### [x] TASK-02 — D1 schema, migrations, local DB setup
 **Dependency:** TASK-01.  
 **Scope:** Model quan hệ cốt lõi theo `PLAN.md` mà chưa có tính năng API.  
 **Deliverables:** `src/server/db/schema.ts`, `src/server/db/client.ts`, `migrations/0001_initial.sql`, D1 binding `DB`, `src/server/db/seed.dev.ts` (test/dev only), local migration commands trong README, test schema/constraints.  

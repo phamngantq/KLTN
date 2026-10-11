@@ -10,4 +10,12 @@
   },
   "observability": { "enabled": true },
   "vars": { "APP_ENV": "development" },
+  // Local development database (Miniflare/.wrangler). No remote database id is committed here.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tutor-matching-dev",
+      "migrations_dir": "migrations",
+    },
+  ],
 }

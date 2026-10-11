@@ -15,8 +15,9 @@ export function fail(
   message: string,
   details?: unknown,
 ) {
+  // JSON serialisation drops `details` when it is undefined.
   const body: ApiErrorBody = {
-    error: details === undefined ? { code, message } : { code, message, details },
+    error: { code, message, details },
     meta: { requestId: c.get('requestId') },
   };
   return c.json(body, status);
