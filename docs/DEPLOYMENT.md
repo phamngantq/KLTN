@@ -1,6 +1,6 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái ngày 2026-10-11:** Bản sản phẩm mới theo `./figma` từ commit `bfac6a4` đã deploy lên [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) bằng `env.staging_v2`; xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Các lần deploy staging trong §9 thuộc MVP đặt lịch TASK-01–18. Production chưa triển khai.
+> **Trạng thái ngày 2026-10-11:** Bản giao diện mới nhất từ commit `84265ce` đã deploy lên [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) bằng `env.staging_v2`; xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Bản nền `bfac6a4` và các lần deploy MVP được giữ làm lịch sử. Production chưa triển khai.
 
 Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 

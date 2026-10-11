@@ -1,5 +1,16 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Cập nhật giao diện 2026-10-11
+
+Commit `84265ce` đã được triển khai lên cùng [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev), Worker version `e1623aa2-82f4-410d-ba31-9545afbebc71`. Bản này thống nhất thương hiệu **Gia Sư Đỗ Hằng**, sửa menu một header cho ba vai trò, ánh xạ trang chủ phụ huynh, lưới lịch 7 ngày × 7 ca, dashboard kiểm duyệt viên và phần lớp gần đây của gia sư bằng dữ liệu API thật. Không có migration mới và không sửa production/staging cũ.
+
+- Local: format, lint, typecheck, secret scan, build staging V2, **50 file/400 test**, E2E ba vai trò **1/1** PASS. D1 local không có migration chờ và `PRAGMA foreign_key_check` trống. Ảnh render home, dashboard admin và form phụ huynh ở 320/1280 px đã xem; không tràn ngang trang.
+- Trước deploy: Wrangler dry-run trỏ Worker/D1 cùng tên `tutor-matching-staging-v2`, `APP_ENV=staging`, binding `DB` và hai rate limiter. D1 V2 không có migration chờ; Time Travel khả dụng.
+- Sau deploy: smoke chỉ đọc **16/16** PASS; Chromium trên URL thật xác nhận thương hiệu, menu mobile, bảng giá, trang đăng ký và chặn route admin cho khách. D1 giữ **2 users, 0 bookings, 0 claims, 0 parent requests, 0 classes, 0 applications**; `PRAGMA foreign_key_check` trống.
+- Giới hạn: frame Figma Make trực tiếp chưa truy cập được, nên không xác nhận pixel-perfect. Form tạo yêu cầu dùng route riêng thay vì dialog trên trang danh sách; testimonial, biểu đồ doanh thu/xu hướng và FAQ chứa mock/cam kết chưa duyệt không được công bố. Staging chưa có tài khoản kiểm duyệt viên vận hành hoặc các phiên bản phí/điều khoản/hợp đồng được người vận hành công bố; hành trình ghi đầy đủ được kiểm trên D1 local cô lập, chưa chạy trên remote.
+
+Các kết quả bên dưới ghi lại đợt phát hành nền trước khi chỉnh giao diện.
+
 Ngày 2026-10-11, bản sản phẩm mới theo `./figma` từ commit `bfac6a4` đã được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev). Cấu hình `env.staging_v2` trỏ đến Worker và D1 `tutor-matching-staging-v2`, đặt `APP_ENV=staging` và build UI với `VITE_PREVIEW_READ_ONLY=false`. Worker/D1 staging cũ không bị sửa; production chưa triển khai.
 
 Trước lần phát hành này, cùng URL phục vụ bản `env.preview` chỉ đọc. `env.preview` vẫn có trong cấu hình để ghi lại lịch sử nhưng không còn là lệnh phát hành V2; các script migrate/deploy preview đã bị bỏ khỏi `package.json` để tránh ghi nhầm lên cùng Worker/D1.

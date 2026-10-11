@@ -5,7 +5,7 @@ Cloudflare-native modular monolith: React + Vite SPA và Hono API chạy trong *
 
 > Nguồn thiết kế cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1), với code export người dùng đặt tại `./figma`. Tên hiển thị theo export là **Gia Sư Đỗ Hằng**, khẩu hiệu **Uy tín - Chất lượng**. Theo [DEC-007](TASK_DECISIONS.md), export này thay thế mục tiêu sản phẩm đặt lịch trực tiếp trước đây. Các luồng yêu cầu, ứng tuyển, gán lớp và kiểm duyệt đã có trong `src/`, còn dữ liệu chính sách/giá chưa được kiểm duyệt viên công bố và các tích hợp ngoài chưa được cấp dịch vụ. Xem [PLAN.md §13](PLAN.md), [FIGMA_INVENTORY.md](FIGMA_INVENTORY.md) và [FIGMA_GAP_LOG.md](FIGMA_GAP_LOG.md).
 
-Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) chạy bản phát hành trước đợt chỉnh giao diện này. Xem [runbook](docs/PREVIEW_STAGING.md) để kiểm tra phiên bản đã triển khai; thay đổi local chỉ xuất hiện trên Worker sau một lệnh deploy riêng.
+Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đã chạy bản giao diện và luồng mới từ commit `84265ce`. Xem [hồ sơ phát hành](docs/PREVIEW_STAGING.md) để biết kiểm thử và các điểm còn khác export Figma; bản Make trực tiếp chưa được đối chiếu từng frame.
 
 `./figma` là nguồn tham chiếu **chỉ có trên máy** và được Git bỏ qua vì export chứa ảnh chụp và thông tin cá nhân mẫu chưa được rà quyền công bố. Mã được chọn lọc và kiểm thử sẽ được tích hợp vào `src/` trước khi push/deploy (DEC-008).
 

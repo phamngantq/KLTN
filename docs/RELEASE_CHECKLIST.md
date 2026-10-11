@@ -35,7 +35,7 @@ npm run format:check
 npm run lint
 npm run typecheck
 npx vitest run
-npm run build:staging
+npm run build:staging:v2
 npm run e2e
 git diff --check
 ```
@@ -60,4 +60,4 @@ git diff --check
 - [ ] ⛔ Backup D1 production được bảo vệ, bookmark phục hồi ghi ngoài Git, phương án xử lý dữ liệu phát sinh sau bookmark và người quyết định rollback đã rõ.
 - [ ] Visual QA so với code export có bằng chứng; frame Figma Make gốc chưa xác minh thì ghi sai khác trong [FIGMA_GAP_LOG.md](../FIGMA_GAP_LOG.md), không tuyên bố pixel-perfect.
 
-**Trạng thái đã biết ngày 2026-10-11:** Staging MVP cũ trả health 200 nhưng Worker/D1 không hiện trong tài khoản Wrangler ở lần kiểm tra cuối. Bản chức năng mới từ commit `bfac6a4` đã deploy lên staging V2 và CI của `main` hoàn tất thành công; migration 0007–0015 và smoke chỉ đọc 16/16 PASS sau khi chạy lại vì timeout thoáng qua. Sau phép thử ghi không hợp lệ, D1 V2 vẫn có 2 user gia sư giả lập và 0 credential, yêu cầu, booking, lớp; chưa có tài khoản kiểm duyệt viên vận hành. Xem [PREVIEW_STAGING.md](PREVIEW_STAGING.md) để biết giới hạn xác minh; các checkbox trên vẫn là cổng cho lần phát hành tiếp theo và production.
+**Trạng thái đã biết ngày 2026-10-11:** Staging MVP cũ trả health 200 nhưng Worker/D1 không hiện trong tài khoản Wrangler ở lần kiểm tra cuối. Bản UI từ commit `84265ce` đã deploy lên staging V2: local 50 file/400 test, E2E 1/1, smoke remote 16/16 PASS, D1 sau deploy giữ 2 user giả lập và 0 yêu cầu/booking/lớp. Chưa có tài khoản kiểm duyệt viên vận hành; các mức phí và nội dung điều khoản/hợp đồng chưa được công bố, nên ứng tuyển vẫn bị chặn đúng gate. Xem [PREVIEW_STAGING.md](PREVIEW_STAGING.md) để biết giới hạn xác minh; các checkbox trên vẫn là cổng cho lần phát hành đầy đủ tiếp theo và production.
