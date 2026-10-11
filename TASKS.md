@@ -11,7 +11,7 @@
 
 1. **Stack:** TypeScript strict, React + Vite + Cloudflare Vite plugin, Tailwind CSS và accessible UI primitives (tham chiếu shadcn/Radix từ export khi phù hợp), Hono on Workers, Drizzle + D1, Zod, Wrangler. Giữ npm/package-lock của app chính; không thay bằng `figma/package.json` hoặc chuyển package manager chỉ vì export.
 2. **Runtime:** Single Worker phục vụ API `/api/v1/*` và React SPA static assets. Có thể tổ chức modules nội bộ; không tách microservices.
-3. **Role:** App MVP hiện có `student`, `tutor`, `admin`; mục tiêu `./figma` là `parent`, `tutor`, `admin`. TASK-20 chốt cách chuyển `student` sang `parent`, TASK-22 triển khai. Trong mọi giai đoạn, self-registration chỉ tạo role người dùng hợp lệ do server quyết định; admin được cấp qua thao tác server-side đã kiểm soát.
+3. **Role:** App MVP lưu `student`, `tutor`, `admin`; actor sản phẩm mới là `parent`, `tutor`, `moderator` theo DEC-009. TASK-22 triển khai ánh xạ server `student → parent`, `admin → moderator` mà vẫn giữ ID/FK/lịch sử. Trong mọi giai đoạn, self-registration chỉ tạo role người dùng hợp lệ do server quyết định; moderator được cấp qua thao tác server-side đã kiểm soát.
 4. **Auth strategy cho phiên bản đầu:** email + password; credentials lưu password **hash chậm kèm salt riêng, có phiên bản thuật toán/chi phí, tương thích Workers và đã được kiểm thử**, không lưu plaintext/reversible secret. Ưu tiên Argon2id nếu chạy được an toàn trong Workers; nếu dùng phương án fallback bảo mật phù hợp phải ghi ADR giải thích. Session token random, lưu **hash** ở D1, cookie HttpOnly/Secure/SameSite và bảo vệ CSRF. Email verification/reset có thể cần email delivery integration; không được giả vờ email đã gửi.
 5. **Legacy booking TASK-01–18:** 30 phút/claim; lịch lặp theo `Asia/Ho_Chi_Minh`, booking instant lưu UTC, PENDING chiếm slot. Đây là nghiệp vụ MVP cũ cần bảo toàn dữ liệu/migration, không dùng để định nghĩa lịch lớp trong mục tiêu `./figma`.
 6. **Legacy booking status TASK-01–18:** PENDING → CONFIRMED → COMPLETED; PENDING → REJECTED/CANCELLED/EXPIRED; CONFIRMED → CANCELLED. Không tự chuyển booking cũ thành yêu cầu/lớp mới. Luồng mới cần state machine riêng theo PLAN §13 và FIG-013/014.
@@ -209,7 +209,7 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 
 **Commit:** `docs(figma): baseline exported product screens`.
 
-### [ ] TASK-20 — Define the replacement domain and migration contract
+### [x] TASK-20 — Define the replacement domain and migration contract
 **Dependency:** TASK-19.
 
 **Scope:** Chốt actor, dữ liệu và state machine cho yêu cầu phụ huynh → lớp → ứng tuyển/gán → nhận lớp; lập cách ngừng hiển thị booking cũ mà vẫn giữ dữ liệu lịch sử.

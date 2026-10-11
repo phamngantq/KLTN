@@ -145,7 +145,7 @@ Các mục E1–E5 mô tả luồng tutor discovery/slot booking của MVP đã 
 
 ### E6. Phụ huynh tạo yêu cầu tìm gia sư (mục tiêu `./figma`)
 - `/parent` và `/parent/request` là cùng luồng; form gồm môn/lớp, khu vực, hình thức, mức học phí dự kiến, lịch mong muốn hoặc “Trao đổi sau”, yêu cầu khác và thông tin học sinh tối thiểu.
-- Danh sách/chi tiết/tabs hiển thị trạng thái do API trả về; không lấy `MOCK` trong export làm dữ liệu thật. Chỉ phụ huynh sở hữu và admin được xem số điện thoại/đặc điểm học sinh theo policy.
+- Danh sách/chi tiết/tabs hiển thị trạng thái do API trả về; không lấy `MOCK` trong export làm dữ liệu thật. Phụ huynh sở hữu và kiểm duyệt viên được xem dữ liệu riêng theo quyền; gia sư được kiểm duyệt viên đề xuất chỉ xem thông tin liên hệ cần thiết qua API kiểm tra quyền, theo DEC-009.
 - Khi lỗi submit, giữ giá trị form và thông báo tại field; khi thành công, hiển thị mã yêu cầu/trạng thái server trả về.
 
 ### E7. Gia sư tìm và nhận lớp
