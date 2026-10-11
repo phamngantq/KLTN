@@ -3,6 +3,7 @@ import { AccountPage } from '../pages/AccountPage';
 import { SignInPage } from '../pages/auth/SignInPage';
 import { SignUpPage } from '../pages/auth/SignUpPage';
 import { HomePage } from '../pages/HomePage';
+import { TutorProfilePage } from '../pages/tutor/TutorProfilePage';
 import { NotFoundPage, RouteErrorPage } from './errors';
 import { RequireRole } from './guards';
 import { RootLayout } from './RootLayout';
@@ -21,6 +22,14 @@ export const routes: RouteObject[] = [
         element: (
           <RequireRole roles={['student', 'tutor', 'admin']}>
             <AccountPage />
+          </RequireRole>
+        ),
+      },
+      {
+        path: 'tutor/profile',
+        element: (
+          <RequireRole roles={['tutor']}>
+            <TutorProfilePage />
           </RequireRole>
         ),
       },

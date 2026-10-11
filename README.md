@@ -31,9 +31,9 @@ Cloudflare-native modular monolith: React + Vite SPA và Hono API chạy trong *
 
   ```bash
   npm run db:migrate:local   # wrangler d1 migrations apply DB --local (chạy lại an toàn)
-  npm run db:seed:local      # seed dev (chỉ --local), idempotent
   ```
 
+- Danh mục môn học (dữ liệu tham chiếu) nằm trong migration `0002`, có ở mọi môi trường.
 - Test server tự áp dụng migrations vào D1 local cô lập (`tests/server/setup.ts`).
 - Lưu ý D1: không dùng pattern `GLOB` dài trong `CHECK` (D1 báo "pattern too complex"); kiểm tra định dạng ngày/giờ bằng `date()`/`strftime()`.
 

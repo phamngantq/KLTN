@@ -8,6 +8,7 @@ import { csrfMiddleware } from './middleware/csrf';
 import { sessionMiddleware } from './middleware/session';
 import { authRoutes, meRoutes } from './modules/auth/routes';
 import { tutorAvailabilityRoutes } from './modules/availability/routes';
+import { subjectRoutes, tutorProfileRoutes } from './modules/tutors/routes';
 import type { AppEnv } from './types';
 
 const MAX_BODY_BYTES = 64 * 1024;
@@ -42,6 +43,8 @@ export function createApp() {
   api.route('/auth', authRoutes);
   api.route('/me', meRoutes);
   api.route('/tutor/availability', tutorAvailabilityRoutes);
+  api.route('/subjects', subjectRoutes);
+  api.route('/tutor/profile', tutorProfileRoutes);
 
   app.route('/api/v1', api);
 

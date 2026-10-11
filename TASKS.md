@@ -90,7 +90,7 @@
 **Acceptance tests:** routes theo verified Figma; layout stable ở 320/768/1280 px; known API errors render; aria labels/focus test; no inert nav/CTA.  
 **Commit:** `feat(ui): build app shell and typed api client`.
 
-### [ ] TASK-07 — Tutor profile CRUD and subject catalog
+### [x] TASK-07 — Tutor profile CRUD and subject catalog
 **Dependency:** TASK-06.  
 **Scope:** Tutor onboarding/profile, API và UI theo Figma; không public profile chưa approved.  
 **Deliverables:** `GET /api/v1/subjects`, `GET/PATCH /api/v1/tutor/profile`, profile form, Zod validators, subject relation queries, tests.  

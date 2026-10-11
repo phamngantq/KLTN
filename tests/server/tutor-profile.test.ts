@@ -1,0 +1,164 @@
+import { env } from 'cloudflare:workers';
+import { describe, expect, it } from 'vitest';
+import type { ApiErrorBody, ApiSuccess } from '../../src/shared/api';
+import type { Subject, TutorProfile } from '../../src/shared/schemas/tutors';
+import { slugify } from '../../src/server/modules/tutors/slug';
+import { api, errorCode, jsonInit, register, type Session } from './helpers';
+
+const PATH = '/tutor/profile';
+
+const COMPLETE = {
+  displayName: 'Nguyễn Văn Đức',
+  bio: 'Giáo viên Toán THPT, 5 năm kinh nghiệm luyện thi.',
+  subjectIds: ['subj_math', 'subj_physics'],
+  hourlyRateMinor: 250_000,
+  teachesOnline: true,
+  teachesOffline: false,
+};
+
+function patch(session: Session, body: unknown) {
+  return api(PATH, jsonInit('PATCH', body, session));
+}
+
+async function getProfile(session: Session) {
+  const res = await api(PATH, { headers: { Cookie: session.cookie } });
+  expect(res.status).toBe(200);
+  return (await res.json<ApiSuccess<TutorProfile | null>>()).data;
+}
+
+describe('GET /subjects', () => {
+  it('is public and returns the catalogue sorted by name', async () => {
+    const res = await api('/subjects');
+    expect(res.status).toBe(200);
+    const subjects = (await res.json<ApiSuccess<Subject[]>>()).data;
+    expect(subjects.length).toBe(9);
+    expect(subjects.map((s) => s.name)).toEqual(
+      [...subjects.map((s) => s.name)].sort(new Intl.Collator('vi').compare),
+    );
+    expect(subjects.map((s) => s.name).indexOf('Địa lý')).toBeLessThan(
+      subjects.map((s) => s.name).indexOf('Hóa học'),
+    );
+    expect(subjects[0]).toEqual({
+      id: expect.any(String),
+      slug: expect.any(String),
+      name: expect.any(String),
+    });
+  });
+});
+
+describe('slugify', () => {
+  it('strips Vietnamese diacritics', () => {
+    expect(slugify('Nguyễn Văn Đức')).toBe('nguyen-van-duc');
+    expect(slugify('  !!! ')).toBe('gia-su');
+  });
+});
+
+describe('tutor profile', () => {
+  it('returns null before the profile exists', async () => {
+    const tutor = await register('tutor');
+    expect(await getProfile(tutor)).toBeNull();
+  });
+
+  it('creates a private draft profile on first save and lists what is missing', async () => {
+    const tutor = await register('tutor');
+    const res = await patch(tutor, { bio: 'Xin chào' });
+    expect(res.status).toBe(200);
+    const profile = (await res.json<ApiSuccess<TutorProfile>>()).data;
+    expect(profile).toMatchObject({
+      userId: tutor.userId,
+      approvalStatus: 'draft',
+      visibility: 'private',
+      bio: 'Xin chào',
+      hourlyRateMinor: null,
+      subjects: [],
+    });
+    expect(profile.slug).toMatch(/^nguoi-dung-thu-[a-z0-9]{6}$/);
+    expect(profile.missing).toEqual(['subjects', 'hourlyRate', 'teachingMode']);
+  });
+
+  it('saves all fields, updates the display name and replaces subjects atomically', async () => {
+    const tutor = await register('tutor');
+    await patch(tutor, COMPLETE);
+    const res = await patch(tutor, { subjectIds: ['subj_english'] });
+    const profile = (await res.json<ApiSuccess<TutorProfile>>()).data;
+    expect(profile.displayName).toBe('Nguyễn Văn Đức');
+    expect(profile.subjects.map((s) => s.id)).toEqual(['subj_english']);
+    expect(profile.hourlyRateMinor).toBe(250_000);
+    expect(profile.missing).toEqual([]);
+
+    const me = await api('/me', { headers: { Cookie: tutor.cookie } });
+    expect(
+      (await me.json<ApiSuccess<{ user: { displayName: string } }>>()).data.user.displayName,
+    ).toBe('Nguyễn Văn Đức');
+  });
+
+  it.each([
+    ['rate not a multiple of 1000', { hourlyRateMinor: 250_500 }],
+    ['rate below minimum', { hourlyRateMinor: 5_000 }],
+    ['fractional rate', { hourlyRateMinor: 100_000.5 }],
+    ['duplicate subjects', { subjectIds: ['subj_math', 'subj_math'] }],
+    ['moderation field', { approvalStatus: 'approved' }],
+    ['visibility field', { visibility: 'public' }],
+    ['slug field', { slug: 'chosen' }],
+    ['owner override', { userId: 'someone-else' }],
+  ])('rejects %s with 422', async (_label, body) => {
+    const tutor = await register('tutor');
+    const res = await patch(tutor, body);
+    expect(res.status).toBe(422);
+  });
+
+  it('rejects unknown subject ids with 422 UNKNOWN_SUBJECT', async () => {
+    const tutor = await register('tutor');
+    const res = await patch(tutor, { subjectIds: ['subj_math', 'subj_alchemy'] });
+    expect(res.status).toBe(422);
+    expect(await errorCode(res)).toBe('UNKNOWN_SUBJECT');
+  });
+
+  it('is tutor-only and scoped to the session user', async () => {
+    expect((await api(PATH)).status).toBe(401);
+    const student = await register('student');
+    expect((await api(PATH, { headers: { Cookie: student.cookie } })).status).toBe(403);
+    expect((await patch(student, { bio: 'x' })).status).toBe(403);
+
+    const a = await register('tutor');
+    const b = await register('tutor');
+    await patch(b, COMPLETE);
+    await patch(a, { bio: 'A only' });
+    expect((await getProfile(b))?.bio).toBe(COMPLETE.bio);
+  });
+});
+
+describe('POST /tutor/profile/submit', () => {
+  it('requires a complete profile', async () => {
+    const tutor = await register('tutor');
+    expect((await api(`${PATH}/submit`, jsonInit('POST', {}, tutor))).status).toBe(404);
+    await patch(tutor, { bio: 'x' });
+    const res = await api(`${PATH}/submit`, jsonInit('POST', {}, tutor));
+    expect(res.status).toBe(422);
+    const body = await res.json<ApiErrorBody>();
+    expect(body.error.code).toBe('PROFILE_INCOMPLETE');
+    expect(body.error.details).toEqual(['subjects', 'hourlyRate', 'teachingMode']);
+  });
+
+  it('moves draft → pending once, keeps the profile private', async () => {
+    const tutor = await register('tutor');
+    await patch(tutor, COMPLETE);
+    const res = await api(`${PATH}/submit`, jsonInit('POST', {}, tutor));
+    expect(res.status).toBe(200);
+    expect((await res.json<ApiSuccess<TutorProfile>>()).data).toMatchObject({
+      approvalStatus: 'pending',
+      visibility: 'private',
+    });
+    const again = await api(`${PATH}/submit`, jsonInit('POST', {}, tutor));
+    expect(again.status).toBe(409);
+  });
+
+  it('allows resubmission after rejection', async () => {
+    const tutor = await register('tutor');
+    await patch(tutor, COMPLETE);
+    await env.DB.prepare("UPDATE tutor_profiles SET approval_status = 'rejected' WHERE user_id = ?")
+      .bind(tutor.userId)
+      .run();
+    expect((await api(`${PATH}/submit`, jsonInit('POST', {}, tutor))).status).toBe(200);
+  });
+});

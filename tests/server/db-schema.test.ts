@@ -3,7 +3,6 @@ import { env } from 'cloudflare:workers';
 import { getTableConfig, SQLiteTable } from 'drizzle-orm/sqlite-core';
 import { describe, expect, it } from 'vitest';
 import * as schema from '../../src/server/db/schema';
-import seedSql from '../../src/server/db/seed.dev.sql?raw';
 
 const db = env.DB;
 const NOW = '2026-10-11T00:00:00.000Z';
@@ -222,11 +221,9 @@ describe('constraints', () => {
   });
 });
 
-describe('dev seed', () => {
-  it('is idempotent', async () => {
-    await db.prepare(seedSql).run();
-    await db.prepare(seedSql).run();
+describe('reference data', () => {
+  it('ships the subject catalogue with the migrations (every environment)', async () => {
     const row = await db.prepare('SELECT count(*) AS n FROM subjects').first<{ n: number }>();
-    expect(row?.n).toBe(5);
+    expect(row?.n).toBe(9);
   });
 });
