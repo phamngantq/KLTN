@@ -37,6 +37,7 @@ Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) 
 
   ```bash
   npm run db:migrate:local   # wrangler d1 migrations apply DB --local (chạy lại an toàn)
+  npm run seed:sample:local   # tạo admin mẫu và 3 phương án phí nháp trong D1 local
   ```
 
 - Danh mục môn học (dữ liệu tham chiếu) nằm trong migration `0002`, có ở mọi môi trường.
@@ -64,4 +65,4 @@ API dưới `/api/v1/*` luôn do Worker xử lý trước (`run_worker_first`); 
 
 ## Secrets
 
-Secrets local đặt trong `.dev.vars` (đã bị `.gitignore`), xem mẫu `.dev.vars.example`. Secrets remote dùng `wrangler secret put`. Không bao giờ dùng biến `VITE_*` cho secret.
+Worker secrets local đặt trong `.dev.vars` (đã bị `.gitignore`), xem `.dev.vars.example`. Dữ liệu mẫu nằm ở `.env.example`; lệnh `seed:sample:local` đọc các giá trị đó, tạo mật khẩu ngẫu nhiên trong `.wrangler/sample-local/credentials.vars` bị Git bỏ qua, rồi thêm tài khoản `local-admin@example.test` và ba phương án phí nhận lớp **nháp** vào D1 local. Xem mật khẩu trong file credentials này để đăng nhập local; lệnh chạy lại không thay mật khẩu hoặc ghi đè phiên bản phí đã có. Hai bảng học phí theo buổi và phí nhận lớp cố định từ Figma được lưu dưới dạng JSON tham chiếu trong env mẫu; hiện chưa có schema/API để hiển thị chúng. Không chạy seed này trên staging/production. Secrets remote dùng `wrangler secret put`. Không bao giờ dùng biến `VITE_*` cho secret.

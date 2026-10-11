@@ -1,2 +1,2 @@
-# Copy to .dev.vars for local development. Never commit real secrets.
-# (No secrets are required yet.)
+﻿# Copy to .dev.vars for local Worker bindings only. Never commit real secrets.
+# Local sample admin and pricing data are in .env.example; run npm run seed:sample:local.

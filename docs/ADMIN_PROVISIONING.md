@@ -2,7 +2,7 @@
 
 > TASK-22 dùng nhãn `parent` khi đăng ký công khai, D1 vẫn lưu role `student`. Operator có thể cấp role D1 `admin` cho tài khoản này; sản phẩm hiển thị actor `moderator` (kiểm duyệt viên). Không dùng lựa chọn `admin` trong form của code export `./figma` làm quyền thật.
 
-Không có API, seed hay form công khai nào tạo admin. Đăng ký công khai chỉ nhận `parent` hoặc `tutor` (xem [ADR_AUTH.md](ADR_AUTH.md)).
+Không có API, seed từ migration hay form công khai nào tạo admin. Đăng ký công khai chỉ nhận `parent` hoặc `tutor` (xem [ADR_AUTH.md](ADR_AUTH.md)). Riêng `npm run seed:sample:local` tạo tài khoản kiểm duyệt viên giả lập trong D1 **local** để thử giao diện; email mẫu nằm trong `.env.example`, mật khẩu ngẫu nhiên chỉ lưu tại `.wrangler/sample-local/credentials.vars` bị Git bỏ qua. Lệnh này không có tùy chọn remote và không thay quy trình cấp quyền staging/production bên dưới.
 
 ## Quy trình
 

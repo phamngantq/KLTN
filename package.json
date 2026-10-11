@@ -15,6 +15,7 @@
     "cf-typegen": "wrangler types src/server/worker-configuration.d.ts --env-interface CloudflareBindings --strict-vars=false",
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "seed:sample:local": "node scripts/seed-sample-local.mjs",
     "secret-scan": "node scripts/secret-scan.mjs",
     "e2e": "playwright test",
     "build:staging": "node scripts/build-env.mjs staging",
