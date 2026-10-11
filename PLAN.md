@@ -408,3 +408,14 @@ Chỉ thêm `r2_buckets` vào Wrangler sau khi đã tạo bucket; không giả s
 ---
 
 **Release principle:** Design fidelity -> correctness of booking -> security/authorization -> observability -> deployment. Không đánh đổi tính đúng đắn của lịch dạy để làm UI nhanh hơn.
+
+
+## 12. Deterministic execution queue — AI Coding Agent
+
+`TASKS.md` là **nguồn duy nhất cho thứ tự TASK-01 ... TASK-18 và trạng thái `[ ]`/`[x]`**. Các checklist phase trong mục 7 chỉ là roadmap tổng quan, **không dùng** để agent tự suy ra task tiếp theo.
+
+- User gửi **“Tiếp tục thực hiện”** -> coding agent đọc `AGENTS.md` và làm đúng task `[ ]` đầu tiên của `TASKS.md`.
+- 01 prompt = tối đa 01 task = 01 commit local hoàn chỉnh. Commit bao gồm code/tests + tick task + `TASK_LOG.md`.
+- Không push GitHub, không deploy Cloudflare, không remote D1 migration khi chỉ được yêu cầu “Tiếp tục thực hiện”.
+- Nếu task trước đã có code nhưng chưa được đánh dấu, validate lại DoD trước khi tick; nếu Figma không truy cập được tại TASK-05, dừng ở BLOCKED_EXTERNAL, không bịa design.
+- Xem `CONTINUE_PROMPT.md` cho hướng dẫn khởi động lần đầu.
