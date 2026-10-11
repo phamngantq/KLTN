@@ -1,6 +1,6 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái ngày 2026-10-12:** [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy version `66531983-7f0a-419c-8a25-cbf035a2efb2` từ commit `379c117` bằng `env.staging_v2`; D1 đã áp dụng migration `0016`–`0022`, với 3 phí, 6 lớp, 6 mức học phí và 2 khoảng phí tham khảo đã công bố. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Các lần deploy trước được giữ làm lịch sử. Production chưa triển khai.
+> **Trạng thái ngày 2026-10-12:** [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy version `5dc5377c-b91f-4b33-be02-8c52c73a8fdd` từ commit `24a1f80` bằng `env.staging_v2`. Bản này sửa header, không thay đổi D1; migration `0001`–`0022` vẫn đã áp dụng. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Các lần deploy trước được giữ làm lịch sử. Production chưa triển khai.
 
 Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 

@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Sửa header ngày 2026-10-12
+
+Commit `24a1f80` đã được fast-forward và push lên `main`, rồi triển khai tới [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev), version `5dc5377c-b91f-4b33-be02-8c52c73a8fdd`. Menu công khai gom hai danh sách lớp dưới “Lớp học”; menu phụ huynh gom các tác vụ lớp; tài khoản đăng nhập dùng một menu gọn. Các nhãn điều hướng giữ một dòng và dropdown không đẩy chiều cao header ở desktop. Menu di động có lối vào “Lớp tìm học viên”.
+
+- Trước phát hành: lint, typecheck, format, secret scan, `git diff --check`, build staging V2, Vitest **456/456** và Playwright **4/4** PASS. Kiểm thử header tại 320, 375, 768, 1024, 1280, 1440 và 1600 px cho khách và ba vai trò; kiểm tra mở menu bằng bàn phím và không tràn ngang.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS. Chromium trên URL thật ở 320 và 1280 px xác nhận menu tải được; sau khi phiên khách tải xong tại 1280 px, sáu mục desktop cùng một hàng, header cao 76 px và không tràn ngang.
+- Không có migration hoặc seed trong đợt này. Staging cũ và production không được thay đổi.
+
 ## Phát hành ngày 2026-10-12
 
 Commit `379c117` đã được fast-forward và push lên `main`, rồi triển khai tới [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev), version `66531983-7f0a-419c-8a25-cbf035a2efb2`, với `APP_ENV=staging`. D1 V2 đã áp dụng migration `0016`–`0022`; danh sách migration từ xa không còn mục chờ. Mốc Time Travel và bản export SQL trước migration được giữ ngoài Git trên máy phát hành, không chứa trong tài liệu này.
