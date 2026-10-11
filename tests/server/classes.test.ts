@@ -145,7 +145,14 @@ describe('published classes and tutor applications', () => {
       subjectId: REQUEST.subjectId,
       sourceRequestId: submitted.id,
       publicArea: 'Cầu Giấy, Hà Nội',
+      expectedBudgetMinor: REQUEST.expectedBudgetMinor,
     });
+    const storedTuition = await env.DB.prepare(
+      'SELECT expected_budget_minor AS amount FROM class_listings WHERE id = ?',
+    )
+      .bind(cls.id)
+      .first<{ amount: number }>();
+    expect(storedTuition?.amount).toBe(REQUEST.expectedBudgetMinor);
     expect((await createClass(admin, submitted)).status).toBe(409);
     expect((await api(`/classes/${cls.id}`)).status).toBe(404);
     expect(
@@ -250,6 +257,7 @@ describe('published classes and tutor applications', () => {
       id: cls.id,
       code: expect.stringMatching(/^LH-[A-F0-9]{12}$/),
       subjectName: expect.any(String),
+      expectedBudgetMinor: REQUEST.expectedBudgetMinor,
       schedule: REQUEST.schedule,
     });
     const serialized = JSON.stringify(publicClass);

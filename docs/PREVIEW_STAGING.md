@@ -1,5 +1,9 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Thay đổi bảng giá ngày 2026-10-12 — chờ phát hành
+
+Mã nguồn đã bổ sung hai bảng D1 cho học phí theo buổi và khoảng phí nhận lớp tham khảo. Hai mảng trong `.env.example` là nguồn nạp dữ liệu mẫu; sau khi áp dụng migration `0016` và chạy lại `seed:sample:staging:v2` trên đúng D1, hệ thống sẽ lưu sáu mức học phí và hai khoảng phí trong D1. Các lớp và ngân sách dự kiến của từng lớp đã nằm trong D1 từ lần phát hành trước. **Chưa ghi nhận áp dụng migration, seed lại hoặc deploy Worker cho thay đổi này trên staging.**
+
 ## Cập nhật dữ liệu mẫu staging V2 ngày 2026-10-11
 
 [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đã deploy version `5c1ec5a7-6809-4579-9e0c-c6a9d72bf6ee` với `APP_ENV=staging`, sau đó seed từ cấu hình riêng bị Git bỏ qua tại `.wrangler/sample-staging-v2/config.vars`. D1 V2 có **3 phương án phí published**, **6 yêu cầu sourcing** từ phụ huynh tổng hợp và **6 lớp open**. API công khai trả 6 lớp và 3 phương án phí; `PRAGMA foreign_key_check` trả 0 lỗi. Tài khoản kiểm duyệt viên mẫu là `staging-admin@example.test`; mật khẩu ngẫu nhiên chỉ ở `.wrangler/sample-staging-v2/credentials.vars` bị Git bỏ qua, không có trong Worker vars hay tài liệu. Bookmark D1 trước seed được lưu ở `.wrangler/sample-staging-v2/`.

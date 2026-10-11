@@ -133,7 +133,7 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
         icon: Wallet,
         items: [
           { to: '/admin/services', label: 'Dịch vụ', icon: BookOpen },
-          { to: '/admin/pricing', label: 'Phương án phí', icon: Wallet },
+          { to: '/admin/pricing', label: 'Bảng giá & phí', icon: Wallet },
         ],
       },
       {

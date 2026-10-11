@@ -6,6 +6,11 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import {
+  assertSamplePricingCatalog,
+  parseSamplePricingCatalog,
+  samplePricingCatalogStatements,
+} from './sample-pricing-catalog.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const WRANGLER_ROOT = join(ROOT, '.wrangler');
@@ -98,7 +103,11 @@ function configFromSample(options) {
       'Staging sample config is missing: copy .env.example to ignored .wrangler/sample-staging-v2/config.vars before remote seed.',
     );
   }
-  const config = parseEnv(readFileSync(file, 'utf8'));
+  // Existing ignored staging config may predate the non-secret pricing catalog arrays.
+  const config = {
+    ...parseEnv(readFileSync(SAMPLE_FILE, 'utf8')),
+    ...parseEnv(readFileSync(file, 'utf8')),
+  };
   const email = required(config, 'SAMPLE_STAGING_ADMIN_EMAIL', 254).toLowerCase();
   if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(email))
     throw new Error('Invalid staging admin email.');
@@ -168,6 +177,7 @@ function configFromSample(options) {
     adminName: required(config, 'SAMPLE_ADMIN_DISPLAY_NAME', 100),
     fees,
     classes,
+    catalog: parseSamplePricingCatalog(config, 'staging_v2'),
   };
 }
 
@@ -253,6 +263,9 @@ function seedSql(config, options, password) {
       ),
     );
   }
+  lines.push(
+    ...samplePricingCatalogStatements(config.catalog, sql, ADMIN_ID, now, 'staging_v2_sample'),
+  );
   for (const item of config.classes) {
     const requestId = idFor(5000, item.number);
     const classId = idFor(4000, item.number);
@@ -361,6 +374,9 @@ function preflight(config, options) {
       throw new Error('Existing class conflicts with staging sample config.');
     }
   }
+  assertSamplePricingCatalog((statement) => query(statement, options), config.catalog, sql, {
+    adminId: ADMIN_ID,
+  });
 }
 
 function verify(config, options, password) {
@@ -403,10 +419,16 @@ function verify(config, options, password) {
     )
   )
     throw new Error('Staging sample classes or request consent verification failed.');
+  const catalog = assertSamplePricingCatalog(
+    (statement) => query(statement, options),
+    config.catalog,
+    sql,
+    { published: true, adminId: ADMIN_ID },
+  );
   if (query('PRAGMA foreign_key_check', options).length)
     throw new Error('Staging D1 foreign key check failed.');
   console.log(
-    `Staging V2 sample seed verified: ${fees.length} published fee options, ${classes.length} open sample classes, one admin.`,
+    `Staging V2 sample seed verified: ${fees.length} published fee options, ${classes.length} open sample classes, ${catalog.tuition} tuition prices, ${catalog.classFees} class-fee guidance rows, one admin.`,
   );
   console.log(
     `Admin email: ${config.email}; password file: ${relative(ROOT, options.credentials)} (ignored by Git).`,

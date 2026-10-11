@@ -23,6 +23,7 @@ import {
 import { discoveryRoutes } from './modules/discovery/routes';
 import { parentProfileRoutes } from './modules/parents/routes';
 import { parentRequestRoutes } from './modules/parents/requests-routes';
+import { adminPricingRoutes, publicPricingRoutes } from './modules/pricing/routes';
 import {
   adminReportRoutes,
   parentDashboardRoutes,
@@ -106,10 +107,12 @@ export function createApp() {
   api.route('/bookings', bookingRoutes);
   api.route('/classes', classRoutes);
   api.route('/fee-options', publicFeeRoutes);
+  api.route('/pricing', publicPricingRoutes);
   api.route('/content', contentRoutes);
   api.route('/complaints', complaintRoutes);
   api.route('/admin', adminRoutes);
   api.route('/admin', adminClassRoutes);
+  api.route('/admin/pricing', adminPricingRoutes);
   api.route('/admin', adminTermsContractRoutes);
   api.route('/admin/classes', adminAssignmentRoutes);
   api.route('/admin/content', adminContentRoutes);

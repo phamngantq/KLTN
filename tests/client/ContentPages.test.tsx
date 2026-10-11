@@ -118,6 +118,8 @@ describe('published content pages', () => {
         };
       }
       if (req.path === '/fee-options/published') return { data: [] };
+      if (req.path === '/pricing/tuition') return { data: [] };
+      if (req.path === '/pricing/class-fees') return { data: [] };
       if (req.path === '/content?kind=faq&audience=public&page=1&pageSize=12') {
         return {
           data: {

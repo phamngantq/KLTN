@@ -4,8 +4,9 @@ import { PageHeader } from '../../components/ui/Feedback';
 const SETTINGS = [
   {
     to: '/admin/pricing',
-    title: 'Phương án phí',
-    description: 'Đặt giá trị và công bố phiên bản phí để gia sư lựa chọn khi ứng tuyển.',
+    title: 'Bảng giá & phí',
+    description:
+      'Công bố học phí tham khảo, khoảng phí theo hình thức và ba phương án phí để gia sư lựa chọn khi ứng tuyển.',
   },
   {
     to: '/admin/terms/quiz',

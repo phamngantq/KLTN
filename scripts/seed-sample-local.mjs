@@ -2,10 +2,15 @@
 /** Explicit, idempotent sample seed for local D1 only. */
 import { execFileSync } from 'node:child_process';
 import { pbkdf2Sync, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import {
+  assertSamplePricingCatalog,
+  parseSamplePricingCatalog,
+  samplePricingCatalogStatements,
+} from './sample-pricing-catalog.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const SAMPLE_FILE = join(ROOT, '.env.example');
@@ -65,6 +70,8 @@ function withinWrangler(path) {
 }
 
 function sqlText(value) {
+  if (value === null) return 'NULL';
+  if (typeof value === 'number') return String(value);
   return `'${value.replaceAll("'", "''")}'`;
 }
 
@@ -153,14 +160,13 @@ function main() {
     throw new Error('Invalid SAMPLE_ADMIN_EMAIL.');
   const name = required(config, 'SAMPLE_ADMIN_DISPLAY_NAME', 100);
   const fees = FEES.map((item) => fee(config, item));
-  for (const key of ['SAMPLE_TUITION_PRICES_JSON', 'SAMPLE_CLASS_FEES_JSON']) {
-    if (!Array.isArray(JSON.parse(required(config, key, 10_000)))) {
-      throw new Error(`${key} must be a JSON array.`);
-    }
-  }
+  const catalog = parseSamplePricingCatalog(config, 'local');
 
   console.log('Applying migrations to local D1 only...');
   runWrangler(['d1', 'migrations', 'apply', 'DB', '--local', ...persistArgs]);
+  assertSamplePricingCatalog((statement) => query(statement, persistArgs), catalog, sqlText, {
+    adminId: ADMIN_ID,
+  });
   const existing = query(
     `SELECT id, role, status FROM users WHERE email_normalized = ${sqlText(email)}`,
     persistArgs,
@@ -240,10 +246,29 @@ function main() {
     );
     created += 1;
   }
+  const catalogFolder = join(ROOT, '.wrangler', 'sample-local');
+  mkdirSync(catalogFolder, { recursive: true });
+  const catalogSqlFile = join(catalogFolder, `catalog-${randomUUID()}.sql`);
+  writeFileSync(
+    catalogSqlFile,
+    `${samplePricingCatalogStatements(catalog, sqlText, ADMIN_ID, now, 'local_sample').join('\n')}\n`,
+    { encoding: 'utf8', mode: 0o600 },
+  );
+  try {
+    runWrangler(['d1', 'execute', 'DB', '--local', ...persistArgs, '--file', catalogSqlFile]);
+  } finally {
+    if (existsSync(catalogSqlFile)) unlinkSync(catalogSqlFile);
+  }
+  const storedCatalog = assertSamplePricingCatalog(
+    (statement) => query(statement, persistArgs),
+    catalog,
+    sqlText,
+    { published: true, adminId: ADMIN_ID },
+  );
   console.log(`Local admin: ${email} (password in ${relative(ROOT, envFile)}).`);
   console.log(`Fee drafts created: ${created}; existing version-1 options left unchanged.`);
   console.log(
-    'Figma tuition and flat class-fee JSON is reference-only; no D1 table exists for it.',
+    `D1 sample pricing catalog: ${storedCatalog.tuition} tuition prices and ${storedCatalog.classFees} class-fee guidance rows published.`,
   );
 }
 

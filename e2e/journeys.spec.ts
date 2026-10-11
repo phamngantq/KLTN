@@ -331,7 +331,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(guest.getByRole('link', { name: 'Bỏ qua tới nội dung chính' })).toBeFocused();
     await admin.goto('/admin/settings');
     await expect(admin.getByRole('heading', { name: 'Cài đặt và nội dung' })).toBeVisible();
-    await expect(admin.getByRole('link', { name: /Phương án phí Đặt giá trị/ })).toBeVisible();
+    await expect(admin.getByRole('link', { name: /Bảng giá & phí/ })).toBeVisible();
     await tutor.goto('/tutor/class-history');
     await expect(tutor.getByRole('heading', { name: 'Lịch sử nhận lớp' })).toBeVisible();
     await expect(tutor.getByRole('heading', { name: 'Chưa có lịch sử lớp học' })).toBeVisible();

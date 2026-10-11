@@ -52,6 +52,25 @@ interface SampleClass {
   windows: unknown[];
 }
 
+interface TuitionRow {
+  subjectId: string;
+  gradeLabel: string;
+  level: string;
+  mode: string;
+  pricePerSessionMinor: number;
+  status: string;
+  approvedBy: string;
+}
+
+interface ClassFeeRow {
+  mode: string;
+  minFeeMinor: number;
+  maxFeeMinor: number;
+  description: string;
+  status: string;
+  approvedBy: string;
+}
+
 function inside(parent: string, child: string): boolean {
   const path = relative(parent, child);
   return path !== '' && path !== '..' && !path.startsWith(`..${sep}`) && !isAbsolute(path);
@@ -110,11 +129,25 @@ function rows(stateDir: string) {
      WHERE c.status = 'open' ORDER BY c.code`,
     stateDir,
   );
+  const tuition = query<TuitionRow>(
+    `SELECT subject_id AS subjectId, grade_label AS gradeLabel, level, mode,
+       price_per_session_minor AS pricePerSessionMinor, status, approved_by AS approvedBy
+     FROM tuition_price_versions ORDER BY subject_id, grade_label, level, mode`,
+    stateDir,
+  );
+  const classFees = query<ClassFeeRow>(
+    `SELECT mode, min_fee_minor AS minFeeMinor, max_fee_minor AS maxFeeMinor,
+       description, status, approved_by AS approvedBy
+     FROM class_fee_guidance_versions ORDER BY mode`,
+    stateDir,
+  );
   const counts = query<{
     requests: number;
     classes: number;
     admins: number;
     fees: number;
+    tuition: number;
+    classFees: number;
     scheduleWindows: number;
     auditLogs: number;
   }>(
@@ -122,11 +155,13 @@ function rows(stateDir: string) {
        (SELECT COUNT(*) FROM class_listings) AS classes,
        (SELECT COUNT(*) FROM users WHERE role = 'admin') AS admins,
        (SELECT COUNT(*) FROM fee_option_versions) AS fees,
+       (SELECT COUNT(*) FROM tuition_price_versions) AS tuition,
+       (SELECT COUNT(*) FROM class_fee_guidance_versions) AS classFees,
        (SELECT COUNT(*) FROM request_schedule_windows) AS scheduleWindows,
        (SELECT COUNT(*) FROM audit_logs) AS auditLogs`,
     stateDir,
   )[0];
-  return { admins, fees, classes, counts };
+  return { admins, fees, classes, tuition, classFees, counts };
 }
 
 describe('explicit staging V2 sample seed in isolated local D1', () => {
@@ -164,7 +199,14 @@ describe('explicit staging V2 sample seed in isolated local D1', () => {
       expect(expectedClasses).toHaveLength(6);
 
       const before = rows(stateDir);
-      expect(before.counts).toMatchObject({ requests: 6, classes: 6, admins: 1, fees: 3 });
+      expect(before.counts).toMatchObject({
+        requests: 6,
+        classes: 6,
+        admins: 1,
+        fees: 3,
+        tuition: 6,
+        classFees: 2,
+      });
       expect(before.counts?.scheduleWindows).toBe(
         expectedClasses.reduce((total, item) => total + item.windows.length, 0),
       );
@@ -200,6 +242,50 @@ describe('explicit staging V2 sample seed in isolated local D1', () => {
         [30_000, 5000],
         [4000, null],
       ]);
+      const sourceTuition = JSON.parse(sample.SAMPLE_TUITION_PRICES_JSON!) as Array<{
+        subject: string;
+        grade: string;
+        level: string;
+        mode: string;
+        pricePerSessionMinor: number;
+      }>;
+      const sourceClassFees = JSON.parse(sample.SAMPLE_CLASS_FEES_JSON!) as Array<{
+        mode: string;
+        minFeeMinor: number;
+        maxFeeMinor: number;
+        description: string;
+      }>;
+      expect(before.tuition).toHaveLength(6);
+      expect(before.classFees).toHaveLength(2);
+      expect(before.tuition).toEqual(
+        expect.arrayContaining(
+          sourceTuition.map((row) =>
+            expect.objectContaining({
+              subjectId: row.subject === 'Toán' ? 'subj_math' : 'subj_english',
+              gradeLabel: row.grade,
+              level: row.level,
+              mode: row.mode,
+              pricePerSessionMinor: row.pricePerSessionMinor,
+              status: 'published',
+              approvedBy: before.admins[0]!.id,
+            }),
+          ),
+        ),
+      );
+      expect(before.classFees).toEqual(
+        expect.arrayContaining(
+          sourceClassFees.map((row) =>
+            expect.objectContaining({
+              mode: row.mode,
+              minFeeMinor: row.minFeeMinor,
+              maxFeeMinor: row.maxFeeMinor,
+              description: row.description,
+              status: 'published',
+              approvedBy: before.admins[0]!.id,
+            }),
+          ),
+        ),
+      );
 
       expect(before.classes).toHaveLength(6);
       expect(new Set(before.classes.map((item) => item.code)).size).toBe(6);

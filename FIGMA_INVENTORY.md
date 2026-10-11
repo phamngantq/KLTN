@@ -87,7 +87,7 @@ Role `admin`, dùng [`AdminLayout`](figma/src/app/components/AdminLayout.tsx#L90
 | `/admin/classes` | `admin/AdminClassesPage.tsx` | `/admin/classes` | CODE_EXPORTED; quản lý lớp từ API, không xóa lịch sử tùy ý |
 | `/admin/tutor-approval` | inline trong router | redirect `/admin/tutors` | **PLACEHOLDER** export; app có duyệt tutor thật |
 | `/admin/services` | `admin/AdminServicesPage.tsx` | `/admin/services` + CMS | CODE_EXPORTED; draft/publish dịch vụ, không giao dịch gói |
-| `/admin/pricing` | `admin/AdminPricingFeesPage.tsx` | `/admin/pricing` + fee versions | CODE_EXPORTED; admin cấu hình/publish ba lựa chọn phí |
+| `/admin/pricing` | `admin/AdminPricingFeesPage.tsx` | `/admin/pricing` + D1 fee versions và pricing catalog | CODE_EXPORTED; admin cấu hình/publish ba lựa chọn phí, học phí theo buổi và khoảng phí nhận lớp tham khảo |
 | `/admin/content/blog` | `admin/AdminBlogPage.tsx` | `/admin/content/blog` + CMS | CODE_EXPORTED; draft/publish, slug gắn danh mục |
 | `/admin/content/faq` | inline trong router | `/admin/content/faq` + CMS | **PLACEHOLDER** export; app hỗ trợ FAQ thật |
 | `/admin/content/contracts` | `admin/AdminContractsPage.tsx` | `/admin/content/contracts` + CMS | CODE_EXPORTED; mẫu hợp đồng versioned |
@@ -100,7 +100,7 @@ Role `admin`, dùng [`AdminLayout`](figma/src/app/components/AdminLayout.tsx#L90
 | `/admin/reports/revenue` | `admin/AdminReportsRevenuePage.tsx` | `/admin/reports/revenue` | CODE_EXPORTED; không tạo doanh thu giả khi chưa có giao dịch |
 | `/admin/settings` | inline trong router | `/admin/settings` | **PLACEHOLDER** export; app có hub đến tám trang cấu hình/nội dung thật, không ghi thay đổi giả |
 
-Trong **export**, mỗi page admin dùng tập state/dữ liệu riêng và báo cáo hằng mẫu ([conversion](figma/src/app/pages/admin/AdminReportsConversionPage.tsx#L27), [revenue](figma/src/app/pages/admin/AdminReportsRevenuePage.tsx#L27)). App hiện tại có API D1 cho yêu cầu, lớp, đơn, tài khoản, nội dung, phí, điều khoản, hợp đồng, khiếu nại và báo cáo. Dịch vụ/gói giao dịch, hình ảnh, email và payment chưa mở.
+Trong **export**, mỗi page admin dùng tập state/dữ liệu riêng và báo cáo hằng mẫu ([conversion](figma/src/app/pages/admin/AdminReportsConversionPage.tsx#L27), [revenue](figma/src/app/pages/admin/AdminReportsRevenuePage.tsx#L27)). App hiện tại có API D1 cho yêu cầu, lớp, đơn, tài khoản, nội dung, phí, điều khoản, hợp đồng, khiếu nại và báo cáo. Migration `0016` và seed mẫu đưa sáu mức học phí theo buổi cùng hai khoảng phí nhận lớp từ export vào D1; cần áp dụng và kiểm chứng riêng trên staging trước khi coi bản công khai đã cập nhật. Dịch vụ/gói giao dịch, hình ảnh, email và payment chưa mở.
 
 ## Lưu ý triển khai từ audit code export
 

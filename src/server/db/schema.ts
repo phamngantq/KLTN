@@ -15,6 +15,11 @@ import {
   APPLICATION_STATUSES,
 } from '../../shared/schemas/classes';
 import {
+  PRICING_CATALOG_STATUSES,
+  PRICING_LEVELS,
+  PRICING_MODES,
+} from '../../shared/schemas/pricing';
+import {
   type AnySQLiteColumn,
   index,
   integer,
@@ -191,6 +196,66 @@ export const feeOptionVersions = sqliteTable(
       t.effectiveFrom,
       t.effectiveTo,
     ),
+  ],
+);
+
+export const tuitionPriceVersions = sqliteTable(
+  'tuition_price_versions',
+  {
+    id: text('id').primaryKey(),
+    subjectId: text('subject_id')
+      .notNull()
+      .references(() => subjects.id, { onDelete: 'restrict' }),
+    gradeLabel: text('grade_label').notNull(),
+    level: text('level', { enum: PRICING_LEVELS }).notNull(),
+    mode: text('mode', { enum: PRICING_MODES }).notNull(),
+    pricePerSessionMinor: integer('price_per_session_minor').notNull(),
+    version: integer('version').notNull(),
+    editVersion: integer('edit_version').notNull().default(1),
+    status: text('status', { enum: PRICING_CATALOG_STATUSES }).notNull(),
+    approvedBy: text('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+    publishedAt: text('published_at'),
+    mutationId: text('mutation_id').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('tuition_price_versions_key_version_uq').on(
+      t.subjectId,
+      t.gradeLabel,
+      t.level,
+      t.mode,
+      t.version,
+    ),
+    index('tuition_price_versions_public_idx').on(
+      t.status,
+      t.subjectId,
+      t.gradeLabel,
+      t.level,
+      t.mode,
+      desc(t.version),
+    ),
+  ],
+);
+
+export const classFeeGuidanceVersions = sqliteTable(
+  'class_fee_guidance_versions',
+  {
+    id: text('id').primaryKey(),
+    mode: text('mode', { enum: PRICING_MODES }).notNull(),
+    minFeeMinor: integer('min_fee_minor').notNull(),
+    maxFeeMinor: integer('max_fee_minor').notNull(),
+    description: text('description').notNull(),
+    version: integer('version').notNull(),
+    editVersion: integer('edit_version').notNull().default(1),
+    status: text('status', { enum: PRICING_CATALOG_STATUSES }).notNull(),
+    approvedBy: text('approved_by').references(() => users.id, { onDelete: 'restrict' }),
+    publishedAt: text('published_at'),
+    mutationId: text('mutation_id').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('class_fee_guidance_versions_key_version_uq').on(t.mode, t.version),
+    index('class_fee_guidance_versions_public_idx').on(t.status, t.mode, desc(t.version)),
   ],
 );
 

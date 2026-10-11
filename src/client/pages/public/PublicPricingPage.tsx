@@ -1,12 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { BadgeCheck, CheckCircle2, CircleHelp, GraduationCap, Info, Wallet } from 'lucide-react';
 import type { FeeOptionKey, FeeOptionVersion } from '../../../shared/schemas/classes';
+import type { ClassFeeGuidanceVersion, TuitionPriceVersion } from '../../../shared/schemas/pricing';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { Skeleton } from '../../components/ui/Spinner';
 import { usePublishedContent, usePublishedContentList } from '../../features/content/api';
 import { useSubjects } from '../../features/tutor-profile/api';
 import { api, isApiError } from '../../lib/api-client';
+import { formatVnd } from '../../lib/format';
 import { ContentText } from './PublishedContentPage';
 
 const OPTION_LABELS: Record<FeeOptionKey, string> = {
@@ -14,6 +16,16 @@ const OPTION_LABELS: Record<FeeOptionKey, string> = {
   lesson_multiplier_with_deposit: 'Theo số buổi học và đặt cọc',
   monthly_percent: 'Theo học phí tháng',
 };
+
+const LEVEL_LABELS = {
+  basic: 'Cơ bản',
+  advanced: 'Nâng cao',
+  intensive: 'Luyện thi chuyên sâu',
+} as const;
+
+function modeText(mode: 'online' | 'offline'): string {
+  return mode === 'online' ? 'Trực tuyến' : 'Trực tiếp';
+}
 
 function rateText(option: FeeOptionVersion): string {
   if (option.optionKey === 'lesson_multiplier_with_deposit') {
@@ -33,8 +45,22 @@ export function PublicPricingPage() {
     queryKey: ['published-fee-options'],
     queryFn: ({ signal }) => api.get<FeeOptionVersion[]>('/fee-options/published', { signal }),
   });
+  const tuition = useQuery({
+    queryKey: ['published-tuition-prices'],
+    queryFn: ({ signal }) => api.get<TuitionPriceVersion[]>('/pricing/tuition', { signal }),
+  });
+  const classFeeGuidance = useQuery({
+    queryKey: ['published-class-fee-guidance'],
+    queryFn: ({ signal }) => api.get<ClassFeeGuidanceVersion[]>('/pricing/class-fees', { signal }),
+  });
   const editorialMissing = editorial.isError && isApiError(editorial.error, 'CONTENT_NOT_FOUND');
   const subjectName = new Map(subjects.data?.map((subject) => [subject.id, subject.name]));
+  const tuitionByGrade = new Map<string, TuitionPriceVersion[]>();
+  for (const item of tuition.data ?? []) {
+    const rows = tuitionByGrade.get(item.gradeLabel) ?? [];
+    rows.push(item);
+    tuitionByGrade.set(item.gradeLabel, rows);
+  }
 
   return (
     <>
@@ -79,6 +105,69 @@ export function PublicPricingPage() {
               </ButtonLink>
             </div>
           </div>
+        </section>
+
+        <section aria-labelledby="tuition-prices-heading" className="space-y-6">
+          <div className="text-center">
+            <h2 id="tuition-prices-heading" className="text-3xl font-bold text-primary">
+              Bảng giá học phí theo môn và lớp
+            </h2>
+            <p className="mt-3 text-muted">
+              Mức học phí tham khảo cho mỗi buổi học. Mức dự kiến của từng lớp được hiển thị riêng
+              trong thông tin lớp.
+            </p>
+          </div>
+          {tuition.isPending ? (
+            <Skeleton className="h-48" />
+          ) : tuition.isError ? (
+            <Alert
+              tone="danger"
+              title="Không tải được bảng giá học phí"
+              action={
+                <Button variant="secondary" onClick={() => void tuition.refetch()}>
+                  Thử lại
+                </Button>
+              }
+            >
+              {tuition.error.message}
+            </Alert>
+          ) : tuition.data.length === 0 ? (
+            <EmptyState
+              title="Chưa có bảng giá học phí được công bố"
+              description="Liên hệ trung tâm để được tư vấn mức học phí phù hợp."
+            />
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-2">
+              {[...tuitionByGrade].map(([grade, rows]) => (
+                <div
+                  key={grade}
+                  className="overflow-hidden rounded-xl border border-primary/20 bg-bg shadow-card"
+                >
+                  <h3 className="bg-gradient-to-r from-primary to-primary-gradient-end px-5 py-4 text-xl font-semibold text-on-primary">
+                    {grade}
+                  </h3>
+                  <ul className="divide-y divide-border">
+                    {rows.map((item) => (
+                      <li
+                        key={item.id}
+                        className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <p className="font-semibold text-fg">{item.subjectName}</p>
+                          <p className="text-sm text-muted">
+                            {LEVEL_LABELS[item.level]} · {modeText(item.mode)}
+                          </p>
+                        </div>
+                        <p className="font-bold text-primary">
+                          {formatVnd(item.pricePerSessionMinor)}/buổi
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         {editorial.isPending ? (
@@ -185,6 +274,49 @@ export function PublicPricingPage() {
                       </div>
                     </dl>
                   </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+        <section aria-labelledby="class-fee-guidance-heading" className="space-y-5">
+          <div className="text-center">
+            <h2 id="class-fee-guidance-heading" className="text-3xl font-bold text-primary">
+              Khoảng phí nhận lớp tham khảo
+            </h2>
+            <p className="mt-3 text-muted">
+              Khoảng theo hình thức dạy chỉ để tham khảo. Phí áp dụng được xác định theo phương án
+              gia sư chọn khi ứng tuyển, không phải khoản thu thêm của phụ huynh.
+            </p>
+          </div>
+          {classFeeGuidance.isPending ? (
+            <Skeleton className="h-32" />
+          ) : classFeeGuidance.isError ? (
+            <Alert
+              tone="danger"
+              title="Không tải được khoảng phí tham khảo"
+              action={
+                <Button variant="secondary" onClick={() => void classFeeGuidance.refetch()}>
+                  Thử lại
+                </Button>
+              }
+            >
+              {classFeeGuidance.error.message}
+            </Alert>
+          ) : classFeeGuidance.data.length === 0 ? (
+            <EmptyState title="Chưa có khoảng phí tham khảo được công bố" />
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {classFeeGuidance.data.map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-xl border border-primary/20 bg-bg p-5 shadow-card"
+                >
+                  <h3 className="text-lg font-semibold text-primary">{modeText(item.mode)}</h3>
+                  <p className="mt-2 text-2xl font-bold text-primary">
+                    {formatVnd(item.minFeeMinor)} – {formatVnd(item.maxFeeMinor)}
+                  </p>
+                  <p className="mt-2 text-sm text-muted">{item.description}</p>
                 </li>
               ))}
             </ul>

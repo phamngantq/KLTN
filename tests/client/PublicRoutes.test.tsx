@@ -14,6 +14,8 @@ describe('public product foundation', () => {
       if (req.path === '/me') return anonymous;
       if (req.path === '/subjects') return { data: [] };
       if (req.path === '/fee-options/published') return { data: [] };
+      if (req.path === '/pricing/tuition') return { data: [] };
+      if (req.path === '/pricing/class-fees') return { data: [] };
       if (req.path === '/content/page/pricing?audience=public') {
         return { status: 404, error: { code: 'CONTENT_NOT_FOUND', message: 'Chưa có nội dung.' } };
       }

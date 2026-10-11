@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { pbkdf2Sync } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { parseEnv } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
 const workspace = resolve();
@@ -25,6 +26,23 @@ interface FeeRow {
   status: string;
   approvedBy: string | null;
   publishedAt: string | null;
+}
+
+interface TuitionRow {
+  subjectId: string;
+  gradeLabel: string;
+  level: string;
+  mode: string;
+  pricePerSessionMinor: number;
+  status: string;
+}
+
+interface ClassFeeRow {
+  mode: string;
+  minFeeMinor: number;
+  maxFeeMinor: number;
+  description: string;
+  status: string;
 }
 
 function inside(parent: string, child: string): boolean {
@@ -73,7 +91,7 @@ describe('opt-in local sample seed', () => {
 
       const first = run(seedScript, args, stateDir);
       expect(first.error).toBeUndefined();
-      expect(first.status).toBe(0);
+      expect(first.status, first.stderr).toBe(0);
       const passwordLine = readFileSync(envFile, 'utf8').match(
         /^SAMPLE_ADMIN_PASSWORD\s*=\s*(.+)$/m,
       );
@@ -98,9 +116,59 @@ describe('opt-in local sample seed', () => {
       expect(derived.toString('base64url')).toBe(digest);
       expect(adminBefore[0]!.passwordHash).not.toContain(password!);
 
+      const sample = parseEnv(readFileSync(join(workspace, '.env.example'), 'utf8'));
+      const tuitionBefore = query<TuitionRow>(
+        `SELECT subject_id AS subjectId, grade_label AS gradeLabel, level, mode,
+          price_per_session_minor AS pricePerSessionMinor, status
+         FROM tuition_price_versions ORDER BY subject_id, grade_label, level, mode`,
+        stateDir,
+      );
+      const classFeesBefore = query<ClassFeeRow>(
+        `SELECT mode, min_fee_minor AS minFeeMinor, max_fee_minor AS maxFeeMinor,
+          description, status FROM class_fee_guidance_versions ORDER BY mode`,
+        stateDir,
+      );
+      const sourceTuition = JSON.parse(sample.SAMPLE_TUITION_PRICES_JSON!) as Array<{
+        subject: string;
+        grade: string;
+        level: string;
+        mode: string;
+        pricePerSessionMinor: number;
+      }>;
+      const sourceClassFees = JSON.parse(sample.SAMPLE_CLASS_FEES_JSON!) as ClassFeeRow[];
+      expect(tuitionBefore).toHaveLength(6);
+      expect(classFeesBefore).toHaveLength(2);
+      expect(tuitionBefore).toEqual(
+        expect.arrayContaining(
+          sourceTuition.map((row) =>
+            expect.objectContaining({
+              subjectId: row.subject === 'Toán' ? 'subj_math' : 'subj_english',
+              gradeLabel: row.grade,
+              level: row.level,
+              mode: row.mode,
+              pricePerSessionMinor: row.pricePerSessionMinor,
+              status: 'published',
+            }),
+          ),
+        ),
+      );
+      expect(classFeesBefore).toEqual(
+        expect.arrayContaining(
+          sourceClassFees.map((row) =>
+            expect.objectContaining({
+              mode: row.mode,
+              minFeeMinor: row.minFeeMinor,
+              maxFeeMinor: row.maxFeeMinor,
+              description: row.description,
+              status: 'published',
+            }),
+          ),
+        ),
+      );
+
       const second = run(seedScript, args, stateDir);
       expect(second.error).toBeUndefined();
-      expect(second.status).toBe(0);
+      expect(second.status, second.stderr).toBe(0);
 
       const adminAfter = query<AdminRow>(
         `SELECT u.id, u.email_normalized AS email, u.role, c.password_hash AS passwordHash
@@ -108,6 +176,21 @@ describe('opt-in local sample seed', () => {
         stateDir,
       );
       expect(adminAfter).toEqual(adminBefore);
+      expect(
+        query<TuitionRow>(
+          `SELECT subject_id AS subjectId, grade_label AS gradeLabel, level, mode,
+            price_per_session_minor AS pricePerSessionMinor, status
+           FROM tuition_price_versions ORDER BY subject_id, grade_label, level, mode`,
+          stateDir,
+        ),
+      ).toEqual(tuitionBefore);
+      expect(
+        query<ClassFeeRow>(
+          `SELECT mode, min_fee_minor AS minFeeMinor, max_fee_minor AS maxFeeMinor,
+            description, status FROM class_fee_guidance_versions ORDER BY mode`,
+          stateDir,
+        ),
+      ).toEqual(classFeesBefore);
 
       const fees = query<FeeRow>(
         `SELECT option_key AS optionKey, version, rate_basis_points AS rateBasisPoints,
