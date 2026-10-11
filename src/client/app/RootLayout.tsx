@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, GraduationCap, Mail, MapPin, Menu, Phone, X } from 'lucide-react';
+import { ChevronDown, GraduationCap, Mail, MapPin, Menu, Phone, UserRound, X } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import type { UserRole } from '../../shared/schemas/auth';
 import { FloatingContactLinks } from '../components/domain/FloatingContactLinks';
@@ -15,7 +15,7 @@ interface NavItem {
   label: string;
 }
 
-// The public menu follows the supplied Figma export. Services remain linked in the footer.
+// Keep the public Figma labels; group both live class lists under its "Lớp học" item.
 const PUBLIC_NAV: NavItem[] = [
   { to: '/', label: 'Trang chủ' },
   { to: '/gioi-thieu', label: 'Giới thiệu' },
@@ -30,6 +30,10 @@ const BLOG_NAV: NavItem[] = [
   { to: '/blog/gia-su', label: 'Tin tức Gia sư' },
 ];
 
+const CLASS_NAV = PUBLIC_NAV.filter(
+  (item) => item.to === '/lop-hoc' || item.to === '/lop-tim-hoc-vien',
+);
+
 const ROLE_PORTAL: Record<UserRole, NavItem> = {
   student: { to: '/parent', label: 'Khu vực phụ huynh' },
   tutor: { to: '/tutor', label: 'Khu vực gia sư' },
@@ -40,7 +44,7 @@ function BrandSignature() {
   return (
     <>
       <GraduationCap aria-hidden="true" className="size-8 shrink-0" strokeWidth={2} />
-      <span className="flex flex-col leading-tight">
+      <span className="flex flex-col whitespace-nowrap leading-tight">
         <span className="text-lg font-semibold sm:text-xl">Gia Sư Đỗ Hằng</span>
         <span className="text-xs font-medium text-accent">Uy tín - Chất lượng</span>
       </span>
@@ -49,7 +53,7 @@ function BrandSignature() {
 }
 
 const publicNavClass = ({ isActive }: { isActive: boolean }) =>
-  `inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+  `inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
     isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
   }`;
 
@@ -106,7 +110,7 @@ export function RootLayout() {
             {!isRoleRoute && (
               <nav aria-label="Điều hướng chính" className="hidden xl:block">
                 <ul className="flex items-center gap-1">
-                  {PUBLIC_NAV.slice(0, 4).map((item) => (
+                  {PUBLIC_NAV.slice(0, 3).map((item) => (
                     <li key={item.to}>
                       <NavLink to={item.to} end={item.to === '/'} className={publicNavClass}>
                         {item.label}
@@ -114,9 +118,51 @@ export function RootLayout() {
                     </li>
                   ))}
                   <li>
-                    <details className="group relative">
+                    <details
+                      key={location.pathname}
+                      className="group relative"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.currentTarget.open = false;
+                          event.currentTarget.querySelector('summary')?.focus();
+                        }
+                      }}
+                    >
                       <summary
-                        className={`flex min-h-11 cursor-pointer list-none items-center gap-1 rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden ${
+                        className={`flex min-h-11 cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden ${
+                          CLASS_NAV.some((item) => location.pathname.startsWith(item.to))
+                            ? 'bg-accent text-on-accent'
+                            : 'text-on-primary hover:bg-white/10'
+                        }`}
+                      >
+                        Lớp học <ChevronDown aria-hidden="true" className="size-4" />
+                      </summary>
+                      <div className="absolute left-0 top-full z-50 min-w-48 rounded-lg border border-border bg-bg p-2 text-primary shadow-lg">
+                        {CLASS_NAV.map((item) => (
+                          <Link
+                            key={item.to}
+                            to={item.to}
+                            className="block whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-focus"
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </details>
+                  </li>
+                  <li>
+                    <details
+                      key={location.pathname}
+                      className="group relative"
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') {
+                          event.currentTarget.open = false;
+                          event.currentTarget.querySelector('summary')?.focus();
+                        }
+                      }}
+                    >
+                      <summary
+                        className={`flex min-h-11 cursor-pointer list-none items-center gap-1 whitespace-nowrap rounded-lg px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden ${
                           location.pathname.startsWith('/blog/')
                             ? 'bg-accent text-on-accent'
                             : 'text-on-primary hover:bg-white/10'
@@ -129,7 +175,7 @@ export function RootLayout() {
                           <Link
                             key={item.to}
                             to={item.to}
-                            className="block rounded-md px-3 py-2 text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-focus"
+                            className="block whitespace-nowrap rounded-md px-3 py-2 text-sm hover:bg-accent focus-visible:bg-accent focus-visible:outline-2 focus-visible:outline-focus"
                           >
                             {item.label}
                           </Link>
@@ -149,34 +195,63 @@ export function RootLayout() {
             {!isLoading && (
               <div className="hidden shrink-0 items-center gap-2 md:flex">
                 {user && !preview ? (
-                  <>
-                    <Link
-                      to={ROLE_PORTAL[user.role].to}
-                      className="inline-flex min-h-11 max-w-48 items-center rounded-lg px-3 text-sm font-medium text-on-primary hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
+                  <details
+                    key={location.pathname}
+                    className="group relative"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.currentTarget.open = false;
+                        event.currentTarget.querySelector('summary')?.focus();
+                      }
+                    }}
+                  >
+                    <summary
+                      aria-label={`Tài khoản của ${user.displayName}`}
+                      className="flex min-h-11 max-w-48 cursor-pointer list-none items-center gap-2 rounded-lg px-3 text-sm text-on-primary hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent [&::-webkit-details-marker]:hidden"
                     >
-                      {ROLE_PORTAL[user.role].label}
-                    </Link>
-                    <Link
-                      to="/account"
-                      className="inline-flex min-h-11 max-w-40 items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-lg px-3 text-sm text-on-primary hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
-                    >
-                      {user.displayName} · {ROLE_LABELS[user.role]}
-                    </Link>
-                    <Button variant="accent" size="sm" loading={logout.isPending} onClick={logOut}>
-                      Đăng xuất
-                    </Button>
-                  </>
+                      <UserRound aria-hidden="true" className="size-4 shrink-0" />
+                      <span className="min-w-0 truncate">{user.displayName}</span>
+                      <ChevronDown aria-hidden="true" className="size-4 shrink-0" />
+                    </summary>
+                    <div className="absolute right-0 top-full z-50 min-w-56 rounded-lg border border-border bg-bg p-2 text-primary shadow-lg">
+                      <p className="px-3 py-2 text-xs font-semibold text-muted">
+                        {ROLE_LABELS[user.role]}
+                      </p>
+                      <Link
+                        to={ROLE_PORTAL[user.role].to}
+                        className="flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus"
+                      >
+                        {ROLE_PORTAL[user.role].label}
+                      </Link>
+                      <Link
+                        to="/account"
+                        className="flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus"
+                      >
+                        Tài khoản
+                      </Link>
+                      <div className="mt-1 border-t border-border pt-2">
+                        <Button
+                          variant="accent"
+                          size="sm"
+                          loading={logout.isPending}
+                          onClick={logOut}
+                        >
+                          Đăng xuất
+                        </Button>
+                      </div>
+                    </div>
+                  </details>
                 ) : !preview ? (
                   <>
                     <Link
                       to="/sign-in"
-                      className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-on-primary hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
+                      className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg px-3 text-sm font-medium text-on-primary hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-accent"
                     >
                       Đăng nhập
                     </Link>
                     <Link
                       to="/sign-up"
-                      className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      className="inline-flex min-h-11 items-center whitespace-nowrap rounded-lg bg-accent px-4 text-sm font-semibold text-on-accent hover:bg-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                     >
                       Đăng ký
                     </Link>
@@ -235,7 +310,7 @@ export function RootLayout() {
               className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-white/20 px-4 pb-4 xl:hidden"
             >
               <div className="mx-auto grid max-w-[var(--container-max)] gap-1 pt-2 sm:grid-cols-2">
-                {PUBLIC_NAV.slice(0, 4).map((item) => (
+                {PUBLIC_NAV.slice(0, 5).map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}

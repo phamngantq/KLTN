@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { homePathFor, safeNextPath } from '../../src/client/app/auth';
@@ -33,7 +33,7 @@ describe('routing and guards', () => {
     mockApi((req) => (req.path === '/me' ? sessionOf({ role: 'tutor' }) : undefined));
     renderRoute('/account');
     expect(await screen.findByRole('heading', { name: 'Tài khoản' })).toBeTruthy();
-    expect(screen.getByText('Gia sư')).toBeTruthy();
+    expect(within(screen.getByRole('main')).getByText('Gia sư')).toBeTruthy();
   });
 
   it('renders a 404 page for unknown routes', async () => {
@@ -119,6 +119,7 @@ describe('logout', () => {
     const user = userEvent.setup();
     await screen.findByRole('heading', { name: 'Tài khoản' });
 
+    await user.click(screen.getByLabelText(/Tài khoản của/));
     await user.click(screen.getByRole('button', { name: 'Đăng xuất' }));
     const error = await screen.findByRole('alert');
     expect(error.textContent).toContain('Máy chủ tạm gián đoạn.');

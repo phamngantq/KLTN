@@ -30,7 +30,7 @@ export async function signUp(page: Page, role: 'student' | 'tutor', name: string
   await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
   await page.locator('input[name="confirmPassword"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
-  await expect(page.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
+  await expect(page.locator('header summary[aria-label^="Tài khoản của"]')).toBeVisible();
 }
 
 export async function signIn(page: Page, email: string, password = PASSWORD) {
@@ -39,7 +39,7 @@ export async function signIn(page: Page, email: string, password = PASSWORD) {
   await page.getByLabel(/^Email/).fill(email);
   await page.getByLabel(/^Mật khẩu/).fill(password);
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
-  await expect(page.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
+  await expect(page.locator('header summary[aria-label^="Tài khoản của"]')).toBeVisible();
 }
 
 /** Asserts the page does not scroll horizontally (layout fits the viewport). */

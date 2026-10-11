@@ -40,9 +40,15 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
       { to: '/parent/trang-chu', label: 'Trang chủ', icon: Home },
       { to: '/parent', label: 'Thuê gia sư', icon: ClipboardList },
       { to: '/parent/profile', label: 'Hồ sơ', icon: UserRound },
-      { to: '/parent/lop-hoc', label: 'Lớp tìm gia sư', icon: GraduationCap },
-      { to: '/parent/lop-tim-hoc-vien', label: 'Lớp tìm học viên', icon: Users },
-      { to: '/parent/tutor-offer-joins', label: 'Yêu cầu tham gia lớp', icon: ClipboardList },
+      {
+        label: 'Lớp học',
+        icon: GraduationCap,
+        items: [
+          { to: '/parent/lop-hoc', label: 'Lớp tìm gia sư', icon: GraduationCap },
+          { to: '/parent/lop-tim-hoc-vien', label: 'Lớp tìm học viên', icon: Users },
+          { to: '/parent/tutor-offer-joins', label: 'Yêu cầu tham gia lớp', icon: ClipboardList },
+        ],
+      },
       { to: '/parent/bang-gia', label: 'Bảng giá', icon: Wallet },
       {
         label: 'Thông tin',
@@ -169,12 +175,12 @@ function isCurrentPath(pathname: string, to: string) {
 }
 
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+  `inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
     isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
   }`;
 
 const submenuLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `inline-flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+  `inline-flex min-h-11 w-full items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
     isActive ? 'bg-accent text-on-accent' : 'text-primary hover:bg-info-surface'
   }`;
 
@@ -203,7 +209,7 @@ export function RoleNavigation({
       aria-label={`Điều hướng ${mobile ? 'di động ' : ''}${config.label}`}
       className="mx-auto w-full max-w-[var(--container-max)] px-4 py-2"
     >
-      <ul className={mobile ? 'grid gap-1' : 'flex flex-wrap items-center gap-1'}>
+      <ul className={mobile ? 'grid gap-1' : 'flex flex-nowrap items-center gap-1'}>
         {config.entries.map((entry) => {
           if (!isGroup(entry)) {
             return (
@@ -238,7 +244,7 @@ export function RoleNavigation({
                 }}
               >
                 <summary
-                  className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden ${
+                  className={`flex min-h-11 cursor-pointer list-none items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden ${
                     isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
                   }`}
                 >
@@ -251,7 +257,7 @@ export function RoleNavigation({
                   />
                 </summary>
                 <ul
-                  className={`z-40 mt-1 min-w-56 rounded-md border border-border bg-bg p-1 text-primary shadow-card ${mobile ? '' : '2xl:absolute 2xl:top-full 2xl:left-0 2xl:max-h-[min(70dvh,32rem)] 2xl:overflow-y-auto'}`}
+                  className={`z-40 mt-1 min-w-56 rounded-md border border-border bg-bg p-1 text-primary shadow-card ${mobile ? '' : 'absolute top-full left-0 max-h-[min(70dvh,32rem)] overflow-y-auto'}`}
                 >
                   {entry.items.map((item) => (
                     <li key={item.to}>

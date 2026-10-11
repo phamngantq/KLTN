@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockApi, renderRoute, sessionOf } from './helpers';
@@ -38,6 +38,6 @@ describe('AccountPage deletion', () => {
         confirmation: 'DELETE',
       }),
     );
-    expect(screen.getByText('Nguyễn An')).toBeTruthy();
+    expect(within(screen.getByRole('main')).getByText('Nguyễn An')).toBeTruthy();
   });
 });
