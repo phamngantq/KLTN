@@ -66,3 +66,41 @@ export async function register(
 export async function errorCode(res: Response): Promise<string> {
   return (await res.json<ApiErrorBody>()).error.code;
 }
+
+export interface PublicTutorFixture extends Session {
+  slug: string;
+}
+
+/**
+ * A tutor whose profile is complete and approved+public. Approval is simulated directly in
+ * the DB (the admin moderation API is covered by its own tests).
+ */
+export async function createPublicTutor(
+  profile: Record<string, unknown> = {},
+): Promise<PublicTutorFixture> {
+  const { env } = await import('cloudflare:workers');
+  const tutor = await register('tutor');
+  const res = await api(
+    '/tutor/profile',
+    jsonInit(
+      'PATCH',
+      {
+        bio: 'Gia sư thử nghiệm',
+        subjectIds: ['subj_math'],
+        hourlyRateMinor: 200_000,
+        teachesOnline: true,
+        teachesOffline: false,
+        ...profile,
+      },
+      tutor,
+    ),
+  );
+  if (res.status !== 200) throw new Error(`profile failed: ${res.status} ${await res.text()}`);
+  const { data } = await res.json<{ data: { slug: string } }>();
+  await env.DB.prepare(
+    "UPDATE tutor_profiles SET approval_status = 'approved', visibility = 'public' WHERE user_id = ?",
+  )
+    .bind(tutor.userId)
+    .run();
+  return { ...tutor, slug: data.slug };
+}

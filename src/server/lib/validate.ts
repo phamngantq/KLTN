@@ -21,12 +21,21 @@ export async function parseJsonBody<S extends z.ZodType>(
   } catch {
     throw new AppError(400, 'INVALID_JSON', 'Nội dung JSON không hợp lệ.');
   }
-  const result = schema.safeParse(body);
+  return validate(schema, body, 'Dữ liệu không hợp lệ.');
+}
+
+/** Validates query-string parameters; 422 with field details on failure. */
+export function parseQuery<S extends z.ZodType>(c: Context, schema: S): z.output<S> {
+  return validate(schema, c.req.query(), 'Tham số truy vấn không hợp lệ.');
+}
+
+function validate<S extends z.ZodType>(schema: S, input: unknown, message: string): z.output<S> {
+  const result = schema.safeParse(input);
   if (!result.success) {
     throw new AppError(
       422,
       'VALIDATION_ERROR',
-      'Dữ liệu không hợp lệ.',
+      message,
       result.error.issues.map((issue) => ({ path: issue.path.join('.'), message: issue.message })),
     );
   }

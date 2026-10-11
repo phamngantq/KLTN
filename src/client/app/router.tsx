@@ -2,6 +2,8 @@ import type { RouteObject } from 'react-router';
 import { AccountPage } from '../pages/AccountPage';
 import { SignInPage } from '../pages/auth/SignInPage';
 import { SignUpPage } from '../pages/auth/SignUpPage';
+import { TutorDetailPage } from '../pages/discovery/TutorDetailPage';
+import { TutorsPage } from '../pages/discovery/TutorsPage';
 import { HomePage } from '../pages/HomePage';
 import { TutorProfilePage } from '../pages/tutor/TutorProfilePage';
 import { NotFoundPage, RouteErrorPage } from './errors';
@@ -15,6 +17,8 @@ export const routes: RouteObject[] = [
     errorElement: <RouteErrorPage />,
     children: [
       { index: true, element: <HomePage /> },
+      { path: 'tutors', element: <TutorsPage /> },
+      { path: 'tutors/:slug', element: <TutorDetailPage /> },
       { path: 'sign-in', element: <SignInPage /> },
       { path: 'sign-up', element: <SignUpPage /> },
       {

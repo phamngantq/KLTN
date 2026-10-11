@@ -12,7 +12,9 @@ afterEach(() => {
 
 describe('routing and guards', () => {
   it('renders the home page for guests with sign-up CTAs', async () => {
-    mockApi((req) => (req.path === '/me' ? anonymous : undefined));
+    mockApi((req) =>
+      req.path === '/me' ? anonymous : req.path === '/subjects' ? { data: [] } : undefined,
+    );
     renderRoute('/');
     expect(await screen.findByRole('heading', { level: 1 })).toBeTruthy();
     expect(await screen.findByRole('link', { name: 'Tạo tài khoản' })).toBeTruthy();

@@ -8,6 +8,7 @@ import { csrfMiddleware } from './middleware/csrf';
 import { sessionMiddleware } from './middleware/session';
 import { authRoutes, meRoutes } from './modules/auth/routes';
 import { tutorAvailabilityRoutes } from './modules/availability/routes';
+import { discoveryRoutes } from './modules/discovery/routes';
 import { subjectRoutes, tutorProfileRoutes } from './modules/tutors/routes';
 import type { AppEnv } from './types';
 
@@ -45,6 +46,7 @@ export function createApp() {
   api.route('/tutor/availability', tutorAvailabilityRoutes);
   api.route('/subjects', subjectRoutes);
   api.route('/tutor/profile', tutorProfileRoutes);
+  api.route('/tutors', discoveryRoutes);
 
   app.route('/api/v1', api);
 

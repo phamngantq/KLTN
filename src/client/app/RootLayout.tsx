@@ -14,6 +14,7 @@ interface NavItem {
  * Each feature adds its entry here when its route ships (no inert links).
  */
 const NAV: { to: string; label: string; roles: readonly (UserRole | 'guest')[] }[] = [
+  { to: '/tutors', label: 'Tìm gia sư', roles: ['guest', 'student', 'tutor', 'admin'] },
   { to: '/tutor/profile', label: 'Hồ sơ gia sư', roles: ['tutor'] },
   { to: '/account', label: 'Tài khoản', roles: ['student', 'tutor', 'admin'] },
 ];

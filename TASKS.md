@@ -98,7 +98,7 @@
 **Acceptance tests:** tutor edit own only; student cannot; invalid rate/subject rejected; subject catalog paginated if needed; unapproved hidden; UI save/error states; DB indexes.  
 **Commit:** `feat(tutors): implement profile and subject management`.
 
-### [ ] TASK-08 — Public tutor search, filters and detail page
+### [x] TASK-08 — Public tutor search, filters and detail page
 **Dependency:** TASK-07.  
 **Scope:** Public browse with querystring state, no ranking algorithm beyond explicit sort.  
 **Deliverables:** `GET /api/v1/tutors`, `GET /api/v1/tutors/:slug`, TutorCard/TutorList/TutorDetail components, filter/pagination tests.  
