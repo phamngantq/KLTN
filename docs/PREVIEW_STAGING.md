@@ -1,5 +1,15 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Cập nhật dữ liệu mẫu staging V2 ngày 2026-10-11
+
+[Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đã deploy version `5c1ec5a7-6809-4579-9e0c-c6a9d72bf6ee` với `APP_ENV=staging`, sau đó seed từ cấu hình riêng bị Git bỏ qua tại `.wrangler/sample-staging-v2/config.vars`. D1 V2 có **3 phương án phí published**, **6 yêu cầu sourcing** từ phụ huynh tổng hợp và **6 lớp open**. API công khai trả 6 lớp và 3 phương án phí; `PRAGMA foreign_key_check` trả 0 lỗi. Tài khoản kiểm duyệt viên mẫu là `staging-admin@example.test`; mật khẩu ngẫu nhiên chỉ ở `.wrangler/sample-staging-v2/credentials.vars` bị Git bỏ qua, không có trong Worker vars hay tài liệu. Bookmark D1 trước seed được lưu ở `.wrangler/sample-staging-v2/`.
+
+- Cổng local: lint, typecheck, format, secret scan, build staging V2, **52 file/402 test** và Playwright E2E ba vai trò **1/1** PASS. Test seed riêng xác nhận chạy lại không nhân đôi dữ liệu và không ghi contact giả vào yêu cầu.
+- Sau deploy: smoke chỉ đọc **16/16** PASS; D1 có 1 admin mẫu, 3 fee published, 6 request sourcing, 6 class open, 0 contact riêng được seed và 0 lỗi foreign key.
+- Export Figma có 8 lớp tham chiếu; 6 lớp ánh xạ đúng schema hiện tại được công bố. Lớp tiếng Anh cho người đi làm và lớp Toán + Tiếng Việt hai môn vẫn nằm trong `.env.example`, chưa công bố vì miền dữ liệu hiện tại chưa biểu diễn đầy đủ. Hai bảng giá tham chiếu từ Figma chưa có schema/API. Staging chưa có cổng thanh toán; gia sư vẫn cần hồ sơ được duyệt, quiz và điều khoản đã công bố để ứng tuyển.
+
+Các mục bên dưới là bằng chứng của những lần phát hành trước.
+
 ## Cập nhật giao diện 2026-10-11
 
 Commit `84265ce` đã được triển khai lên cùng [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev), Worker version `e1623aa2-82f4-410d-ba31-9545afbebc71`. Bản này thống nhất thương hiệu **Gia Sư Đỗ Hằng**, sửa menu một header cho ba vai trò, ánh xạ trang chủ phụ huynh, lưới lịch 7 ngày × 7 ca, dashboard kiểm duyệt viên và phần lớp gần đây của gia sư bằng dữ liệu API thật. Không có migration mới và không sửa production/staging cũ.

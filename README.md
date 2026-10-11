@@ -3,9 +3,9 @@
 Cloudflare-native modular monolith: React + Vite SPA và Hono API chạy trong **một** Cloudflare Worker, dữ liệu trên Cloudflare D1.
 Đặc tả bắt buộc: [PLAN.md](PLAN.md), [DESIGN_RULES.md](DESIGN_RULES.md), [AGENTS.md](AGENTS.md); thứ tự công việc: [TASKS.md](TASKS.md).
 
-> Nguồn thiết kế cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1), với code export người dùng đặt tại `./figma`. Tên hiển thị theo export là **Gia Sư Đỗ Hằng**, khẩu hiệu **Uy tín - Chất lượng**. Theo [DEC-007](TASK_DECISIONS.md), export này thay thế mục tiêu sản phẩm đặt lịch trực tiếp trước đây. Các luồng yêu cầu, ứng tuyển, gán lớp và kiểm duyệt đã có trong `src/`, còn dữ liệu chính sách/giá chưa được kiểm duyệt viên công bố và các tích hợp ngoài chưa được cấp dịch vụ. Xem [PLAN.md §13](PLAN.md), [FIGMA_INVENTORY.md](FIGMA_INVENTORY.md) và [FIGMA_GAP_LOG.md](FIGMA_GAP_LOG.md).
+> Nguồn thiết kế cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1), với code export người dùng đặt tại `./figma`. Tên hiển thị theo export là **Gia Sư Đỗ Hằng**, khẩu hiệu **Uy tín - Chất lượng**. Theo [DEC-007](TASK_DECISIONS.md), export này thay thế mục tiêu sản phẩm đặt lịch trực tiếp trước đây. Các luồng yêu cầu, ứng tuyển, gán lớp và kiểm duyệt đã có trong `src/`; mức phí vận hành thật, điều khoản và tích hợp ngoài cần quy trình công bố riêng. Xem [PLAN.md §13](PLAN.md), [FIGMA_INVENTORY.md](FIGMA_INVENTORY.md) và [FIGMA_GAP_LOG.md](FIGMA_GAP_LOG.md).
 
-Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đã chạy bản giao diện và luồng mới từ commit `84265ce`. Xem [hồ sơ phát hành](docs/PREVIEW_STAGING.md) để biết kiểm thử và các điểm còn khác export Figma; bản Make trực tiếp chưa được đối chiếu từng frame.
+Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy bản giao diện và luồng mới cùng 3 phương án phí và 6 lớp mẫu đã công bố. Xem [hồ sơ phát hành](docs/PREVIEW_STAGING.md) để biết kiểm thử và các điểm còn khác export Figma; bản Make trực tiếp chưa được đối chiếu từng frame.
 
 `./figma` là nguồn tham chiếu **chỉ có trên máy** và được Git bỏ qua vì export chứa ảnh chụp và thông tin cá nhân mẫu chưa được rà quyền công bố. Mã được chọn lọc và kiểm thử sẽ được tích hợp vào `src/` trước khi push/deploy (DEC-008).
 
@@ -40,6 +40,8 @@ Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) 
   npm run seed:sample:local   # tạo admin mẫu và 3 phương án phí nháp trong D1 local
   ```
 
+- Staging V2, theo yêu cầu nạp dữ liệu mẫu riêng: sao chép `.env.example` sang `.wrangler/sample-staging-v2/config.vars` bị Git bỏ qua, rồi chạy `npm run seed:sample:staging:v2`. Lệnh đọc cấu hình này và tạo admin mẫu, ba phương án phí đã công bố và sáu lớp tổng hợp đang mở trong D1 `tutor-matching-staging-v2`. Xác minh đúng tài khoản/tài nguyên Cloudflare trước khi chạy. Xem [cấp quyền admin](docs/ADMIN_PROVISIONING.md).
+
 - Danh mục môn học (dữ liệu tham chiếu) nằm trong migration `0002`, có ở mọi môi trường.
 - Test server tự áp dụng migrations vào D1 local cô lập (`tests/server/setup.ts`).
 - Lưu ý D1: không dùng pattern `GLOB` dài trong `CHECK` (D1 báo "pattern too complex"); kiểm tra định dạng ngày/giờ bằng `date()`/`strftime()`.
@@ -65,4 +67,4 @@ API dưới `/api/v1/*` luôn do Worker xử lý trước (`run_worker_first`); 
 
 ## Secrets
 
-Worker secrets local đặt trong `.dev.vars` (đã bị `.gitignore`), xem `.dev.vars.example`. Dữ liệu mẫu nằm ở `.env.example`; lệnh `seed:sample:local` đọc các giá trị đó, tạo mật khẩu ngẫu nhiên trong `.wrangler/sample-local/credentials.vars` bị Git bỏ qua, rồi thêm tài khoản `local-admin@example.test` và ba phương án phí nhận lớp **nháp** vào D1 local. Xem mật khẩu trong file credentials này để đăng nhập local; lệnh chạy lại không thay mật khẩu hoặc ghi đè phiên bản phí đã có. Hai bảng học phí theo buổi và phí nhận lớp cố định từ Figma được lưu dưới dạng JSON tham chiếu trong env mẫu; hiện chưa có schema/API để hiển thị chúng. Không chạy seed này trên staging/production. Secrets remote dùng `wrangler secret put`. Không bao giờ dùng biến `VITE_*` cho secret.
+Worker secrets local đặt trong `.dev.vars` (đã bị `.gitignore`), xem `.dev.vars.example`. Dữ liệu mẫu có mẫu nguồn ở `.env.example`; lệnh staging đọc bản cấu hình thực tế trong `.wrangler/sample-staging-v2/config.vars` bị Git bỏ qua và ghi dữ liệu vào D1 staging. `seed:sample:local` tạo mật khẩu ngẫu nhiên tại `.wrangler/sample-local/credentials.vars` bị Git bỏ qua, rồi thêm `local-admin@example.test` và ba phương án phí nhận lớp **nháp** vào D1 local. Lệnh staging V2 dùng credentials riêng trong `.wrangler/`; không commit hoặc đưa mật khẩu admin vào Worker vars. Hai bảng học phí theo buổi và phí nhận lớp cố định từ Figma chỉ là JSON tham chiếu trong env mẫu; hiện chưa có schema/API để hiển thị chúng. Seed staging không tích hợp thanh toán; gia sư chỉ ứng tuyển sau khi được duyệt hồ sơ và hoàn thành bài kiểm tra/xác nhận điều khoản. Không dùng seed mẫu trên production. Secrets remote dùng `wrangler secret put`. Không bao giờ dùng biến `VITE_*` cho secret.

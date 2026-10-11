@@ -1,6 +1,6 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái ngày 2026-10-11:** Bản giao diện mới nhất từ commit `84265ce` đã deploy lên [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) bằng `env.staging_v2`; xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Bản nền `bfac6a4` và các lần deploy MVP được giữ làm lịch sử. Production chưa triển khai.
+> **Trạng thái ngày 2026-10-11:** [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy version `5c1ec5a7-6809-4579-9e0c-c6a9d72bf6ee` bằng `env.staging_v2`, với 3 phí published và 6 lớp mẫu open trong D1. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Bản giao diện `84265ce`, bản nền `bfac6a4` và các lần deploy MVP được giữ làm lịch sử. Production chưa triển khai.
 
 Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 
@@ -18,7 +18,7 @@ Không commit token, `account_id` hay `database_id`. Tên/binding thực tế n�
 
 - Node 22+, `npm ci`; quyền Cloudflare đúng tài khoản và môi trường. `npx wrangler whoami` phải hiển thị đúng tài khoản; CI hiện không tự deploy.
 - Có commit đã review, quyền triển khai được cho phép riêng, D1 được kiểm kê số lượng bản ghi không PII, điểm khôi phục và kế hoạch rollback. Không chạy lệnh remote chỉ vì tài liệu này được cập nhật.
-- Xác nhận chính sách đang có hiệu lực trong [TASK_DECISIONS.md](../TASK_DECISIONS.md) và các cổng [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). Mức phí, nội dung điều khoản/hợp đồng cần kiểm duyệt viên nhập và công bố; không dùng số tiền mẫu từ export.
+- Xác nhận chính sách đang có hiệu lực trong [TASK_DECISIONS.md](../TASK_DECISIONS.md) và các cổng [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). DEC-017 cho phép **riêng staging V2** nạp ba phương án phí mẫu đã công bố, sáu lớp tổng hợp đang mở và một admin mẫu để thử luồng. Production vẫn cần mức phí và nội dung điều khoản/hợp đồng được kiểm duyệt viên duyệt; không dùng dữ liệu mẫu làm chính sách vận hành thật.
 
 ## 1. Chỉ tạo tài nguyên cho môi trường mới đã được cho phép
 
@@ -47,7 +47,7 @@ So sánh `npx wrangler d1 migrations list DB --env <env> --remote` với source 
 
 | Migration | Miền | Điều phải xác minh |
 |---|---|---|
-| `0007_class_listings` | Lớp, ba loại phiên bản phí, ứng tuyển | Lớp lấy từ yêu cầu đã đồng ý chia sẻ contact; công khai không lộ contact; không seed mức phí |
+| `0007_class_listings` | Lớp, ba loại phiên bản phí, ứng tuyển | Lớp lấy từ yêu cầu đã đồng ý chia sẻ contact; công khai không lộ contact; migration không seed mức phí |
 | `0008_class_assignments` | Gán lớp | Một gán active mỗi lớp; moderator gán làm lớp active ngay |
 | `0009_content` | Nội dung theo revision | Chỉ bản published ra public; bản published bất biến |
 | `0010_tutor_terms_contracts` | Quiz, xác nhận điều khoản, hợp đồng | Gia sư đạt quiz và xác nhận điều khoản trước ứng tuyển; hợp đồng không là chứng từ thanh toán |
@@ -88,9 +88,12 @@ Các lệnh dưới đây là bước thực thi có ghi từ xa, chỉ chạy t
 npm run db:migrate:staging:v2
 npm run build:staging:v2
 npm run deploy:staging:v2
+# Ngoại lệ staging V2 theo DEC-017, sau khi xác minh đúng D1:
+# Sao chép .env.example sang .wrangler/sample-staging-v2/config.vars và rà cấu hình.
+npm run seed:sample:staging:v2
 ```
 
-Các lệnh trên chỉ dành cho V2 sau khi inventory, bookmark/backup và gates hoàn tất. Với production, dùng cấu hình/lệnh `production` riêng sau khi staging mới đã qua kiểm thử và được duyệt. Kiểm tra output Wrangler có đúng tên Worker, binding `DB`, `AUTH_LIMITER`, `BOOKING_LIMITER`, `APP_ENV`; không dùng `npm run deploy` mặc định vì build đó dùng development. Nếu tạo subdomain mới, DNS/TLS có thể cần thời gian; xác minh lại URL trước khi đánh giá smoke.
+Các lệnh trên chỉ dành cho V2 sau khi inventory, bookmark/backup và gates hoàn tất. Lệnh seed dùng credential ngẫu nhiên riêng trong file `.wrangler/` bị Git bỏ qua, tạo dữ liệu tổng hợp có nhãn mẫu và phải kiểm tra kết quả idempotent cùng `PRAGMA foreign_key_check`; không đưa mật khẩu hoặc contact vào release log. Seed không thêm cổng thanh toán và không tự mở ứng tuyển: gia sư còn cần hồ sơ được duyệt, quiz và xác nhận điều khoản. Với production, dùng cấu hình/lệnh `production` riêng sau khi staging mới đã qua kiểm thử và được duyệt; **không chạy seed mẫu**. Kiểm tra output Wrangler có đúng tên Worker, binding `DB`, `AUTH_LIMITER`, `BOOKING_LIMITER`, `APP_ENV`; không dùng `npm run deploy` mặc định vì build đó dùng development. Nếu tạo subdomain mới, DNS/TLS có thể cần thời gian; xác minh lại URL trước khi đánh giá smoke.
 
 ## 6. Xác minh sản phẩm mới sau deploy
 
@@ -100,7 +103,7 @@ Chạy smoke **chỉ đọc** trên URL vừa deploy:
 npm run smoke -- https://<worker>.<subdomain>.workers.dev
 ```
 
-Script kiểm tra SPA routes, health/security headers, subjects, public classes không lộ contact, cấu trúc phản hồi API nội dung/phương án phí và API dashboard từ chối anonymous. Chưa có mức phí được kiểm duyệt viên công bố trên staging. Script không tạo user, booking hoặc dữ liệu dọn dẹp; nó không xác nhận mutation.
+Script kiểm tra SPA routes, health/security headers, subjects, public classes không lộ contact, cấu trúc phản hồi API nội dung/phương án phí và API dashboard từ chối anonymous. Trước ngoại lệ seed DEC-017, staging chưa có mức phí công bố; sau seed phải xác minh riêng ba option mẫu `published`, sáu lớp mẫu `open`, quyền truy cập admin và việc public API không lộ contact. Script không tạo user, booking hoặc dữ liệu dọn dẹp; nó không xác nhận mutation.
 
 **Bằng chứng staging V2 ngày 2026-10-11:** CI của `main` cho commit `bfac6a4` đã hoàn tất thành công. Worker ở URL trên đạt smoke chỉ đọc 16/16 sau khi chạy lại do timeout thoáng qua ở ngưỡng 10 giây. Chromium ở viewport di động hiển thị form đăng ký, không còn chặn bằng banner preview. Đăng ký với dữ liệu sai trả `422` validation, không tạo tài khoản. Sau phép thử đó, D1 có 2 user gia sư giả lập, 0 credential, 0 yêu cầu phụ huynh, 0 booking, 0 lớp; `PRAGMA foreign_key_check` trả 0 hàng. Đây là kiểm tra remote giới hạn; hành trình ba actor có ghi dữ liệu được kiểm trên D1 local.
 
@@ -112,7 +115,7 @@ Ghi kết quả E2E/smoke và version Worker trong tài liệu phát hành; gi�
 
 ## 7. Cấp quyền kiểm duyệt viên
 
-Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md). DB role `admin` là actor kiểm duyệt viên; không tự đăng ký vai trò này từ client. Staging V2 chưa có tài khoản kiểm duyệt viên vận hành; chờ người dùng đăng ký và cung cấp email để cấp quyền đúng tài khoản.
+Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md). DB role `admin` là actor kiểm duyệt viên; không tự đăng ký vai trò này từ client. Lệnh seed DEC-017 tạo một **admin mẫu chỉ cho staging V2**. Tài khoản kiểm duyệt viên vận hành của người dùng vẫn chờ người dùng đăng ký và cung cấp email để cấp quyền đúng tài khoản.
 
 ## 8. Tài khoản staging cũ
 
