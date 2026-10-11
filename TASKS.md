@@ -58,7 +58,7 @@
 **Acceptance tests:** Migrate từ D1 local rỗng, migrate rerun idempotent, foreign keys và UNIQUE quan trọng hoạt động; seed test không chạy production; không tạo DB remote; `drizzle` schema khớp SQL.  
 **Commit:** `feat(database): establish d1 schema and migrations`.
 
-### [ ] TASK-03 — Authentication, sessions, RBAC and CSRF foundation
+### [x] TASK-03 — Authentication, sessions, RBAC and CSRF foundation
 **Dependency:** TASK-02.  
 **Scope:** Authentication MVP độc lập email/password, session và role guards.  
 **Deliverables:** auth service/routes/middleware/schema, endpoints `POST /api/v1/auth/register`, `/login`, `/logout`, `GET /api/v1/me`, unit/integration tests và `docs/ADR_AUTH.md`.  
