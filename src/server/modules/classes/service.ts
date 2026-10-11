@@ -15,6 +15,7 @@ import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import { assertTutorTermsReady } from '../terms-contracts/service';
 import * as repo from './repository';
+import * as matching from './matching';
 
 const classNotFound = () => new AppError(404, 'CLASS_NOT_FOUND', 'Không tìm thấy lớp học.');
 const classStale = () => new AppError(409, 'STALE_CLASS', 'Lớp đã thay đổi. Vui lòng tải lại.');
@@ -299,6 +300,36 @@ export async function applyToClass(
       'Chuyên môn hoặc hình thức dạy không phù hợp với lớp.',
     );
   }
+  const { recommendation, negotiableTime } = await matching.getRecommendationWithState(
+    db,
+    tutorId,
+    classId,
+  );
+  const requiredAdjustments = [...recommendation.match.adjustments].sort();
+  const acceptedAdjustments = [...(input.acceptedAdjustments ?? [])].sort();
+  if (JSON.stringify(acceptedAdjustments) !== JSON.stringify(requiredAdjustments)) {
+    throw new AppError(
+      422,
+      'MATCH_ADJUSTMENTS_REQUIRED',
+      'Cần xác nhận các điểm cần điều chỉnh trước khi ứng tuyển lớp.',
+      requiredAdjustments,
+    );
+  }
+  const matchSnapshot = {
+    algorithmVersion: recommendation.match.algorithmVersion,
+    classVersion: cls.version,
+    score: recommendation.match.score,
+    acceptedAdjustments,
+    profileChanges: recommendation.match.profileChangesPreview,
+  };
+  const scoreOf = (key: 'grade' | 'area' | 'schedule') =>
+    recommendation.match.criteria.find((item) => item.key === key)!.score;
+  const softScores = {
+    grade: scoreOf('grade'),
+    area: scoreOf('area'),
+    schedule: scoreOf('schedule'),
+    negotiableTime,
+  };
   const options = await repo.availableFeeOptions(db, classId, now.toISOString());
   if (options.length < 3) {
     throw new AppError(
@@ -325,9 +356,18 @@ export async function applyToClass(
       id,
       input.classVersion,
       now.toISOString(),
+      matchSnapshot,
+      softScores,
       extraStatements(id),
     );
   } catch (error) {
+    if (rootMessage(error).includes('PROFILE_PREFERENCE_LIMIT')) {
+      throw new AppError(
+        409,
+        'PROFILE_PREFERENCE_LIMIT',
+        'Hồ sơ đã đạt giới hạn ưu tiên. Vui lòng chỉnh hồ sơ rồi tải lại gợi ý.',
+      );
+    }
     if (isUniqueViolation(error, 'tutor_applications.class_id')) {
       throw new AppError(409, 'APPLICATION_EXISTS', 'Bạn đã ứng tuyển lớp này.');
     }

@@ -389,6 +389,7 @@ export const tutorApplications = sqliteTable(
     version: integer('version').notNull().default(1),
     mutationId: text('mutation_id').notNull(),
     ...timestamps(),
+    matchSnapshotJson: text('match_snapshot_json').notNull().default('{}'),
   },
   (t) => [
     uniqueIndex('tutor_applications_live_uq')

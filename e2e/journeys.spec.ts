@@ -151,6 +151,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await tutor.goto('/tutor/profile');
     await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán trong kiểm thử local D1.');
     await tutor.getByLabel('Toán').check();
+    await tutor.getByLabel('Lớp 9', { exact: true }).check();
     await tutor.getByLabel(/Học phí/).fill('200000');
     await tutor.getByLabel('Trực tuyến').check();
     await tutor.getByRole('button', { name: 'Lưu hồ sơ' }).click();
@@ -235,7 +236,26 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await tutor.goto(`/tutor/new-classes/${cls!.id}`);
     await tutor.getByLabel('Phương án phí nhận lớp').selectOption(feeId);
     await tutor.getByRole('button', { name: 'Gửi đơn ứng tuyển' }).click();
+    const adjustmentDialog = tutor.getByRole('dialog', {
+      name: 'Bạn có thể điều chỉnh để dạy lớp này?',
+    });
+    await expect(adjustmentDialog).toContainText('Dạy khối lớp này dù nằm ngoài khối lớp ưu tiên');
+    await expect(adjustmentDialog).toContainText('Lớp 10');
+    await tutor.setViewportSize({ width: 320, height: 900 });
+    await expectNoHorizontalOverflow(tutor);
+    await tutor.keyboard.press('Escape');
+    await expect(adjustmentDialog).not.toBeVisible();
+    await tutor.setViewportSize({ width: 1280, height: 900 });
+    expect((await getData<Items<{ classId: string }>>(tutor, '/tutor/applications')).total).toBe(0);
+    expect(
+      (await getData<{ preferredGrades: string[] }>(tutor, '/tutor/profile')).preferredGrades,
+    ).not.toContain('Lớp 10');
+    await tutor.getByRole('button', { name: 'Gửi đơn ứng tuyển' }).click();
+    await adjustmentDialog.getByRole('button', { name: 'Cập nhật hồ sơ và gửi đơn' }).click();
     await expect(tutor.getByText('Đã gửi đơn ứng tuyển')).toBeVisible();
+    expect(
+      (await getData<{ preferredGrades: string[] }>(tutor, '/tutor/profile')).preferredGrades,
+    ).toEqual(expect.arrayContaining(['Lớp 9', 'Lớp 10']));
     await admin.goto(`/admin/applications?classId=${cls!.id}`);
     const applicationCard = admin.getByRole('article').filter({ hasText: tutorName });
     await applicationCard.getByRole('button', { name: 'Gán gia sư' }).click();

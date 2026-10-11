@@ -15,6 +15,45 @@ export type FeeOptionKey = (typeof FEE_OPTION_KEYS)[number];
 export const FEE_OPTION_STATUSES = ['draft', 'published'] as const;
 
 export const classSorts = ['newest', 'oldest', 'budget_asc', 'budget_desc'] as const;
+export const MATCH_ADJUSTMENTS = ['grade', 'area', 'schedule'] as const;
+export const MATCH_ALGORITHM_VERSION = '2026-10-12-v1';
+export type MatchAdjustment = (typeof MATCH_ADJUSTMENTS)[number];
+export type MatchCriterionKey = 'subject' | 'mode' | MatchAdjustment | 'budget';
+export interface MatchCriterion {
+  key: MatchCriterionKey;
+  score: number;
+  maxScore: number;
+  status: 'match' | 'adjustable' | 'unknown';
+  reason: string;
+}
+/** Exact fields the tutor agrees to add/change in their own profile. */
+export interface MatchProfileChanges {
+  preferredGrade: string | null;
+  preferredArea: string | null;
+  negotiableTime: boolean;
+}
+export interface ClassMatch {
+  algorithmVersion: typeof MATCH_ALGORITHM_VERSION;
+  score: number;
+  /** Percentage of criteria with enough structured data to assess. */
+  coverage: number;
+  level: 'strong' | 'near' | 'uncertain' | 'low';
+  criteria: MatchCriterion[];
+  adjustments: MatchAdjustment[];
+  profileChangesPreview: MatchProfileChanges;
+}
+export interface ClassRecommendation {
+  class: PublicClass;
+  match: ClassMatch;
+}
+/** Recorded at application time; these are tutor commitments, not agreed terms with the parent. */
+export interface ApplicationMatchSnapshot {
+  algorithmVersion: typeof MATCH_ALGORITHM_VERSION;
+  classVersion: number;
+  score: number;
+  acceptedAdjustments: MatchAdjustment[];
+  profileChanges?: MatchProfileChanges;
+}
 const pageFields = {
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
@@ -32,6 +71,8 @@ export const classSearchSchema = z.strictObject({
   ...pageFields,
 });
 export type ClassSearchQuery = z.infer<typeof classSearchSchema>;
+/** Ranking is always by match score; callers cannot request an ignored sort order. */
+export const classRecommendationQuerySchema = classSearchSchema.omit({ sort: true });
 
 /** Broad location is chosen by a moderator and cannot contain an obvious contact/address. */
 const publicArea = z
@@ -163,6 +204,11 @@ export interface FeeOptionVersion {
 export const applyClassSchema = z.strictObject({
   feeOptionVersionId: z.uuid(),
   classVersion: z.number().int().min(1),
+  acceptedAdjustments: z
+    .array(z.enum(MATCH_ADJUSTMENTS))
+    .max(MATCH_ADJUSTMENTS.length)
+    .refine((values) => new Set(values).size === values.length)
+    .optional(),
 });
 export type ApplyClassInput = z.infer<typeof applyClassSchema>;
 export const withdrawApplicationSchema = z.strictObject({ version: z.number().int().min(1) });
@@ -179,5 +225,6 @@ export interface TutorApplication {
   version: number;
   createdAt: string;
   updatedAt: string;
+  matchSnapshot: ApplicationMatchSnapshot | null;
   class: PublicClass;
 }

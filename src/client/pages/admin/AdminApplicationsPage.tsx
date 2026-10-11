@@ -6,6 +6,7 @@ import type { AdminApplication } from '../../../shared/schemas/admin-application
 import { APPLICATION_STATUSES, type ApplicationStatus } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
 import { isReadOnlyPreview } from '../../app/preview';
+import { ApplicationMatchSummary } from '../../components/domain/MatchExplanation';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
@@ -38,6 +39,27 @@ function search(status: ApplicationStatus | '', classId: string | null, page: nu
 }
 
 type Action = 'select' | 'reject';
+
+function ModeratorMatchSnapshot({ item }: { item: AdminApplication }) {
+  return (
+    <div className="space-y-2 text-sm">
+      {item.matchSnapshot ? (
+        <>
+          <ApplicationMatchSummary snapshot={item.matchSnapshot} />
+          <p className="text-muted">
+            Điểm tính khi nộp đơn theo lớp phiên bản {item.matchSnapshot.classVersion}. Gia sư xác
+            nhận điều chỉnh cho riêng lớp này; phụ huynh chưa xác nhận các điều chỉnh đó.
+          </p>
+        </>
+      ) : (
+        <p className="rounded-md bg-info-surface p-3 text-muted">
+          Đơn cũ chưa lưu điểm phù hợp; cần xem xét hồ sơ thủ công.
+        </p>
+      )}
+      <p className="text-muted">Điểm chỉ hỗ trợ kiểm duyệt, không tự quyết định gán lớp.</p>
+    </div>
+  );
+}
 
 export function AdminApplicationsPage() {
   const [params, setParams] = useSearchParams();
@@ -295,6 +317,7 @@ export function AdminApplicationsPage() {
                       </div>
                     </div>
                   </dl>
+                  <ModeratorMatchSnapshot item={item} />
                   {item.rejectionReason && (
                     <p className="rounded-md bg-danger-surface p-3 text-sm">
                       <strong>Lý do:</strong> {item.rejectionReason}
@@ -367,6 +390,7 @@ export function AdminApplicationsPage() {
       >
         {dialog?.action === 'select' && (
           <>
+            <ModeratorMatchSnapshot item={dialog.item} />
             <TextField
               label="Học phí đã chốt (VNĐ/buổi)"
               type="number"

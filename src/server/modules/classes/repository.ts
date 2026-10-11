@@ -17,6 +17,7 @@ import type { BatchItem } from 'drizzle-orm/batch';
 import type { Page } from '../../../shared/schemas/discovery';
 import type {
   AdminClass,
+  ApplicationMatchSnapshot,
   ClassSearchQuery,
   CreateClassInput,
   CreateFeeOptionInput,
@@ -43,6 +44,14 @@ import {
   tutorSubjects,
   users,
 } from '../../db/schema';
+
+export interface ScoredClass {
+  class: PublicClass;
+  gradeScore: number;
+  areaScore: number;
+  scheduleScore: number;
+  negotiableTime: boolean;
+}
 
 const classColumns = {
   id: classListings.id,
@@ -190,6 +199,186 @@ function matchedFor(db: Db, tutorId: string): SQL {
         ),
     ),
   )!;
+}
+
+/** Subject and teaching mode are application hard gates. Preferences remain advisory. */
+function candidateFor(db: Db, tutorId: string): SQL {
+  return and(
+    exists(
+      db
+        .select({ one: tutorSubjects.subjectId })
+        .from(tutorSubjects)
+        .where(
+          and(
+            eq(tutorSubjects.tutorId, tutorId),
+            eq(tutorSubjects.subjectId, classListings.subjectId),
+          ),
+        ),
+    ),
+    exists(
+      db
+        .select({ one: tutorProfiles.userId })
+        .from(tutorProfiles)
+        .where(
+          and(
+            eq(tutorProfiles.userId, tutorId),
+            or(
+              and(eq(classListings.mode, 'online'), eq(tutorProfiles.teachesOnline, true)),
+              and(eq(classListings.mode, 'offline'), eq(tutorProfiles.teachesOffline, true)),
+            ),
+          ),
+        ),
+    ),
+  )!;
+}
+
+const vietnameseLowercase = Array.from(
+  new Set('àáâãèéêìíòóôõùúýăđĩũơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ'),
+);
+
+function unicodeLower(value: SQL): SQL {
+  // SQLite lower() only folds ASCII. A recursive CTE folds one Unicode code point
+  // at a time; a flat CASE avoids SQLite's expression-depth limit from nested replace().
+  const mappings: SQL[] = [];
+  for (const lower of vietnameseLowercase) {
+    const upperLiteral = sql.raw(`'${lower.toLocaleUpperCase('vi')}'`);
+    const lowerLiteral = sql.raw(`'${lower}'`);
+    mappings.push(sql`WHEN ${upperLiteral} THEN ${lowerLiteral}`);
+  }
+  return sql`(
+    WITH RECURSIVE folded(n, text_value) AS (
+      SELECT 1, ''
+      UNION ALL
+      SELECT n + 1, text_value || CASE substr(${value}, n, 1)
+        ${sql.join(mappings, sql` `)}
+        ELSE lower(substr(${value}, n, 1)) END
+      FROM folded WHERE n <= length(${value})
+    )
+    SELECT text_value FROM folded ORDER BY n DESC LIMIT 1
+  )`;
+}
+
+function canonicalArea(value: SQL): SQL {
+  // Compare complete comma-separated units while accepting common administrative prefixes.
+  const lower = unicodeLower(value);
+  return sql`replace(replace(replace(replace(
+    replace(replace(trim(${lower}), ' ,', ','), ', ', ','),
+    'quận ', ''), 'huyện ', ''), 'thành phố ', ''), 'tỉnh ', '')`;
+}
+
+/** Keep these SQL scores in step with the public criterion weights in matching.ts. */
+function matchScores(tutorId: string) {
+  const publicArea = canonicalArea(sql`${classListings.publicArea}`);
+  const preferredArea = canonicalArea(sql`a.area`);
+  const firstAreaSegment = sql<string>`trim(CASE
+    WHEN instr(${classListings.publicArea}, ',') > 0
+      THEN substr(${classListings.publicArea}, 1, instr(${classListings.publicArea}, ',') - 1)
+    ELSE ${classListings.publicArea} END)`;
+  const gradeScore = sql<number>`CASE
+    WHEN EXISTS (SELECT 1 FROM tutor_preference_grades g
+      WHERE g.tutor_id = ${tutorId} AND g.grade = ${classListings.grade}) THEN 20
+    WHEN NOT EXISTS (SELECT 1 FROM tutor_preference_grades g
+      WHERE g.tutor_id = ${tutorId}) THEN 10
+    ELSE 0 END`;
+  const areaScore = sql<number>`CASE
+    WHEN ${classListings.mode} = 'online' THEN 15
+    WHEN ${classListings.publicArea} IS NULL THEN 7
+    WHEN length(${firstAreaSegment}) > 80 OR length(${firstAreaSegment}) = 0 THEN 7
+    WHEN NOT EXISTS (SELECT 1 FROM tutor_preference_areas a
+      WHERE a.tutor_id = ${tutorId}) THEN 7
+    WHEN EXISTS (SELECT 1 FROM tutor_preference_areas a
+      WHERE a.tutor_id = ${tutorId}
+        AND instr(',' || ${publicArea} || ',', ',' || ${preferredArea} || ',') > 0) THEN 15
+    ELSE 0 END`;
+  // Recurring windows are comparable only in the same timezone and against an
+  // unbounded rule. A bounded/absent rule is unknown, not a proven conflict.
+  const scheduleScore = sql<number>`CASE
+    WHEN ${parentRequests.discussLater} = 1 THEN 7
+    WHEN NOT EXISTS (SELECT 1 FROM availability_rules r
+      WHERE r.tutor_id = ${tutorId}
+        AND r.timezone = ${parentRequests.timezone}
+        AND r.effective_from IS NULL AND r.effective_to IS NULL) THEN 7
+    WHEN EXISTS (SELECT 1 FROM request_schedule_windows w
+      JOIN availability_rules r ON r.tutor_id = ${tutorId}
+        AND r.timezone = w.timezone
+        AND r.effective_from IS NULL AND r.effective_to IS NULL
+        AND r.weekday = w.weekday
+        AND r.start_local <= w.start_local AND r.end_local >= w.end_local
+      WHERE w.request_id = ${classListings.sourceRequestId}) THEN 15
+    ELSE 0 END`;
+  const negotiableTime = sql<number>`(SELECT t.negotiable_time FROM tutor_profiles t
+    WHERE t.user_id = ${tutorId})`;
+  return { gradeScore, areaScore, scheduleScore, negotiableTime };
+}
+
+function scoredProjection(
+  row: ActualClassRow & {
+    gradeScore: number;
+    areaScore: number;
+    scheduleScore: number;
+    negotiableTime: number;
+  },
+  cls: AdminClass,
+): ScoredClass {
+  return {
+    class: publicProjection(cls),
+    gradeScore: row.gradeScore,
+    areaScore: row.areaScore,
+    scheduleScore: row.scheduleScore,
+    negotiableTime: row.negotiableTime === 1,
+  };
+}
+
+/** Global score order is applied in SQLite before LIMIT/OFFSET pagination. */
+export async function searchCandidateClasses(
+  db: Db,
+  tutorId: string,
+  query: ClassSearchQuery,
+): Promise<Page<ScoredClass>> {
+  const where = and(classSearchFilter(db, query), candidateFor(db, tutorId))!;
+  const scores = matchScores(tutorId);
+  const totalScore = sql<number>`(50 + ${scores.gradeScore} + ${scores.areaScore} + ${scores.scheduleScore})`;
+  const [rows, totals] = await db.batch([
+    db
+      .select({ ...classColumns, ...scores })
+      .from(classListings)
+      .innerJoin(subjects, eq(subjects.id, classListings.subjectId))
+      .innerJoin(parentRequests, eq(parentRequests.id, classListings.sourceRequestId))
+      .where(where)
+      .orderBy(desc(totalScore), desc(classListings.publishedAt), asc(classListings.id))
+      .limit(query.pageSize)
+      .offset((query.page - 1) * query.pageSize),
+    db.select({ total: count() }).from(classListings).where(where),
+  ]);
+  const classes = await withSchedules(db, rows);
+  return {
+    items: rows.map((row, index) => scoredProjection(row, classes[index]!)),
+    page: query.page,
+    pageSize: query.pageSize,
+    total: totals[0]?.total ?? 0,
+  };
+}
+
+export async function findCandidateClass(
+  db: Db,
+  tutorId: string,
+  classId: string,
+): Promise<ScoredClass | null> {
+  const row = await db
+    .select({ ...classColumns, ...matchScores(tutorId) })
+    .from(classListings)
+    .innerJoin(subjects, eq(subjects.id, classListings.subjectId))
+    .innerJoin(parentRequests, eq(parentRequests.id, classListings.sourceRequestId))
+    .where(
+      and(
+        eq(classListings.id, classId),
+        eq(classListings.status, 'open'),
+        candidateFor(db, tutorId),
+      ),
+    )
+    .get();
+  if (!row) return null;
+  return scoredProjection(row, (await withSchedules(db, [row]))[0]!);
 }
 
 function classSearchFilter(db: Db, query: ClassSearchQuery, matchedTutorId?: string): SQL {
@@ -691,34 +880,81 @@ export async function insertApplication(
   id: string,
   classVersion: number,
   now: string,
+  matchSnapshot: ApplicationMatchSnapshot,
+  softScores: { grade: number; area: number; schedule: number; negotiableTime: boolean },
   extra: { before: BatchItem<'sqlite'>[]; after: BatchItem<'sqlite'>[] } = {
     before: [],
     after: [],
   },
 ): Promise<boolean> {
   const mutationId = crypto.randomUUID();
+  const matchSnapshotJson = JSON.stringify(matchSnapshot);
+  const scores = matchScores(tutorId);
   const application = db
     .insert(tutorApplications)
     .select(
       sql`SELECT ${id}, ${classId}, ${tutorId},
-    ${feeOptionVersionId}, 'submitted', NULL, 1, ${mutationId}, ${now}, ${now}
-    WHERE EXISTS (SELECT 1 FROM class_listings WHERE id = ${classId} AND status = 'open' AND version = ${classVersion})`,
+    ${feeOptionVersionId}, 'submitted', NULL, 1, ${mutationId}, ${now}, ${now}, ${matchSnapshotJson}
+    WHERE EXISTS (
+      SELECT 1 FROM class_listings
+      JOIN parent_requests ON parent_requests.id = class_listings.source_request_id
+      WHERE class_listings.id = ${classId}
+        AND class_listings.status = 'open'
+        AND class_listings.version = ${classVersion}
+        AND ${scores.gradeScore} = ${softScores.grade}
+        AND ${scores.areaScore} = ${softScores.area}
+        AND ${scores.scheduleScore} = ${softScores.schedule}
+        AND ${scores.negotiableTime} = ${softScores.negotiableTime ? 1 : 0}
+    )`,
     )
     .returning({ id: tutorApplications.id });
   // A zero-row INSERT (stale class version) must abort the transaction before an
   // idempotency key can be marked completed. The invalid status trips a CHECK.
   const assertInserted = db.insert(tutorApplications)
     .select(sql`SELECT ${crypto.randomUUID()}, ${classId}, ${tutorId},
-    ${feeOptionVersionId}, 'invalid', NULL, 1, ${mutationId}, ${now}, ${now}
+    ${feeOptionVersionId}, 'invalid', NULL, 1, ${mutationId}, ${now}, ${now}, '{}'
     WHERE NOT EXISTS (SELECT 1 FROM tutor_applications WHERE id = ${id} AND mutation_id = ${mutationId})`);
-  const metadata = JSON.stringify({ to: 'submitted', classId, feeOptionVersionId, classVersion });
+  const profileChanges: BatchItem<'sqlite'>[] = [];
+  const changes = matchSnapshot.profileChanges;
+  if (changes?.preferredGrade) {
+    profileChanges.push(
+      db.insert(tutorPreferenceGrades).values({ tutorId, grade: changes.preferredGrade }),
+    );
+  }
+  if (changes?.preferredArea) {
+    profileChanges.push(
+      db.insert(tutorPreferenceAreas).values({ tutorId, area: changes.preferredArea }),
+    );
+  }
+  if (changes?.preferredGrade || changes?.preferredArea || changes?.negotiableTime) {
+    profileChanges.push(
+      db
+        .update(tutorProfiles)
+        .set({
+          ...(changes.negotiableTime ? { negotiableTime: true } : {}),
+          updatedAt: now,
+        })
+        .where(eq(tutorProfiles.userId, tutorId)),
+    );
+  }
+  const metadata = JSON.stringify({
+    to: 'submitted',
+    classId,
+    feeOptionVersionId,
+    classVersion,
+    matchSnapshot,
+  });
   const audit = db.insert(auditLogs).select(sql`SELECT ${crypto.randomUUID()}, ${tutorId},
     'application.submitted', 'tutor_application', ${id}, ${metadata}, ${now}
     WHERE EXISTS (SELECT 1 FROM tutor_applications WHERE id = ${id} AND mutation_id = ${mutationId})`);
-  await db.batch([...extra.before, application, assertInserted, audit, ...extra.after] as [
-    BatchItem<'sqlite'>,
-    ...BatchItem<'sqlite'>[],
-  ]);
+  await db.batch([
+    ...extra.before,
+    application,
+    assertInserted,
+    ...profileChanges,
+    audit,
+    ...extra.after,
+  ] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]]);
   return true;
 }
 
@@ -737,13 +973,20 @@ export async function findOwnApplication(
       version: tutorApplications.version,
       createdAt: tutorApplications.createdAt,
       updatedAt: tutorApplications.updatedAt,
+      matchSnapshotJson: tutorApplications.matchSnapshotJson,
     })
     .from(tutorApplications)
     .where(and(eq(tutorApplications.id, id), eq(tutorApplications.tutorUserId, tutorId)))
     .get();
   if (!row) return null;
   const cls = await findAdminClass(db, row.classId);
-  return cls ? { ...row, class: publicProjection(cls) } : null;
+  if (!cls) return null;
+  const { matchSnapshotJson, ...application } = row;
+  return {
+    ...application,
+    matchSnapshot: matchSnapshotJson === '{}' ? null : JSON.parse(matchSnapshotJson),
+    class: publicProjection(cls),
+  };
 }
 
 export async function listOwnApplications(

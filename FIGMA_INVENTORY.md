@@ -62,7 +62,7 @@ Role `tutor`, dùng [`Layout`](figma/src/app/components/Layout.tsx#L96); route: 
 | `/tutor/pricing` | `parent/ParentPricingPage.tsx` | redirect `/bang-gia` | CODE_EXPORTED; giá từ fee versions đã publish |
 | `/tutor/blog` | `tutor/TutorBlogPage.tsx` | redirect `/blog/gia-su` | CODE_EXPORTED; bài từ CMS |
 | `/tutor/new-classes` | `tutor/TutorNewClassesPage.tsx` | `/tutor/new-classes` | CODE_EXPORTED; lọc lớp thật, ứng tuyển có gate phí/điều khoản |
-| `/tutor/matched-classes` | `tutor/TutorMatchedClassesPage.tsx` | `/tutor/matched-classes` | CODE_EXPORTED; lớp gợi ý từ API; không hứa intelligent matching |
+| `/tutor/matched-classes` | `tutor/TutorMatchedClassesPage.tsx` | `/tutor/matched-classes` | CODE_EXPORTED; bản local TASK-32 chấm điểm quy tắc từ API, có lý do và popup xem trước thay đổi sở thích hồ sơ khi ứng tuyển; không dùng điểm mock hay hứa AI matching |
 | `/tutor/how-to-accept` | `tutor/TutorHowToAcceptPage.tsx` | `/tutor/how-to-accept` + CMS guide | CODE_EXPORTED; hiển thị khi admin publish hướng dẫn |
 | `/tutor/tutor-blog` | `tutor/TutorBlogPage.tsx` | redirect `/tutor/blog` | **ALIAS** của `/tutor/blog` |
 | `/tutor/class-history` | `tutor/TutorClassHistoryPage.tsx` | `/tutor/class-history` | CODE_EXPORTED; GET `/tutor/assignments/history`, phân trang và ẩn liên hệ riêng của phụ huynh |

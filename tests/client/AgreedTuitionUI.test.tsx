@@ -34,6 +34,7 @@ const application: AdminApplication = {
   version: 1,
   createdAt: '2026-10-11T00:00:00.000Z',
   updatedAt: '2026-10-11T00:00:00.000Z',
+  matchSnapshot: null,
 };
 
 const adminClass: AdminClass = {

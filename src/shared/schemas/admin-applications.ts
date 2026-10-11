@@ -4,6 +4,7 @@ import {
   type ApplicationStatus,
   type ClassStatus,
   type FeeOptionKey,
+  type ApplicationMatchSnapshot,
 } from './classes';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './discovery';
 
@@ -39,4 +40,6 @@ export interface AdminApplication {
   version: number;
   createdAt: string;
   updatedAt: string;
+  /** Tutor's own per-class adjustment commitment at submission time, not parental agreement. */
+  matchSnapshot: ApplicationMatchSnapshot | null;
 }

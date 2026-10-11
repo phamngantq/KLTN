@@ -449,7 +449,8 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                 </span>
               </legend>
               <p className="text-sm text-muted">
-                Giờ lặp theo {DEFAULT_TIMEZONE}; đây là lịch mong muốn, chưa đặt buổi học.
+                Chọn các khung bạn có thể học theo {DEFAULT_TIMEZONE}. Chỉ cần một khung trùng lịch
+                rảnh để hệ thống gợi ý gia sư; đây chưa phải lịch học đã chốt.
               </p>
               <label className="flex min-h-11 items-center gap-2">
                 <input

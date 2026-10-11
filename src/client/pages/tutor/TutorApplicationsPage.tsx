@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { isReadOnlyPreview } from '../../app/preview';
 import { classScheduleText } from '../../components/domain/ClassCard';
+import { ApplicationMatchSummary } from '../../components/domain/MatchExplanation';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
@@ -223,6 +224,7 @@ export function TutorApplicationsPage() {
                       </div>
                     )}
                   </dl>
+                  <ApplicationMatchSummary snapshot={application.matchSnapshot} />
                   <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border pt-4">
                     {application.class.status === 'open' && (
                       <Link

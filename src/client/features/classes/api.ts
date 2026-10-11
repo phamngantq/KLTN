@@ -1,15 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ClassSearchQuery,
+  ClassRecommendation,
   FeeOptionVersion,
+  MatchAdjustment,
   PublicClass,
   TutorApplication,
 } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
 import { useSession } from '../../app/auth';
 import { api, toQuery } from '../../lib/api-client';
+import { OWN_PROFILE_KEY } from '../tutor-profile/api';
 
-export type { PublicClass, FeeOptionVersion } from '../../../shared/schemas/classes';
+export type {
+  ClassRecommendation,
+  MatchAdjustment,
+  PublicClass,
+  FeeOptionVersion,
+} from '../../../shared/schemas/classes';
 export type TutorClassApplication = TutorApplication;
 
 export interface ClassFilters {
@@ -24,6 +32,7 @@ export interface ClassFilters {
 
 const publicKey = ['classes', 'public'] as const;
 const matchedKey = ['classes', 'matched'] as const;
+const recommendationKey = ['classes', 'recommendations'] as const;
 const applicationKey = ['classes', 'applications'] as const;
 
 export function usePublicClasses(filters: ClassFilters) {
@@ -67,6 +76,33 @@ export function useMatchedClasses(page: number) {
   });
 }
 
+export function useClassRecommendations(page: number) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...recommendationKey, user?.id, page],
+    queryFn: ({ signal }) =>
+      api.get<Page<ClassRecommendation>>(
+        `/tutor/classes/recommendations${toQuery({ page, pageSize: 12 })}`,
+        { signal },
+      ),
+    enabled: user?.role === 'tutor',
+  });
+}
+
+export function useClassRecommendation(classId: string | undefined) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...recommendationKey, user?.id, classId],
+    queryFn: ({ signal }) =>
+      api.get<ClassRecommendation>(
+        `/tutor/classes/${encodeURIComponent(classId!)}/recommendation`,
+        { signal },
+      ),
+    enabled: Boolean(classId && user?.role === 'tutor'),
+    retry: false,
+  });
+}
+
 export function useFeeOptions(classId: string | undefined, enabled: boolean) {
   const { user } = useSession();
   return useQuery({
@@ -99,20 +135,24 @@ export function useApplyForClass() {
       feeOptionVersionId,
       classVersion,
       idempotencyKey,
+      acceptedAdjustments,
     }: {
       classId: string;
       feeOptionVersionId: string;
       classVersion: number;
       idempotencyKey: string;
+      acceptedAdjustments?: MatchAdjustment[];
     }) =>
       api.post<TutorClassApplication>(
         `/classes/${encodeURIComponent(classId)}/applications`,
-        { feeOptionVersionId, classVersion },
+        { feeOptionVersionId, classVersion, ...(acceptedAdjustments && { acceptedAdjustments }) },
         { headers: { 'Idempotency-Key': idempotencyKey } },
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...applicationKey, user?.id] });
       void queryClient.invalidateQueries({ queryKey: matchedKey });
+      void queryClient.invalidateQueries({ queryKey: recommendationKey });
+      void queryClient.invalidateQueries({ queryKey: OWN_PROFILE_KEY });
     },
   });
 }
@@ -128,6 +168,7 @@ export function useWithdrawApplication() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...applicationKey, user?.id] });
       void queryClient.invalidateQueries({ queryKey: matchedKey });
+      void queryClient.invalidateQueries({ queryKey: recommendationKey });
     },
   });
 }

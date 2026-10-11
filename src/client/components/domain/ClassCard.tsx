@@ -1,8 +1,9 @@
 import { Clock3, Eye, MapPin, Wallet } from 'lucide-react';
 import { Link } from 'react-router';
-import type { PublicClass } from '../../features/classes/api';
+import type { ClassRecommendation, PublicClass } from '../../features/classes/api';
 import { formatDate, formatVnd, WEEKDAY_LABELS } from '../../lib/format';
 import { Badge } from '../ui/Feedback';
+import { MatchExplanation } from './MatchExplanation';
 
 export function classScheduleText(item: PublicClass): string {
   if (item.schedule.discussLater) return 'Trao đổi lịch sau';
@@ -16,7 +17,15 @@ export function classScheduleText(item: PublicClass): string {
   return `${windows.join(', ')}${item.schedule.windows.length > 2 ? ` và ${item.schedule.windows.length - 2} khung khác` : ''}`;
 }
 
-export function ClassCard({ item, detailPath }: { item: PublicClass; detailPath: string }) {
+export function ClassCard({
+  item,
+  detailPath,
+  match,
+}: {
+  item: PublicClass;
+  detailPath: string;
+  match?: ClassRecommendation['match'];
+}) {
   return (
     <article className="flex h-full min-w-0 flex-col rounded-xl border border-primary/20 bg-bg p-5 shadow-card transition-all hover:-translate-y-1 hover:shadow-lg motion-reduce:transform-none motion-reduce:transition-none">
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -29,6 +38,7 @@ export function ClassCard({ item, detailPath }: { item: PublicClass; detailPath:
       <h2 className="mt-1 min-h-14 break-words text-lg font-semibold text-primary">
         {item.subjectName} · {item.grade}
       </h2>
+      {match && <MatchExplanation match={match} compact />}
       <dl className="mt-4 flex flex-1 flex-col gap-3 text-sm">
         <div className="flex items-start gap-2">
           <MapPin aria-hidden="true" size={18} className="mt-0.5 shrink-0 text-warning" />

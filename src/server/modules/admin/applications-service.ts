@@ -33,14 +33,21 @@ const columns = {
   version: tutorApplications.version,
   createdAt: tutorApplications.createdAt,
   updatedAt: tutorApplications.updatedAt,
+  matchSnapshotJson: tutorApplications.matchSnapshotJson,
 };
 
-const notFound = () => new AppError(404, 'APPLICATION_NOT_FOUND', 'Không tìm thấy đơn ứng tuyển.');
-const stale = () =>
-  new AppError(409, 'STALE_APPLICATION', 'Đơn ứng tuyển đã thay đổi. Vui lòng tải lại.');
+function toApplication(
+  row: NonNullable<Awaited<ReturnType<typeof applicationRow>>>,
+): AdminApplication {
+  const { matchSnapshotJson, ...application } = row;
+  return {
+    ...application,
+    matchSnapshot: matchSnapshotJson === '{}' ? null : JSON.parse(matchSnapshotJson),
+  };
+}
 
-export async function getApplication(db: Db, id: string): Promise<AdminApplication> {
-  const row = await db
+function applicationRow(db: Db, id: string) {
+  return db
     .select(columns)
     .from(tutorApplications)
     .innerJoin(classListings, eq(classListings.id, tutorApplications.classId))
@@ -49,8 +56,16 @@ export async function getApplication(db: Db, id: string): Promise<AdminApplicati
     .innerJoin(feeOptionVersions, eq(feeOptionVersions.id, tutorApplications.feeOptionVersionId))
     .where(eq(tutorApplications.id, id))
     .get();
+}
+
+const notFound = () => new AppError(404, 'APPLICATION_NOT_FOUND', 'Không tìm thấy đơn ứng tuyển.');
+const stale = () =>
+  new AppError(409, 'STALE_APPLICATION', 'Đơn ứng tuyển đã thay đổi. Vui lòng tải lại.');
+
+export async function getApplication(db: Db, id: string): Promise<AdminApplication> {
+  const row = await applicationRow(db, id);
   if (!row) throw notFound();
-  return row;
+  return toApplication(row);
 }
 
 export async function listApplications(
@@ -77,7 +92,7 @@ export async function listApplications(
     db.select({ total: count() }).from(tutorApplications).where(where).all(),
   ]);
   return {
-    items: rows,
+    items: rows.map(toApplication),
     page: query.page,
     pageSize: query.pageSize,
     total: totals[0]?.total ?? 0,

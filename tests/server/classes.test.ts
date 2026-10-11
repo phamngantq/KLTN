@@ -3,12 +3,15 @@ import { describe, expect, it } from 'vitest';
 import type { ApiSuccess } from '../../src/shared/api';
 import type {
   AdminClass,
+  ClassRecommendation,
   FeeOptionVersion,
   PublicClass,
   TutorApplication,
 } from '../../src/shared/schemas/classes';
 import type { Page } from '../../src/shared/schemas/discovery';
 import type { OwnParentRequest } from '../../src/shared/schemas/requests';
+import { createDb } from '../../src/server/db/client';
+import { insertApplication } from '../../src/server/modules/classes/repository';
 import { api, createPublicTutor, jsonInit, register, type Session } from './helpers';
 import { markLegacySubmittedRequest } from './legacy-request-fixture';
 import { passAndAcknowledgeTutorTerms, publishTutorTermsQuiz } from './terms-fixture';
@@ -46,10 +49,13 @@ async function moderator() {
   return account;
 }
 
-async function createSubmittedRequest(parent: Session): Promise<OwnParentRequest> {
+async function createSubmittedRequest(
+  parent: Session,
+  overrides: Record<string, unknown> = {},
+): Promise<OwnParentRequest> {
   const created = await api(
     '/parent/requests',
-    jsonInit('POST', REQUEST, parent, {
+    jsonInit('POST', { ...REQUEST, ...overrides }, parent, {
       'Idempotency-Key': `class-request-${crypto.randomUUID()}`,
     }),
   );
@@ -480,5 +486,457 @@ describe('published classes and tutor applications', () => {
       'application.submitted',
       'application.withdrawn',
     ]);
+  });
+
+  it('ranks all eligible classes before pagination and requires explicit per-class adjustments', async () => {
+    const admin = await moderator();
+    const firstParent = await register('parent');
+    const firstRequest = await createSubmittedRequest(firstParent, { subjectId: 'subj_geography' });
+    const firstDraft = (
+      await (await createClass(admin, firstRequest)).json<ApiSuccess<AdminClass>>()
+    ).data;
+    const high = await publishClass(admin, firstDraft);
+    const secondParent = await register('parent');
+    const secondRequest = await createSubmittedRequest(secondParent, {
+      subjectId: 'subj_geography',
+      grade: 'Lớp 11',
+    });
+    const secondDraft = (
+      await (await createClass(admin, secondRequest)).json<ApiSuccess<AdminClass>>()
+    ).data;
+    const lower = await publishClass(admin, secondDraft);
+    const tutor = await createPublicTutor({
+      subjectIds: ['subj_geography'],
+      preferredGrades: ['Lớp 10'],
+    });
+    const list = await api('/tutor/classes/recommendations?subjectId=subj_geography&pageSize=1', {
+      headers: { Cookie: tutor.cookie },
+    });
+    expect(list.status).toBe(200);
+    const firstPage = (await list.json<ApiSuccess<Page<ClassRecommendation>>>()).data;
+    expect(firstPage.items[0]?.class.id).toBe(high.id);
+    expect(firstPage.total).toBe(2);
+    expect(firstPage.items[0]?.match).toMatchObject({
+      score: 92,
+      coverage: 85,
+      level: 'strong',
+      adjustments: [],
+    });
+    expect(
+      (
+        await api('/tutor/classes/recommendations?sort=oldest', {
+          headers: { Cookie: tutor.cookie },
+        })
+      ).status,
+    ).toBe(422);
+    const secondPage = await api(
+      '/tutor/classes/recommendations?subjectId=subj_geography&pageSize=1&page=2',
+      {
+        headers: { Cookie: tutor.cookie },
+      },
+    );
+    const near = (await secondPage.json<ApiSuccess<Page<ClassRecommendation>>>()).data.items[0]!;
+    expect(near.class.id).toBe(lower.id);
+    expect(near.match).toMatchObject({
+      algorithmVersion: '2026-10-12-v1',
+      score: 72,
+      coverage: 85,
+      level: 'near',
+      adjustments: ['grade'],
+      profileChangesPreview: {
+        preferredGrade: 'Lớp 11',
+        preferredArea: null,
+        negotiableTime: false,
+      },
+    });
+    expect(near.match.criteria.find((item) => item.key === 'budget')).toMatchObject({
+      score: 0,
+      maxScore: 0,
+      status: 'unknown',
+    });
+    expect(JSON.stringify(near)).not.toContain(REQUEST.contactPhone);
+    expect(JSON.stringify(near)).not.toContain(REQUEST.contactAddress);
+    expect((await api('/tutor/classes/recommendations')).status).toBe(401);
+    expect(
+      (await api('/tutor/classes/recommendations', { headers: { Cookie: secondParent.cookie } }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await api(`/tutor/classes/${lower.id}/recommendation`, {
+          headers: { Cookie: tutor.cookie },
+        })
+      ).status,
+    ).toBe(200);
+
+    const fee = await createPublishedFee(admin);
+    await createPublishedFee(admin, {
+      optionKey: 'lesson_multiplier_with_deposit',
+      rateBasisPoints: 30_000,
+      depositBasisPoints: 5000,
+    });
+    await createPublishedFee(admin, { optionKey: 'monthly_percent', rateBasisPoints: 4000 });
+    await publishTutorTermsQuiz(admin);
+    await passAndAcknowledgeTutorTerms(tutor);
+    const updated = await api(
+      '/tutor/profile',
+      jsonInit('PATCH', { preferredGrades: ['Lớp 10', 'Lớp 11'] }, tutor),
+    );
+    expect(updated.status).toBe(200);
+    const staleId = crypto.randomUUID();
+    await expect(
+      insertApplication(
+        createDb(env.DB),
+        tutor.userId,
+        lower.id,
+        fee.id,
+        staleId,
+        lower.version,
+        new Date().toISOString(),
+        {
+          algorithmVersion: '2026-10-12-v1',
+          classVersion: lower.version,
+          score: near.match.score,
+          acceptedAdjustments: ['grade'],
+        },
+        { grade: 0, area: 15, schedule: 7, negotiableTime: false },
+      ),
+    ).rejects.toThrow();
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM tutor_applications WHERE id = ?')
+        .bind(staleId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM audit_logs WHERE target_id = ?')
+        .bind(staleId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+    expect(
+      (await api('/tutor/profile', jsonInit('PATCH', { preferredGrades: ['Lớp 10'] }, tutor)))
+        .status,
+    ).toBe(200);
+    const apply = (acceptedAdjustments?: string[]) =>
+      api(
+        `/classes/${lower.id}/applications`,
+        jsonInit(
+          'POST',
+          { feeOptionVersionId: fee.id, classVersion: lower.version, acceptedAdjustments },
+          tutor,
+          { 'Idempotency-Key': `match-apply-${crypto.randomUUID()}` },
+        ),
+      );
+    expect((await apply()).status).toBe(422);
+    expect((await apply(['area'])).status).toBe(422);
+    const accepted = await apply(['grade']);
+    expect(accepted.status).toBe(201);
+    const application = (await accepted.json<ApiSuccess<TutorApplication>>()).data;
+    expect(application.matchSnapshot).toEqual({
+      algorithmVersion: '2026-10-12-v1',
+      classVersion: lower.version,
+      score: 72,
+      acceptedAdjustments: ['grade'],
+      profileChanges: {
+        preferredGrade: 'Lớp 11',
+        preferredArea: null,
+        negotiableTime: false,
+      },
+    });
+    const afterProfile = await api('/tutor/profile', { headers: { Cookie: tutor.cookie } });
+    expect(
+      (await afterProfile.json<ApiSuccess<{ preferredGrades: string[]; approvalStatus: string }>>())
+        .data,
+    ).toMatchObject({ preferredGrades: ['Lớp 10', 'Lớp 11'], approvalStatus: 'approved' });
+    const adminDetail = await api(`/admin/applications/${application.id}`, {
+      headers: { Cookie: admin.cookie },
+    });
+    expect(adminDetail.status).toBe(200);
+    expect(
+      (await adminDetail.json<ApiSuccess<{ matchSnapshot: unknown }>>()).data.matchSnapshot,
+    ).toEqual(application.matchSnapshot);
+    const submittedAudit = await env.DB.prepare(
+      "SELECT metadata FROM audit_logs WHERE action = 'application.submitted' AND target_id = ?",
+    )
+      .bind(application.id)
+      .first<{ metadata: string }>();
+    expect(JSON.parse(submittedAudit!.metadata).matchSnapshot).toEqual(application.matchSnapshot);
+  });
+
+  it('matches a broad area as a complete segment, not a prefix of another district', async () => {
+    const admin = await moderator();
+    const tutor = await createPublicTutor({
+      subjectIds: ['subj_history'],
+      teachesOffline: true,
+      preferredAreas: ['Quận 1'],
+    });
+    const createOffline = async (publicArea: string) => {
+      const parent = await register('parent');
+      const request = await createSubmittedRequest(parent, {
+        subjectId: 'subj_history',
+        mode: 'offline',
+        area: 'TP.HCM',
+      });
+      const draft = (
+        await (await createClass(admin, request, publicArea)).json<ApiSuccess<AdminClass>>()
+      ).data;
+      return publishClass(admin, draft);
+    };
+    const otherDistrict = await createOffline('Quận 10, TP.HCM');
+    const ownDistrict = await createOffline('Quận 1, TP.HCM');
+    const prefixedDistrict = await createOffline('Quận Cầu Giấy, Hà Nội');
+    const get = async (id: string) =>
+      (
+        await (
+          await api(`/tutor/classes/${id}/recommendation`, { headers: { Cookie: tutor.cookie } })
+        ).json<ApiSuccess<ClassRecommendation>>()
+      ).data;
+    expect(
+      (await get(otherDistrict.id)).match.criteria.find((item) => item.key === 'area'),
+    ).toMatchObject({ score: 0, status: 'adjustable' });
+    expect((await get(otherDistrict.id)).match).toMatchObject({
+      score: 67,
+      coverage: 65,
+      level: 'uncertain',
+      adjustments: ['area'],
+      profileChangesPreview: { preferredArea: 'Quận 10' },
+    });
+    const longDistrict = await createOffline(`${'A'.repeat(81)}, TP.HCM`);
+    expect((await get(longDistrict.id)).match).toMatchObject({
+      profileChangesPreview: { preferredArea: null },
+    });
+    expect(
+      (await get(longDistrict.id)).match.criteria.find((item) => item.key === 'area'),
+    ).toMatchObject({ score: 7, status: 'unknown' });
+    expect(
+      (await get(ownDistrict.id)).match.criteria.find((item) => item.key === 'area'),
+    ).toMatchObject({ score: 15, status: 'match' });
+    const updated = await api(
+      '/tutor/profile',
+      jsonInit('PATCH', { preferredAreas: ['Cầu Giấy'] }, tutor),
+    );
+    expect(updated.status).toBe(200);
+    expect(
+      (await get(prefixedDistrict.id)).match.criteria.find((item) => item.key === 'area'),
+    ).toMatchObject({ score: 15, status: 'match' });
+    const unicodeDistrict = await createOffline('Đống Đa, Hà Nội');
+    expect(
+      (await api('/tutor/profile', jsonInit('PATCH', { preferredAreas: ['đống đa'] }, tutor)))
+        .status,
+    ).toBe(200);
+    expect(
+      (await get(unicodeDistrict.id)).match.criteria.find((item) => item.key === 'area'),
+    ).toMatchObject({ score: 15, status: 'match' });
+  });
+
+  it('persists accepted grade, area and flexible time atomically with the application', async () => {
+    const admin = await moderator();
+    const parent = await register('parent');
+    const request = await createSubmittedRequest(parent, {
+      subjectId: 'subj_history',
+      mode: 'offline',
+      area: 'TP.HCM',
+    });
+    const draft = (
+      await (await createClass(admin, request, 'Quận 10, TP.HCM')).json<ApiSuccess<AdminClass>>()
+    ).data;
+    const cls = await publishClass(admin, draft);
+    const tutor = await createPublicTutor({
+      subjectIds: ['subj_history'],
+      teachesOffline: true,
+      preferredGrades: ['Lớp 9'],
+      preferredAreas: ['Quận 1'],
+    });
+    await env.DB.prepare(
+      `INSERT INTO availability_rules
+       (id, tutor_id, weekday, start_local, end_local, timezone, created_at)
+       VALUES (?, ?, 2, '20:00', '21:00', 'Asia/Ho_Chi_Minh', ?)`,
+    )
+      .bind(crypto.randomUUID(), tutor.userId, new Date().toISOString())
+      .run();
+    const recommendation = await api(`/tutor/classes/${cls.id}/recommendation`, {
+      headers: { Cookie: tutor.cookie },
+    });
+    expect(recommendation.status).toBe(200);
+    const before = (await recommendation.json<ApiSuccess<ClassRecommendation>>()).data;
+    expect(before.match).toMatchObject({
+      score: 50,
+      coverage: 100,
+      level: 'low',
+      adjustments: ['grade', 'area', 'schedule'],
+      profileChangesPreview: {
+        preferredGrade: 'Lớp 10',
+        preferredArea: 'Quận 10',
+        negotiableTime: true,
+      },
+    });
+    const fee = await createPublishedFee(admin);
+    await createPublishedFee(admin, {
+      optionKey: 'lesson_multiplier_with_deposit',
+      rateBasisPoints: 30_000,
+      depositBasisPoints: 5000,
+    });
+    await createPublishedFee(admin, { optionKey: 'monthly_percent', rateBasisPoints: 4000 });
+    await publishTutorTermsQuiz(admin);
+    await passAndAcknowledgeTutorTerms(tutor);
+    // The three scored preferences are unchanged, but a concurrent profile edit
+    // invalidates the proposed negotiable-time delta before the insert batch.
+    await env.DB.prepare('UPDATE tutor_profiles SET negotiable_time = 1 WHERE user_id = ?')
+      .bind(tutor.userId)
+      .run();
+    const staleFlagId = crypto.randomUUID();
+    await expect(
+      insertApplication(
+        createDb(env.DB),
+        tutor.userId,
+        cls.id,
+        fee.id,
+        staleFlagId,
+        cls.version,
+        new Date().toISOString(),
+        {
+          algorithmVersion: before.match.algorithmVersion,
+          classVersion: cls.version,
+          score: before.match.score,
+          acceptedAdjustments: ['grade', 'area', 'schedule'],
+          profileChanges: before.match.profileChangesPreview,
+        },
+        { grade: 0, area: 0, schedule: 0, negotiableTime: false },
+      ),
+    ).rejects.toThrow();
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM tutor_applications WHERE id = ?')
+        .bind(staleFlagId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM audit_logs WHERE target_id = ?')
+        .bind(staleFlagId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM tutor_preference_areas WHERE tutor_id = ?')
+        .bind(tutor.userId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 1 });
+    await env.DB.prepare('UPDATE tutor_profiles SET negotiable_time = 0 WHERE user_id = ?')
+      .bind(tutor.userId)
+      .run();
+    const apply = (session: Session, acceptedAdjustments: string[]) =>
+      api(
+        `/classes/${cls.id}/applications`,
+        jsonInit(
+          'POST',
+          { feeOptionVersionId: fee.id, classVersion: cls.version, acceptedAdjustments },
+          session,
+          { 'Idempotency-Key': `profile-match-${crypto.randomUUID()}` },
+        ),
+      );
+    expect((await apply(tutor, ['grade', 'area'])).status).toBe(422);
+    const accepted = await apply(tutor, ['grade', 'area', 'schedule']);
+    expect(accepted.status).toBe(201);
+    const application = (await accepted.json<ApiSuccess<TutorApplication>>()).data;
+    expect(application.matchSnapshot).toMatchObject({
+      score: 50,
+      profileChanges: before.match.profileChangesPreview,
+    });
+    const profileResponse = await api('/tutor/profile', { headers: { Cookie: tutor.cookie } });
+    const profile = (
+      await profileResponse.json<
+        ApiSuccess<{
+          preferredGrades: string[];
+          preferredAreas: string[];
+          negotiableTime: boolean;
+          approvalStatus: string;
+        }>
+      >()
+    ).data;
+    expect(profile.preferredGrades).toEqual(expect.arrayContaining(['Lớp 9', 'Lớp 10']));
+    expect(profile.preferredAreas).toEqual(expect.arrayContaining(['Quận 1', 'Quận 10']));
+    expect(profile).toMatchObject({ negotiableTime: true, approvalStatus: 'approved' });
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM availability_rules WHERE tutor_id = ?')
+        .bind(tutor.userId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 1 });
+    const after = await api(`/tutor/classes/${cls.id}/recommendation`, {
+      headers: { Cookie: tutor.cookie },
+    });
+    expect((await after.json<ApiSuccess<ClassRecommendation>>()).data.match).toMatchObject({
+      score: 85,
+      coverage: 100,
+      level: 'near',
+      adjustments: ['schedule'],
+      profileChangesPreview: {
+        preferredGrade: null,
+        preferredArea: null,
+        negotiableTime: false,
+      },
+    });
+
+    const fullTutor = await createPublicTutor({
+      subjectIds: ['subj_history'],
+      teachesOffline: true,
+      preferredGrades: ['Lớp 10'],
+      preferredAreas: Array.from({ length: 12 }, (_, index) => `Khu ${index + 1}`),
+    });
+    await passAndAcknowledgeTutorTerms(fullTutor);
+    const rejected = await apply(fullTutor, ['area']);
+    expect(rejected.status).toBe(409);
+    expect((await rejected.json<{ error: { code: string } }>()).error.code).toBe(
+      'PROFILE_PREFERENCE_LIMIT',
+    );
+    expect(
+      await env.DB.prepare(
+        'SELECT count(*) AS n FROM tutor_applications WHERE tutor_user_id = ? AND class_id = ?',
+      )
+        .bind(fullTutor.userId, cls.id)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+    expect(
+      await env.DB.prepare('SELECT count(*) AS n FROM tutor_preference_areas WHERE tutor_id = ?')
+        .bind(fullTutor.userId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 12 });
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS n FROM audit_logs WHERE actor_id = ? AND action = 'application.submitted'",
+      )
+        .bind(fullTutor.userId)
+        .first<{ n: number }>(),
+    ).toMatchObject({ n: 0 });
+  });
+
+  it('treats missing or different-timezone schedules as unknown and scores only a same-timezone overlap', async () => {
+    const { cls } = await setupOpenClass();
+    const tutor = await createPublicTutor({ preferredGrades: ['Lớp 10'] });
+    const path = `/tutor/classes/${cls.id}/recommendation`;
+    const get = async () =>
+      (
+        await (
+          await api(path, { headers: { Cookie: tutor.cookie } })
+        ).json<ApiSuccess<ClassRecommendation>>()
+      ).data.match;
+    expect(await get()).toMatchObject({ score: 92, coverage: 85, level: 'strong' });
+    const addRule = async (timezone: string, start: string, end: string) => {
+      await env.DB.prepare(
+        `INSERT INTO availability_rules
+         (id, tutor_id, weekday, start_local, end_local, timezone, created_at)
+         VALUES (?, ?, 2, ?, ?, ?, ?)`,
+      )
+        .bind(crypto.randomUUID(), tutor.userId, start, end, timezone, new Date().toISOString())
+        .run();
+    };
+    await addRule('Asia/Bangkok', '18:00', '20:00');
+    expect((await get()).criteria.find((item) => item.key === 'schedule')).toMatchObject({
+      score: 7,
+      status: 'unknown',
+    });
+    await addRule('Asia/Ho_Chi_Minh', '20:00', '21:00');
+    expect((await get()).criteria.find((item) => item.key === 'schedule')).toMatchObject({
+      score: 0,
+      status: 'adjustable',
+    });
+    await addRule('Asia/Ho_Chi_Minh', '18:00', '20:00');
+    expect(await get()).toMatchObject({ score: 100, coverage: 100, level: 'strong' });
   });
 });

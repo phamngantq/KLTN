@@ -13,8 +13,9 @@ import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { SelectField, TextField } from '../../components/ui/Field';
 import { Skeleton } from '../../components/ui/Spinner';
 import {
-  useMatchedClasses,
+  useClassRecommendations,
   usePublicClasses,
+  type ClassRecommendation,
   type ClassFilters,
   type PublicClass,
 } from '../../features/classes/api';
@@ -149,18 +150,22 @@ function ClassFiltersForm({
   );
 }
 
-function ClassResults({
+function ClassResults<T>({
   query,
   params,
   setParams,
   detailBase,
   filtered,
+  classOf,
+  matchOf,
 }: {
-  query: UseQueryResult<Page<PublicClass>, Error>;
+  query: UseQueryResult<Page<T>, Error>;
   params: URLSearchParams;
   setParams: (next: URLSearchParams) => void;
   detailBase: string;
   filtered: boolean;
+  classOf: (result: T) => PublicClass;
+  matchOf?: (result: T) => ClassRecommendation['match'];
 }) {
   function goToPage(nextPage: number) {
     const next = new URLSearchParams(params);
@@ -220,14 +225,18 @@ function ClassResults({
             đang tìm gia sư
           </p>
           <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {query.data.items.map((item) => (
-              <li key={item.id} className="min-w-0">
-                <ClassCard
-                  item={item}
-                  detailPath={`${detailBase}/${encodeURIComponent(item.id)}`}
-                />
-              </li>
-            ))}
+            {query.data.items.map((result) => {
+              const item = classOf(result);
+              return (
+                <li key={item.id} className="min-w-0">
+                  <ClassCard
+                    item={item}
+                    match={matchOf?.(result)}
+                    detailPath={`${detailBase}/${encodeURIComponent(item.id)}`}
+                  />
+                </li>
+              );
+            })}
           </ul>
           {query.data.total > query.data.pageSize && (
             <nav
@@ -296,6 +305,7 @@ function BrowseClasses({ tutor }: { tutor: boolean }) {
       <div className="mx-auto max-w-[var(--container-max)] px-4 py-12">
         <ClassResults
           query={query}
+          classOf={(item) => item}
           params={params}
           setParams={setParams}
           detailBase={tutor ? '/tutor/new-classes' : '/lop-hoc'}
@@ -350,13 +360,13 @@ export function TutorNewClassBrowsePage() {
 export function TutorMatchedClassBrowsePage() {
   const [params, setParams] = useSearchParams();
   const page = pageFromUrl(params);
-  const query = useMatchedClasses(page);
+  const query = useClassRecommendations(page);
 
   return (
     <section className="min-w-0">
       <ClassHero
         title="Lớp phù hợp"
-        description="Lớp được lọc từ sở thích môn, lớp và khu vực bạn đã lưu trong hồ sơ."
+        description="Xem điểm phù hợp theo môn, hình thức dạy, khối lớp, khu vực và lịch học. Các lớp cần điều chỉnh nhỏ được ghi rõ trước khi ứng tuyển."
         embedded
         actions={
           <ButtonLink to="/tutor/profile" variant="accent">
@@ -367,6 +377,8 @@ export function TutorMatchedClassBrowsePage() {
       <div className="px-4 py-12">
         <ClassResults
           query={query}
+          classOf={(recommendation) => recommendation.class}
+          matchOf={(recommendation) => recommendation.match}
           params={params}
           setParams={setParams}
           detailBase="/tutor/new-classes"

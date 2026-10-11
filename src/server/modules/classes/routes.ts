@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import {
   adminClassListSchema,
   applyClassSchema,
+  classRecommendationQuerySchema,
   classSearchSchema,
   createClassSchema,
   createFeeOptionSchema,
@@ -12,6 +13,7 @@ import {
   tutorApplicationListSchema,
   withdrawApplicationSchema,
   type AdminClass,
+  type ClassRecommendation,
   type FeeOptionVersion,
   type PublicClass,
   type TutorApplication,
@@ -25,6 +27,7 @@ import { rateLimit } from '../../middleware/rate-limit';
 import type { AppEnv } from '../../types';
 import * as idempotency from '../idempotency/service';
 import * as service from './service';
+import * as matching from './matching';
 
 /** Public, read-only policy revisions for the pricing page. */
 export const publicFeeRoutes = new Hono<AppEnv>();
@@ -90,6 +93,21 @@ tutorClassRoutes.get('/classes/matched', async (c) =>
   ok<Page<PublicClass>>(
     c,
     await service.matchedClasses(c.var.db, authOf(c).user.id, parseQuery(c, classSearchSchema)),
+  ),
+);
+tutorClassRoutes.get('/classes/recommendations', async (c) =>
+  ok<Page<ClassRecommendation>>(
+    c,
+    await matching.listRecommendations(c.var.db, authOf(c).user.id, {
+      ...parseQuery(c, classRecommendationQuerySchema),
+      sort: 'newest',
+    }),
+  ),
+);
+tutorClassRoutes.get('/classes/:id/recommendation', async (c) =>
+  ok<ClassRecommendation>(
+    c,
+    await matching.getRecommendation(c.var.db, authOf(c).user.id, c.req.param('id')),
   ),
 );
 tutorClassRoutes.get('/fee-options', async (c) => {

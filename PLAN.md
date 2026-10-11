@@ -464,6 +464,8 @@ Chỉ thêm `r2_buckets` vào Wrangler sau khi đã tạo bucket; không giả s
 
 ### 13.5. Contract triển khai đề xuất
 
+TASK-32 bổ sung [MATCH_SCORING.md](docs/MATCH_SCORING.md): điểm phù hợp theo quy tắc từ hồ sơ gia sư và lớp thực, lý do/độ đầy đủ dữ liệu, preview điều chỉnh hồ sơ và snapshot điểm trước thay đổi để moderator tham khảo. Gia sư xác nhận trong popup thì server tạo đơn và cập nhật sở thích khối/khu vực hoặc cờ thương lượng thời gian trong cùng giao dịch; không tự tạo giờ rảnh hay gán lớp. Không dùng điểm mẫu trong export.
+
 [PRODUCT_DOMAIN.md](docs/PRODUCT_DOMAIN.md) là contract cho entity, API, quyền đọc/ghi, chuyển trạng thái, chống tranh chấp và migration D1 của sản phẩm thay thế. DEC-009/012/013/014/015/019 đã chốt actor, ba loại option phí và quiz trước ứng tuyển, gán lớp active ngay kèm học phí đã chốt, rút gán mở lại lớp/cắt contact, hoàn tất/hủy `open` có lý do, bảo toàn booking cũ và chặn xóa tài khoản khi còn cam kết. Các tên trạng thái trong export khác nhau giữa trang phụ huynh và admin; tài liệu không coi chúng là trạng thái backend đã được duyệt. Hủy lớp `draft`, thanh toán/hoàn tiền, nội dung được duyệt của G4, giá trị cụ thể G3 và cutover G7 tiếp tục chặn mutation/release tương ứng. Trạng thái hoàn thành task chỉ lấy từ `TASKS.md` sau quality gates và commit tương ứng.
 
 ### 13.6. Hai danh sách lớp theo bên khởi tạo (DEC-020)
