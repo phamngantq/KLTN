@@ -66,7 +66,7 @@
 **Acceptance tests:** register/login/me/logout, unauthorized 401, forbidden 403, duplicate email 409, wrong password, expired/revoked session, CSRF invalid, role escalation rejected; secrets never logged.  
 **Commit:** `feat(auth): add worker sessions and role guards`.
 
-### [ ] TASK-04 — Weekly tutor availability (backend first)
+### [x] TASK-04 — Weekly tutor availability (backend first)
 **Dependency:** TASK-03.  
 **Scope:** Lịch lặp hằng tuần chưa phụ thuộc Figma UI.  
 **Deliverables:** `src/server/modules/availability/*`, Zod DTO, `GET/PUT /api/v1/tutor/availability`, tests rule ownership/overlap/timezones.  

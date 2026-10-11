@@ -3,6 +3,7 @@
  * keep this file in sync with the SQL by hand (a schema sync test is still TODO in TASK-02).
  */
 import { sql } from 'drizzle-orm';
+import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
 import {
   index,
   integer,
@@ -27,7 +28,6 @@ export const BOOKING_STATUSES = [
 ] as const;
 export const IDEMPOTENCY_STATUSES = ['processing', 'completed'] as const;
 export const CURRENCIES = ['VND'] as const;
-export const DEFAULT_TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 // Column builders shared by several tables.
 const currency = () => text('currency', { enum: CURRENCIES }).notNull().default('VND');
