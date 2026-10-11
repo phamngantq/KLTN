@@ -1,6 +1,6 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái ngày 2026-10-11:** [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy version `5c1ec5a7-6809-4579-9e0c-c6a9d72bf6ee` bằng `env.staging_v2`, với 3 phí published và 6 lớp mẫu open trong D1. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Bản giao diện `84265ce`, bản nền `bfac6a4` và các lần deploy MVP được giữ làm lịch sử. Production chưa triển khai.
+> **Trạng thái ngày 2026-10-12:** [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy version `66531983-7f0a-419c-8a25-cbf035a2efb2` từ commit `379c117` bằng `env.staging_v2`; D1 đã áp dụng migration `0016`–`0022`, với 3 phí, 6 lớp, 6 mức học phí và 2 khoảng phí tham khảo đã công bố. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Các lần deploy trước được giữ làm lịch sử. Production chưa triển khai.
 
 Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 
@@ -8,7 +8,7 @@ Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các
 |---|---|---|
 | Local | `npm run dev` / Miniflare `.wrangler/state` | Dùng để kiểm thử migration và hành trình mới |
 | Preview lịch sử | `tutor-matching-staging-v2` / D1 riêng cùng tên | Đã deploy bản chỉ đọc; không deploy lại bằng cấu hình `preview` |
-| Staging V2 | Cùng Worker/D1 V2, `env.staging_v2` | Đã deploy bản sản phẩm mới với `APP_ENV=staging`; migration 0007–0015 đã áp dụng, smoke chỉ đọc 16/16 PASS |
+| Staging V2 | Cùng Worker/D1 V2, `env.staging_v2` | Đã deploy bản sản phẩm mới với `APP_ENV=staging`; migration 0001–0022 đã áp dụng, smoke chỉ đọc 16/16 PASS |
 | Staging cũ | `tutor-matching-staging` / D1 cùng tên | Lịch sử MVP đã deploy; tài khoản Wrangler ở lần kiểm tra cuối không nhìn thấy cả Worker/D1 |
 | Production | `tutor-matching` / `tutor-matching-prod` | Chưa tạo; cần quyết định phát hành riêng |
 
@@ -107,7 +107,7 @@ Script kiểm tra SPA routes, health/security headers, subjects, public classes 
 
 **Bằng chứng staging V2 ngày 2026-10-11:** CI của `main` cho commit `bfac6a4` đã hoàn tất thành công. Worker ở URL trên đạt smoke chỉ đọc 16/16 sau khi chạy lại do timeout thoáng qua ở ngưỡng 10 giây. Chromium ở viewport di động hiển thị form đăng ký, không còn chặn bằng banner preview. Đăng ký với dữ liệu sai trả `422` validation, không tạo tài khoản. Sau phép thử đó, D1 có 2 user gia sư giả lập, 0 credential, 0 yêu cầu phụ huynh, 0 booking, 0 lớp; `PRAGMA foreign_key_check` trả 0 hàng. Đây là kiểm tra remote giới hạn; hành trình ba actor có ghi dữ liệu được kiểm trên D1 local.
 
-`e2e/journeys.spec.ts` hiện có **một** hành trình Playwright trên Worker build + D1 local cô lập: parent consent/gửi yêu cầu; moderator tạo, xuất bản và gán lớp; tutor đã duyệt làm quiz/xác nhận điều khoản, chọn một trong ba option phí đang công bố, ứng tuyển, đọc contact sau gán và xác nhận hợp đồng. Test còn kiểm public/outsider không thấy contact, POST booking trả 410, GET danh sách booking trả 200, dashboard hiển thị số liệu từ hành trình, tạo file PDF hợp lệ, responsive ở 320/768/1280 px và skip link bằng bàn phím. Nó không thử rút gán, hoàn tất, hủy lớp, khiếu nại, xóa tài khoản hoặc race.
+`e2e/journeys.spec.ts` hiện có **hai** hành trình Playwright trên Worker build + D1 local cô lập: parent consent/gửi yêu cầu; moderator công bố và gán lớp; tutor đã duyệt làm quiz/xác nhận điều khoản, chọn phí, xem popup điều chỉnh hồ sơ rồi ứng tuyển; và phiếu lớp tìm học viên do tutor đăng, phụ huynh gửi yêu cầu tham gia, moderator chấp nhận. Test còn kiểm quyền đọc contact, booking cũ, dashboard/PDF, responsive và bàn phím. Rút gán, hủy lớp, khiếu nại, xóa tài khoản và race được kiểm bằng Vitest integration, không phải hành trình Playwright từ xa.
 
 Các trường hợp đó được kiểm bằng Vitest integration trên D1 local: `tests/server/admin-assignments.test.ts`, `tests/server/complaints-privacy.test.ts`, `tests/server/classes.test.ts`, `tests/server/bookings-lifecycle.test.ts` và `tests/server/reports.test.ts`. Xem kết quả thực chạy trong release record; không suy test đã PASS từ việc file tồn tại. Sau deploy, kiểm tra số lượng dữ liệu, log 5xx và báo cáo theo quyền mà không đưa PII vào log.
 

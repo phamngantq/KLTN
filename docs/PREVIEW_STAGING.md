@@ -1,16 +1,24 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
-## Học phí đã chốt theo lớp ngày 2026-10-12 — chờ phát hành
+## Phát hành ngày 2026-10-12
 
-Mã nguồn bổ sung migration `0017`: kiểm duyệt viên bắt buộc nhập học phí đã chốt theo buổi khi gán gia sư; D1 lưu theo từng lần gán và hợp đồng mới giữ snapshot khi phát hành. Assignment cũ chưa xác minh giữ `NULL`, có thể được kiểm duyệt viên ghi một lần khi còn hiệu lực và trước hợp đồng. **Chưa áp dụng migration `0017` hoặc deploy thay đổi này trên staging V2.** Migration `0016` và seed bảng giá bên dưới cũng còn chờ phát hành.
+Commit `379c117` đã được fast-forward và push lên `main`, rồi triển khai tới [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev), version `66531983-7f0a-419c-8a25-cbf035a2efb2`, với `APP_ENV=staging`. D1 V2 đã áp dụng migration `0016`–`0022`; danh sách migration từ xa không còn mục chờ. Mốc Time Travel và bản export SQL trước migration được giữ ngoài Git trên máy phát hành, không chứa trong tài liệu này.
 
-## Thay đổi bảng giá ngày 2026-10-12 — chờ phát hành
+- Trước phát hành: lint, typecheck, format, secret scan, build staging V2, Vitest **456/456**, kiểm thử race tập trung **9/9** sau chỉnh sửa cuối, Playwright **2/2** và migration `0001`–`0022` trên D1 local cô lập PASS; kiểm tra khóa ngoại local không có lỗi.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS; `/tutor/matched-classes` trả 200 và API gợi ý trả 401 cho khách chưa đăng nhập; `PRAGMA foreign_key_check` trên D1 V2 trả 0 hàng. D1 có 5 user, 6 yêu cầu, 6 lớp, 3 phương án phí, 6 mức học phí và 2 khoảng phí tham khảo đã công bố; không có đơn ứng tuyển. Script seed staging đã chạy lại và xác nhận các bản mẫu hiện có, không nhân đôi lớp/phương án phí.
+- Worker và D1 staging cũ, cũng như production, không được thay đổi. Smoke từ xa không thay thế hành trình ghi; luồng ứng tuyển và popup cập nhật hồ sơ được kiểm trên Worker/D1 local cô lập.
 
-Mã nguồn đã bổ sung hai bảng D1 cho học phí theo buổi và khoảng phí nhận lớp tham khảo. Hai mảng trong `.env.example` là nguồn nạp dữ liệu mẫu; sau khi áp dụng migration `0016` và chạy lại `seed:sample:staging:v2` trên đúng D1, hệ thống sẽ lưu sáu mức học phí và hai khoảng phí trong D1. Các lớp và ngân sách dự kiến của từng lớp đã nằm trong D1 từ lần phát hành trước. **Chưa ghi nhận áp dụng migration, seed lại hoặc deploy Worker cho thay đổi này trên staging.**
+## Học phí đã chốt theo lớp ngày 2026-10-12 — lịch sử trước phát hành
 
-## Cập nhật dữ liệu mẫu staging V2 ngày 2026-10-11
+Mã nguồn bổ sung migration `0017`: kiểm duyệt viên bắt buộc nhập học phí đã chốt theo buổi khi gán gia sư; D1 lưu theo từng lần gán và hợp đồng mới giữ snapshot khi phát hành. Assignment cũ chưa xác minh giữ `NULL`, có thể được kiểm duyệt viên ghi một lần khi còn hiệu lực và trước hợp đồng. Migration này đã được phát hành trong đợt ghi ở trên.
 
-[Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đã deploy version `5c1ec5a7-6809-4579-9e0c-c6a9d72bf6ee` với `APP_ENV=staging`, sau đó seed từ cấu hình riêng bị Git bỏ qua tại `.wrangler/sample-staging-v2/config.vars`. D1 V2 có **3 phương án phí published**, **6 yêu cầu sourcing** từ phụ huynh tổng hợp và **6 lớp open**. API công khai trả 6 lớp và 3 phương án phí; `PRAGMA foreign_key_check` trả 0 lỗi. Tài khoản kiểm duyệt viên mẫu là `staging-admin@example.test`; mật khẩu ngẫu nhiên chỉ ở `.wrangler/sample-staging-v2/credentials.vars` bị Git bỏ qua, không có trong Worker vars hay tài liệu. Bookmark D1 trước seed được lưu ở `.wrangler/sample-staging-v2/`.
+## Thay đổi bảng giá ngày 2026-10-12 — lịch sử trước phát hành
+
+Mã nguồn đã bổ sung hai bảng D1 cho học phí theo buổi và khoảng phí nhận lớp tham khảo. Hai mảng trong `.env.example` là nguồn nạp dữ liệu mẫu; migration `0016` và seed staging trong đợt phát hành ở trên đã lưu sáu mức học phí và hai khoảng phí trong D1. Các lớp và ngân sách dự kiến của từng lớp đã nằm trong D1 từ lần phát hành trước.
+
+## Cập nhật dữ liệu mẫu staging V2 ngày 2026-10-11 — lịch sử
+
+Trước đợt phát hành 2026-10-12, [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) chạy version `5c1ec5a7-6809-4579-9e0c-c6a9d72bf6ee` với `APP_ENV=staging`, sau đó seed từ cấu hình riêng bị Git bỏ qua tại `.wrangler/sample-staging-v2/config.vars`. D1 V2 có **3 phương án phí published**, **6 yêu cầu sourcing** từ phụ huynh tổng hợp và **6 lớp open**. API công khai trả 6 lớp và 3 phương án phí; `PRAGMA foreign_key_check` trả 0 lỗi. Tài khoản kiểm duyệt viên mẫu là `staging-admin@example.test`; mật khẩu ngẫu nhiên chỉ ở `.wrangler/sample-staging-v2/credentials.vars` bị Git bỏ qua, không có trong Worker vars hay tài liệu. Bookmark D1 trước seed được lưu ở `.wrangler/sample-staging-v2/`.
 
 - Cổng local: lint, typecheck, format, secret scan, build staging V2, **52 file/402 test** và Playwright E2E ba vai trò **1/1** PASS. Test seed riêng xác nhận chạy lại không nhân đôi dữ liệu và không ghi contact giả vào yêu cầu.
 - Sau deploy: smoke chỉ đọc **16/16** PASS; D1 có 1 admin mẫu, 3 fee published, 6 request sourcing, 6 class open, 0 contact riêng được seed và 0 lỗi foreign key.
