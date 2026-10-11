@@ -1,6 +1,6 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái trước lần phát hành V2:** Các lần deploy staging trong §9 thuộc MVP đặt lịch TASK-01–18. Worker V2 đang chạy bản `preview` chỉ đọc theo [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Cấu hình `staging_v2` chuẩn bị chuyển cùng Worker/D1 đó sang sản phẩm thay thế từ `./figma`; tài liệu này **không xác nhận** mã mới đã được deploy lên staging hoặc production.
+> **Trạng thái ngày 2026-10-11:** Bản sản phẩm mới theo `./figma` từ commit `bfac6a4` đã deploy lên [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) bằng `env.staging_v2`; xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Các lần deploy staging trong §9 thuộc MVP đặt lịch TASK-01–18. Production chưa triển khai.
 
 Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 
@@ -8,7 +8,7 @@ Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các
 |---|---|---|
 | Local | `npm run dev` / Miniflare `.wrangler/state` | Dùng để kiểm thử migration và hành trình mới |
 | Preview lịch sử | `tutor-matching-staging-v2` / D1 riêng cùng tên | Đã deploy bản chỉ đọc; không deploy lại bằng cấu hình `preview` |
-| Staging V2 dự kiến | Cùng Worker/D1 V2, `env.staging_v2` | Đang chuẩn bị cutover sang `APP_ENV=staging`; chưa xác nhận deploy |
+| Staging V2 | Cùng Worker/D1 V2, `env.staging_v2` | Đã deploy bản sản phẩm mới với `APP_ENV=staging`; migration 0007–0015 đã áp dụng, smoke chỉ đọc 16/16 PASS |
 | Staging cũ | `tutor-matching-staging` / D1 cùng tên | Lịch sử MVP đã deploy; tài khoản Wrangler ở lần kiểm tra cuối không nhìn thấy cả Worker/D1 |
 | Production | `tutor-matching` / `tutor-matching-prod` | Chưa tạo; cần quyết định phát hành riêng |
 
@@ -100,21 +100,23 @@ Chạy smoke **chỉ đọc** trên URL vừa deploy:
 npm run smoke -- https://<worker>.<subdomain>.workers.dev
 ```
 
-Script kiểm tra SPA routes, health/security headers, subjects, public classes không lộ contact, nội dung/fee option đã công bố và API dashboard từ chối anonymous. Script không tạo user, booking hoặc dữ liệu dọn dẹp; nó không xác nhận mutation.
+Script kiểm tra SPA routes, health/security headers, subjects, public classes không lộ contact, cấu trúc phản hồi API nội dung/phương án phí và API dashboard từ chối anonymous. Chưa có mức phí được kiểm duyệt viên công bố trên staging. Script không tạo user, booking hoặc dữ liệu dọn dẹp; nó không xác nhận mutation.
+
+**Bằng chứng staging V2 ngày 2026-10-11:** CI của `main` cho commit `bfac6a4` đã hoàn tất thành công. Worker ở URL trên đạt smoke chỉ đọc 16/16 sau khi chạy lại do timeout thoáng qua ở ngưỡng 10 giây. Chromium ở viewport di động hiển thị form đăng ký, không còn chặn bằng banner preview. Đăng ký với dữ liệu sai trả `422` validation, không tạo tài khoản. Sau phép thử đó, D1 có 2 user gia sư giả lập, 0 credential, 0 yêu cầu phụ huynh, 0 booking, 0 lớp; `PRAGMA foreign_key_check` trả 0 hàng. Đây là kiểm tra remote giới hạn; hành trình ba actor có ghi dữ liệu được kiểm trên D1 local.
 
 `e2e/journeys.spec.ts` hiện có **một** hành trình Playwright trên Worker build + D1 local cô lập: parent consent/gửi yêu cầu; moderator tạo, xuất bản và gán lớp; tutor đã duyệt làm quiz/xác nhận điều khoản, chọn một trong ba option phí đang công bố, ứng tuyển, đọc contact sau gán và xác nhận hợp đồng. Test còn kiểm public/outsider không thấy contact, POST booking trả 410, GET danh sách booking trả 200, dashboard hiển thị số liệu từ hành trình, tạo file PDF hợp lệ, responsive ở 320/768/1280 px và skip link bằng bàn phím. Nó không thử rút gán, hoàn tất, hủy lớp, khiếu nại, xóa tài khoản hoặc race.
 
 Các trường hợp đó được kiểm bằng Vitest integration trên D1 local: `tests/server/admin-assignments.test.ts`, `tests/server/complaints-privacy.test.ts`, `tests/server/classes.test.ts`, `tests/server/bookings-lifecycle.test.ts` và `tests/server/reports.test.ts`. Xem kết quả thực chạy trong release record; không suy test đã PASS từ việc file tồn tại. Sau deploy, kiểm tra số lượng dữ liệu, log 5xx và báo cáo theo quyền mà không đưa PII vào log.
 
-Ghi kết quả E2E/smoke, version Worker và release record ngoài Git. Nếu bất kỳ gate nào lỗi, dùng [ROLLBACK.md](ROLLBACK.md); không tự khôi phục D1 khi chỉ lỗi code.
+Ghi kết quả E2E/smoke và version Worker trong tài liệu phát hành; giữ bookmark Time Travel và bản sao D1 được bảo vệ ngoài Git. Nếu bất kỳ gate nào lỗi, dùng [ROLLBACK.md](ROLLBACK.md); không tự khôi phục D1 khi chỉ lỗi code.
 
 ## 7. Cấp quyền kiểm duyệt viên
 
-Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md). DB role `admin` là actor kiểm duyệt viên; không tự đăng ký vai trò này từ client.
+Xem [ADMIN_PROVISIONING.md](ADMIN_PROVISIONING.md). DB role `admin` là actor kiểm duyệt viên; không tự đăng ký vai trò này từ client. Staging V2 chưa có tài khoản kiểm duyệt viên vận hành; chờ người dùng đăng ký và cung cấp email để cấp quyền đúng tài khoản.
 
 ## 8. Tài khoản staging cũ
 
-Trước mọi mutation trên staging cũ, `npx wrangler whoami`, `npx wrangler deployments list --name tutor-matching-staging --json` và `npx wrangler d1 list --json` phải cùng nhìn thấy đúng Worker/D1. Lần kiểm tra chỉ đọc ngày 2026-10-11, `/api/v1/health` trả 200 nhưng tài khoản Wrangler đang chọn không thấy hai tài nguyên đó. Vì vậy chưa có kiểm kê dữ liệu hiện tại hoặc quyền triển khai đã xác minh. Preview v2 có D1 riêng và không thay thế trạng thái đó.
+Trước mọi mutation trên staging cũ, `npx wrangler whoami`, `npx wrangler deployments list --name tutor-matching-staging --json` và `npx wrangler d1 list --json` phải cùng nhìn thấy đúng Worker/D1. Lần kiểm tra chỉ đọc ngày 2026-10-11, `/api/v1/health` trả 200 nhưng tài khoản Wrangler đang chọn không thấy hai tài nguyên đó. Vì vậy chưa có kiểm kê dữ liệu hiện tại hoặc quyền triển khai đã xác minh. Staging V2 có D1 riêng và không thay thế trạng thái đó.
 
 ## 9. Lịch sử deploy MVP cũ
 
@@ -124,4 +126,4 @@ Trước mọi mutation trên staging cũ, `npx wrangler whoami`, `npx wrangler 
 | 2026-10-11 | Migration 0002–0004; deploy tính năng TASK-01–16 | Smoke MVP 24/24 PASS; dữ liệu smoke đã xóa |
 | 2026-10-11 | Deploy lại staging MVP, bookmark lưu ngoài Git | Smoke MVP 24/24 PASS; Chromium tải `/`, `/tutors`, `/sign-in` |
 
-Các kết quả lịch sử không xác nhận dữ liệu hiện tại hay tính năng `./figma` đang chạy trên remote.
+Các kết quả MVP lịch sử không xác nhận dữ liệu hiện tại hay tính năng `./figma`; bằng chứng phát hành mới được ghi riêng tại §6.
