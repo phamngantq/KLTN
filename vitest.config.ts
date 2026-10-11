@@ -27,6 +27,7 @@ export default defineConfig(async () => {
             name: 'client',
             environment: 'jsdom',
             include: ['tests/client/**/*.test.{ts,tsx}'],
+            setupFiles: ['./tests/client/setup.ts'],
           },
         },
       ],
