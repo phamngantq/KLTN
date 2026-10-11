@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronDown, GraduationCap, Mail, MapPin, Menu, Phone, X } from 'lucide-react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import type { UserRole } from '../../shared/schemas/auth';
+import { FloatingContactLinks } from '../components/domain/FloatingContactLinks';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Feedback';
 import { ROLE_LABELS } from '../lib/format';
@@ -351,6 +352,8 @@ export function RootLayout() {
       >
         <Outlet />
       </main>
+
+      {!isAuthPage && !isRoleRoute && <FloatingContactLinks />}
 
       {!isAuthPage && (
         <footer className="mt-16 bg-primary px-4 py-12 text-on-primary print:hidden">
