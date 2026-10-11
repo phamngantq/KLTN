@@ -1,0 +1,12 @@
+# TASK_DECISIONS — Quyết định khi các quy tắc xung đột
+
+> Theo `TASKS.md` §A.11: khi quy tắc khác nhau, ghi lại tại đây và chọn cách an toàn.
+
+| ID | Ngày | Bối cảnh | Quyết định | Ai duyệt |
+|---|---|---|---|---|
+| DEC-001 | 2026-10-11 | TASK-05 yêu cầu audit Figma Make; link chỉ trả JS shell, thumbnail trắng, Figma API 403 → BLOCKED_EXTERNAL. | Product owner yêu cầu "dùng giải pháp thay thế để đạt kết quả tương đương, đảm bảo đúng luồng và có thể triển khai". Thay audit Figma bằng **design system tạm thời (PROVISIONAL)**: token từ `DESIGN_RULES.md` §C, route inventory từ `PLAN.md` §2. Mọi màn hình gắn nhãn `UNVERIFIED` trong `FIGMA_INVENTORY.md`; không khẳng định pixel-fidelity. Khi có Figma: thay `tokens.css`, đối chiếu từng màn hình theo `DESIGN_RULES.md` §H3. | User (chat 2026-10-11) |
+| DEC-002 | 2026-10-11 | `AGENTS.md` mặc định cấm tạo resource remote/deploy. | User yêu cầu rõ ràng triển khai bằng Wrangler + D1 trên tài khoản Cloudflare của máy này và cho phép mọi lệnh wrangler. Chỉ triển khai **staging** (`tutor-matching-staging` + D1 cùng tên). Production vẫn chờ runbook/checklist (TASK-18) và quyết định riêng. | User (chat 2026-10-11) |
+| DEC-003 | 2026-10-11 | Stack nêu Tailwind + shadcn/ui. | Dùng Tailwind CSS v4 + primitives tự viết, token-backed (Button, Input, Select, Dialog, Alert...). Không kéo shadcn CLI/Radix ở giai đoạn design tạm thời để giữ bundle nhỏ; có thể chuyển sang shadcn khi có Figma component map thật. | Agent (ghi nhận để review) |
+| DEC-004 | 2026-10-11 | Giá VND theo giờ × thời lượng 30/60/90/120 phút có thể ra số lẻ. | `hourly_rate_minor` phải là bội số 1.000 ₫ → tổng tiền luôn nguyên. Server tính giá, không nhận giá từ client. | Agent (ghi nhận để review) |
+| DEC-005 | 2026-10-11 | Chính sách hủy/hết hạn chưa chốt (`TASKS.md` §A.6). | Student/Tutor được hủy PENDING/CONFIRMED **trước giờ bắt đầu**; Tutor chỉ xác nhận trước giờ bắt đầu; COMPLETED chỉ sau giờ kết thúc. Không có Cron tự hết hạn. | Agent (ghi nhận để review) |
+| DEC-006 | 2026-10-11 | Hồ sơ đã duyệt được sửa tiếp. | Sửa hồ sơ đã duyệt **giữ trạng thái approved** (admin có thể ẩn). Câu hỏi mở FIG-010 trong `FIGMA_GAP_LOG.md`. | Agent (ghi nhận để review) |

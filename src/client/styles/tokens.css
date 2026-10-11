@@ -1,0 +1,49 @@
+/*
+ * Design tokens — PROVISIONAL (DEC-001).
+ * NOT extracted from Figma (Figma inaccessible, see FIGMA_GAP_LOG.md FIG-001/FIG-003).
+ * Values = development placeholders from DESIGN_RULES.md §C. Replace after a real audit;
+ * components must only consume these semantic tokens, never raw colours.
+ * Contrast on --color-bg (#fff): fg 17.85:1, muted 4.76:1, primary 5.17:1, danger 6.47:1, success 5.02:1,
+ * warning 4.92:1, border-strong 4.76:1; white on primary 5.17:1 (all measured, WCAG formula).
+ */
+:root {
+  --color-bg: #ffffff;
+  --color-surface: #f8fafc;
+  --color-fg: #0f172a;
+  --color-muted: #64748b;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-on-primary: #ffffff;
+  --color-border: #e2e8f0;
+  --color-border-strong: #64748b; /* control borders need >= 3:1 (WCAG 1.4.11) */
+  --color-danger: #b91c1c;
+  --color-danger-surface: #fef2f2;
+  --color-success: #15803d;
+  --color-success-surface: #f0fdf4;
+  --color-warning: #a16207;
+  --color-warning-surface: #fefce8;
+  --color-info-surface: #eff6ff;
+  --color-focus: #2563eb;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --text-caption: 0.8125rem;
+  --text-body: 1rem;
+  --text-label: 0.9375rem;
+  --text-heading: 1.375rem;
+  --text-display: 2rem;
+
+  --container-max: 72rem;
+  --control-min-height: 44px;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 3px rgb(15 23 42 / 0.1);
+}

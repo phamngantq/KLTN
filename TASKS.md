@@ -74,7 +74,7 @@
 **Acceptance tests:** 60m valid window, overlaps rejected 422, invalid time/weekday/timezone rejected, student access 403, tutor A cannot mutate tutor B, local integration tests pass.  
 **Commit:** `feat(schedule): add weekly tutor availability api`.
 
-### [ ] TASK-05 — Figma discovery, screen inventory and design tokens
+### [x] TASK-05 — Figma discovery, screen inventory and design tokens
 **Dependency:** TASK-04.  
 **Scope:** Read actual Figma Make design or explicitly exported equivalent, *không dùng suy đoán*.  
 **Deliverables:** `FIGMA_INVENTORY.md` (frame IDs/name, role, route, variants, links, CTA), `FIGMA_GAP_LOG.md`, `src/client/styles/tokens.css`, `docs/FIGMA_COMPONENT_MAP.md`, audit assets source.  
