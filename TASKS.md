@@ -82,7 +82,7 @@
 **Acceptance tests:** Có screen inventory đầy đủ cho MVP với reference có thể kiểm tra, token mapping có nguồn, không ghi claim pixel-perfect nếu không có image; tokens CSS build/lint pass.  
 **Commit:** `docs(design): audit figma screens and extract tokens`.
 
-### [ ] TASK-06 — Routing, shared UI primitives and typed API client
+### [x] TASK-06 — Routing, shared UI primitives and typed API client
 **Dependency:** TASK-05.  
 **Scope:** Frontend foundation đúng inventory, không làm các feature domain.  
 **Deliverables:** `src/client/app/router.tsx`, layouts, UI primitives (button/input/select/dialog/state), `src/client/lib/api-client.ts`, route/error boundaries, tests.  

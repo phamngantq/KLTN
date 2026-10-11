@@ -1,0 +1,36 @@
+@import 'tailwindcss';
+@import './tokens.css';
+
+/*
+ * Map provisional semantic tokens (tokens.css) into Tailwind utilities.
+ * `inline reference` makes utilities use var(--color-*) from tokens.css directly without
+ * re-emitting (self-referencing) theme variables; tokens.css stays the single source of truth.
+ * The default palette is removed to force token use.
+ */
+@theme inline reference {
+  --color-*: initial;
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-fg: var(--color-fg);
+  --color-muted: var(--color-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-on-primary: var(--color-on-primary);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-danger: var(--color-danger);
+  --color-danger-surface: var(--color-danger-surface);
+  --color-success: var(--color-success);
+  --color-success-surface: var(--color-success-surface);
+  --color-warning: var(--color-warning);
+  --color-warning-surface: var(--color-warning-surface);
+  --color-info-surface: var(--color-info-surface);
+  --color-focus: var(--color-focus);
+  --color-white: #ffffff;
+  --color-transparent: transparent;
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --font-sans: var(--font-sans);
+  --shadow-card: var(--shadow-card);
+}
