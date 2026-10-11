@@ -122,7 +122,7 @@
 **Acceptance tests:** regular slot visible, closure removes, extra adds, booked claims hide, 90m requires 3 free consecutive claims, invalid date/range 422, no unapproved profile leak.  
 **Commit:** `feat(schedule): expose available slots and picker`.
 
-### [ ] TASK-11 — Atomic booking create and double-book protection
+### [x] TASK-11 — Atomic booking create and double-book protection
 **Dependency:** TASK-10.  
 **Scope:** `POST /api/v1/bookings` plus DB claims; do not add idempotency policy until TASK-12.  
 **Deliverables:** booking API/service/repository, D1 `batch` transaction, Zod, tests covering races.  

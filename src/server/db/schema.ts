@@ -4,6 +4,7 @@
  */
 import { sql } from 'drizzle-orm';
 import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
+import { BOOKING_STATUSES } from '../../shared/schemas/bookings';
 import {
   index,
   integer,
@@ -18,14 +19,6 @@ export const USER_STATUSES = ['active', 'suspended'] as const;
 export const APPROVAL_STATUSES = ['draft', 'pending', 'approved', 'rejected'] as const;
 export const VISIBILITIES = ['private', 'public'] as const;
 export const EXCEPTION_KINDS = ['closed', 'extra'] as const;
-export const BOOKING_STATUSES = [
-  'PENDING',
-  'CONFIRMED',
-  'COMPLETED',
-  'REJECTED',
-  'CANCELLED',
-  'EXPIRED',
-] as const;
 export const IDEMPOTENCY_STATUSES = ['processing', 'completed'] as const;
 export const CURRENCIES = ['VND'] as const;
 
