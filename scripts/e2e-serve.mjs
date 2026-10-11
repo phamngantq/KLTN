@@ -55,10 +55,21 @@ try {
 }
 
 execSync('npx vite build', { stdio: 'inherit', env });
-const server = spawn('npx vite preview --port 4173 --strictPort', {
-  stdio: 'inherit',
-  env,
-  shell: true,
-});
+// Launch Vite as the direct child. A shell wrapper leaves a grandchild running on Windows
+// when Playwright stops the web server after the tests finish.
+const server = spawn(
+  process.execPath,
+  [
+    join(process.cwd(), 'node_modules', 'vite', 'bin', 'vite.js'),
+    'preview',
+    '--port',
+    '4173',
+    '--strictPort',
+  ],
+  {
+    stdio: 'inherit',
+    env,
+  },
+);
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.kill(signal));
 server.on('exit', (code) => process.exit(code ?? 0));

@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 import { Link, type LinkProps } from 'react-router';
 import { Spinner } from './Spinner';
 
-type Variant = 'primary' | 'secondary' | 'danger' | 'ghost';
+type Variant = 'primary' | 'accent' | 'secondary' | 'danger' | 'ghost';
 type Size = 'md' | 'sm';
 
 const BASE =
@@ -12,6 +12,7 @@ const BASE =
 
 const VARIANTS: Record<Variant, string> = {
   primary: 'bg-primary text-on-primary hover:bg-primary-hover',
+  accent: 'bg-accent text-on-accent hover:bg-accent-hover',
   secondary: 'border border-border-strong bg-bg text-fg hover:bg-surface',
   danger: 'bg-danger text-on-primary hover:opacity-90',
   ghost: 'text-primary hover:bg-info-surface',

@@ -1,7 +1,7 @@
 import { cleanup, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { safeNextPath } from '../../src/client/app/auth';
+import { homePathFor, safeNextPath } from '../../src/client/app/auth';
 import { api, ApiError, setCsrfToken } from '../../src/client/lib/api-client';
 import { anonymous, mockApi, renderRoute, sessionOf } from './helpers';
 
@@ -101,6 +101,37 @@ describe('sign-in', () => {
   });
 });
 
+describe('logout', () => {
+  it('retains the confirmed session after failure and retries successfully', async () => {
+    let logoutAttempts = 0;
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/auth/logout' && req.method === 'POST') {
+        logoutAttempts += 1;
+        return logoutAttempts === 1
+          ? { status: 503, error: { code: 'UNAVAILABLE', message: 'Máy chủ tạm gián đoạn.' } }
+          : { data: { loggedOut: true } };
+      }
+      if (req.path === '/subjects') return { data: [] };
+      return undefined;
+    });
+    const { router } = renderRoute('/account');
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Tài khoản' });
+
+    await user.click(screen.getByRole('button', { name: 'Đăng xuất' }));
+    const error = await screen.findByRole('alert');
+    expect(error.textContent).toContain('Máy chủ tạm gián đoạn.');
+    expect(router.state.location.pathname).toBe('/account');
+    expect(screen.getByRole('link', { name: 'Khu vực gia sư' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Thử lại' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/'));
+    expect(calls.filter((call) => call.path === '/auth/logout')).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: 'Khu vực gia sư' })).toBeNull();
+  });
+});
+
 describe('sign-up field errors', () => {
   it('links validation errors to their fields via aria-describedby', async () => {
     mockApi((req) => {
@@ -165,5 +196,13 @@ describe('safeNextPath', () => {
     expect(safeNextPath('//evil.example')).toBeNull();
     expect(safeNextPath('/\\evil.example')).toBeNull();
     expect(safeNextPath(null)).toBeNull();
+  });
+});
+
+describe('product home paths', () => {
+  it('lands each trusted storage role in its product area', () => {
+    expect(homePathFor('student')).toBe('/parent');
+    expect(homePathFor('tutor')).toBe('/tutor');
+    expect(homePathFor('admin')).toBe('/admin');
   });
 });

@@ -2,7 +2,7 @@
 @import './tokens.css';
 
 /*
- * Map provisional semantic tokens (tokens.css) into Tailwind utilities.
+ * Map semantic tokens (tokens.css) into Tailwind utilities.
  * `inline reference` makes utilities use var(--color-*) from tokens.css directly without
  * re-emitting (self-referencing) theme variables; tokens.css stays the single source of truth.
  * The default palette is removed to force token use.
@@ -15,7 +15,11 @@
   --color-muted: var(--color-muted);
   --color-primary: var(--color-primary);
   --color-primary-hover: var(--color-primary-hover);
+  --color-primary-gradient-end: var(--color-primary-gradient-end);
   --color-on-primary: var(--color-on-primary);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-on-accent: var(--color-on-accent);
   --color-border: var(--color-border);
   --color-border-strong: var(--color-border-strong);
   --color-danger: var(--color-danger);

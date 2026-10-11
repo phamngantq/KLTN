@@ -15,6 +15,12 @@ import {
  */
 test.describe.configure({ mode: 'serial' });
 
+// The journey creates several long-lived contexts so tutor and parent sessions can be reused.
+// Close them before the worker/browser fixtures tear down, including when a test fails.
+test.afterAll(async ({ browser }) => {
+  await Promise.all(browser.contexts().map((context) => context.close()));
+});
+
 const tutor = { name: `Gia sư E2E ${Date.now()}`, email: uniqueEmail('tutor') };
 const student = { name: 'Học viên E2E', email: uniqueEmail('student') };
 let tutorPage: Page;
@@ -23,9 +29,9 @@ let studentPage: Page;
 test('tutor signs up, completes the profile and submits it for review', async ({ browser }) => {
   tutorPage = await newPage(browser);
   await signUp(tutorPage, 'tutor', tutor.name, tutor.email);
-  await expect(tutorPage).toHaveURL(/\/tutor\/bookings$/);
+  await expect(tutorPage).toHaveURL(/\/tutor$/);
 
-  await tutorPage.getByRole('link', { name: 'Hồ sơ gia sư' }).click();
+  await tutorPage.goto('/tutor/profile');
   await tutorPage
     .getByLabel('Giới thiệu')
     .fill('Giáo viên Toán, 5 năm kinh nghiệm luyện thi THPT.');
@@ -59,7 +65,8 @@ test('unapproved tutors are not public; admin approves', async ({ browser }) => 
 
   const admin = await newPage(browser);
   await signIn(admin, E2E_ADMIN.email, E2E_ADMIN.password);
-  await expect(admin).toHaveURL(/\/admin\/tutors$/);
+  await expect(admin).toHaveURL(/\/admin$/);
+  await admin.goto('/admin/tutors');
   const card = admin.getByRole('article').filter({ hasText: tutor.email });
   await card.getByRole('button', { name: 'Duyệt & công khai' }).click();
   await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt & công khai' }).click();
@@ -72,7 +79,7 @@ test('unapproved tutors are not public; admin approves', async ({ browser }) => 
 test('student finds the tutor by subject and requests a booking', async ({ browser }) => {
   studentPage = await newPage(browser);
   await signUp(studentPage, 'student', student.name, student.email);
-  await expect(studentPage).toHaveURL(/\/student\/bookings$/);
+  await expect(studentPage).toHaveURL(/\/parent$/);
 
   await studentPage.getByRole('link', { name: 'Tìm gia sư' }).first().click();
   await studentPage.getByLabel('Môn học').selectOption({ label: 'Toán' });
@@ -90,12 +97,12 @@ test('student finds the tutor by subject and requests a booking', async ({ brows
   await dialog.getByRole('button', { name: 'Gửi yêu cầu' }).click();
   await expect(studentPage.getByText('Đã gửi yêu cầu đặt lịch')).toBeVisible();
 
-  await studentPage.getByRole('link', { name: 'Xem lịch học của tôi' }).click();
+  await studentPage.goto('/student/bookings');
   await expect(studentPage.getByText(`Gia sư: ${tutor.name}`)).toBeVisible();
 });
 
 test('tutor confirms the request', async () => {
-  await tutorPage.getByRole('link', { name: 'Yêu cầu đặt lịch' }).click();
+  await tutorPage.goto('/tutor/bookings');
   await expect(tutorPage.getByText(`Học viên: ${student.name}`)).toBeVisible();
   await tutorPage.getByRole('button', { name: 'Xác nhận' }).click();
   await expect(tutorPage.getByText(/Xác nhận: thành công/)).toBeVisible();
@@ -143,6 +150,26 @@ test('mobile viewport (375px): key pages fit without horizontal scrolling', asyn
   await expectNoHorizontalOverflow(mobile);
 });
 
+test('new public routes fit a narrow phone and show honest unavailable states', async ({
+  browser,
+}) => {
+  const phone = await newPage(browser, { width: 320, height: 900 });
+  for (const path of ['/', '/gioi-thieu', '/dich-vu', '/bang-gia', '/lop-hoc', '/lien-he']) {
+    await phone.goto(path);
+    await expect(phone.getByRole('heading', { level: 1 })).toBeVisible();
+    await expectNoHorizontalOverflow(phone);
+  }
+  await phone.goto('/lop-hoc');
+  await expect(phone.getByText('Chưa có danh sách lớp để đăng ký trực tuyến.')).toBeVisible();
+  await phone.getByRole('button', { name: 'Mở menu' }).click();
+  await expect(phone.getByRole('navigation', { name: 'Điều hướng di động' })).toBeVisible();
+  await phone
+    .getByRole('navigation', { name: 'Điều hướng di động' })
+    .getByRole('link', { name: 'Trang chủ' })
+    .click();
+  await expect(phone).toHaveURL(/\/$/);
+});
+
 test('keyboard users can skip to content and reach the search', async ({ browser }) => {
   const page = await newPage(browser);
   await page.goto('/');
@@ -151,4 +178,76 @@ test('keyboard users can skip to content and reach the search', async ({ browser
   await expect(skip).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page).toHaveURL(/#main$/);
+});
+
+test('parent, tutor and moderator shells fit 320/768/1280 and support keyboard navigation', async ({
+  browser,
+}) => {
+  const areas = [
+    {
+      path: '/parent',
+      role: 'student',
+      productRole: 'parent',
+      heading: 'Yêu cầu tìm gia sư',
+      nav: 'Điều hướng Phụ huynh',
+      target: 'Hồ sơ',
+      targetPath: '/parent/profile',
+    },
+    {
+      path: '/tutor/new-classes',
+      role: 'tutor',
+      productRole: 'tutor',
+      heading: 'Lớp mới',
+      nav: 'Điều hướng Gia sư',
+      target: 'Lớp phù hợp',
+      targetPath: '/tutor/matched-classes',
+    },
+    {
+      path: '/admin/requests',
+      role: 'admin',
+      productRole: 'moderator',
+      heading: 'Quản lý yêu cầu',
+      nav: 'Điều hướng Kiểm duyệt viên',
+      target: 'Lớp học',
+      targetPath: '/admin/classes',
+    },
+  ] as const;
+
+  for (const width of [320, 768, 1280]) {
+    for (const area of areas) {
+      const page = await newPage(browser, { width, height: 900 });
+      await page.route('**/api/v1/me', async (route) => {
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              user: {
+                id: 'viewport-user',
+                email: 'viewport@example.com',
+                displayName: 'Nguyễn An',
+                role: area.role,
+                productRole: area.productRole,
+              },
+              csrfToken: 'viewport-csrf',
+            },
+            meta: { requestId: 'req_viewport' },
+          }),
+        });
+      });
+      await page.goto(area.path);
+      await expect(page.getByRole('heading', { name: area.heading })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: area.nav })).toBeVisible();
+      await expectNoHorizontalOverflow(page);
+      const link = page.getByRole('navigation', { name: area.nav }).getByRole('link', {
+        name: area.target,
+      });
+      await link.focus();
+      await expect(link).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(page).toHaveURL(new RegExp(`${area.targetPath}$`));
+      await expectNoHorizontalOverflow(page);
+      await page.context().close();
+    }
+  }
 });

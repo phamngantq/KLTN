@@ -10,15 +10,15 @@ import { api, isApiError, setCsrfToken } from '../lib/api-client';
 
 export const ME_KEY = ['me'] as const;
 
-/** Where each role lands after signing in (only routes that exist are listed). */
+/** Product home for each trusted storage role after signing in. */
 export function homePathFor(role: UserRole): string {
   switch (role) {
     case 'student':
-      return '/student/bookings';
+      return '/parent';
     case 'tutor':
-      return '/tutor/bookings';
+      return '/tutor';
     case 'admin':
-      return '/admin/tutors';
+      return '/admin';
   }
 }
 
@@ -86,8 +86,8 @@ export function useLogout() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () => api.post<{ loggedOut: true }>('/auth/logout'),
-    onSettled: () => {
-      // Whatever the outcome, drop cached user data; the server is the source of truth.
+    onSuccess: () => {
+      // Keep the confirmed session if the Worker rejects the logout request.
       setCsrfToken(null);
       queryClient.clear();
       queryClient.setQueryData(ME_KEY, null);

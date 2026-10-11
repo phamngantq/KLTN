@@ -1,19 +1,20 @@
 /*
- * Design tokens — PROVISIONAL (DEC-001).
- * NOT extracted from Figma (Figma inaccessible, see FIGMA_GAP_LOG.md FIG-001/FIG-003).
- * Values = development placeholders from DESIGN_RULES.md §C. Replace after a real audit;
- * components must only consume these semantic tokens, never raw colours.
- * Contrast on --color-bg (#fff): fg 17.85:1, muted 4.76:1, primary 5.17:1, danger 6.47:1, success 5.02:1,
- * warning 4.92:1, border-strong 4.76:1; white on primary 5.17:1 (all measured, WCAG formula).
+ * Brand colors observed in the user-provided Figma Make code export (DEC-007).
+ * Remaining semantic values are PROVISIONAL until rendered visual QA (FIG-003).
+ * Components consume these tokens rather than copying JSX color literals.
  */
 :root {
   --color-bg: #ffffff;
   --color-surface: #f8fafc;
   --color-fg: #0f172a;
   --color-muted: #64748b;
-  --color-primary: #2563eb;
-  --color-primary-hover: #1d4ed8;
+  --color-primary: #0e2f5f;
+  --color-primary-hover: #1a4d8f;
+  --color-primary-gradient-end: #1a4d8f;
   --color-on-primary: #ffffff;
+  --color-accent: #ffda68;
+  --color-accent-hover: #f2ca4d;
+  --color-on-accent: #0e2f5f;
   --color-border: #e2e8f0;
   --color-border-strong: #64748b; /* control borders need >= 3:1 (WCAG 1.4.11) */
   --color-danger: #b91c1c;
@@ -22,7 +23,7 @@
   --color-success-surface: #f0fdf4;
   --color-warning: #a16207;
   --color-warning-surface: #fefce8;
-  --color-info-surface: #eff6ff;
+  --color-info-surface: #edf3fb;
   --color-focus: #2563eb;
 
   --radius-sm: 6px;

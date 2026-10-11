@@ -222,7 +222,7 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 
 **Commit:** `docs(domain): define figma product migration contract`.
 
-### [ ] TASK-21 — Build target navigation and design foundation
+### [x] TASK-21 — Build target navigation and design foundation
 **Dependency:** TASK-20.
 
 **Scope:** Tích hợp brand values có bằng chứng, shared public/parent/tutor/admin shells, route table và guards vào React app hiện tại.

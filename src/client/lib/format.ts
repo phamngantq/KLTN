@@ -43,7 +43,12 @@ export const WEEKDAY_LABELS: Record<number, string> = {
   7: 'Chủ nhật',
 };
 
-export const ROLE_LABELS = { student: 'Học viên', tutor: 'Gia sư', admin: 'Quản trị' } as const;
+/** Display names for the trusted storage roles, following DEC-009 product mapping. */
+export const ROLE_LABELS = {
+  student: 'Phụ huynh',
+  tutor: 'Gia sư',
+  admin: 'Kiểm duyệt viên',
+} as const;
 
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
