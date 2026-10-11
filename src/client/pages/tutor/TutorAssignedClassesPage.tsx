@@ -1,4 +1,5 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BookOpen, Clock3, MapPin, Phone, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type {
@@ -9,7 +10,7 @@ import type {
 import type { Page } from '../../../shared/schemas/discovery';
 import { useSession } from '../../app/auth';
 import { Button } from '../../components/ui/Button';
-import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { api, toQuery } from '../../lib/api-client';
 
@@ -59,11 +60,14 @@ export function TutorAssignedClassesPage() {
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-5">
-      <PageHeader
-        title="Lớp của tôi"
-        description="Các lớp kiểm duyệt viên đã gán cho bạn. Thông tin liên hệ chỉ hiển thị khi bạn mở chi tiết lớp được giao."
-      />
+    <section className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-6">
+      <header>
+        <h1 className="text-3xl font-semibold text-primary">Lớp của tôi</h1>
+        <p className="mt-2 text-muted">
+          Các lớp kiểm duyệt viên đã gán cho bạn. Thông tin liên hệ chỉ hiển thị khi bạn mở chi tiết
+          lớp được giao.
+        </p>
+      </header>
       {assignments.isPending ? (
         <PageLoading label="Đang tải lớp được giao…" />
       ) : assignments.isError ? (
@@ -85,23 +89,43 @@ export function TutorAssignedClassesPage() {
         />
       ) : (
         <>
-          <p className="text-sm text-muted" role="status">
-            {assignments.data.total} lớp · Trang {assignments.data.page}
-          </p>
+          <div
+            className="flex items-center gap-4 rounded-xl border border-border bg-bg p-5 shadow-card"
+            role="status"
+          >
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-green-600 text-white">
+              <BookOpen className="size-6" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-2xl font-semibold text-primary">{assignments.data.total}</p>
+              <p className="text-sm text-muted">Lớp đang dạy · Trang {assignments.data.page}</p>
+            </div>
+          </div>
           <ul className="grid gap-4">
             {assignments.data.items.map((item) => (
-              <li key={item.id} className="rounded-lg border border-border bg-bg p-4 shadow-card">
-                <article className="flex flex-col gap-3">
+              <li
+                key={item.id}
+                className="rounded-xl border border-l-4 border-border border-l-accent bg-bg p-5 shadow-card"
+              >
+                <article className="flex flex-col gap-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="font-semibold text-primary">
-                      {item.classCode} · {item.subjectName} · {item.grade}
-                    </h2>
+                    <div>
+                      <h2 className="text-xl font-semibold text-primary">
+                        {item.subjectName} · {item.grade}
+                      </h2>
+                      <p className="mt-1 text-sm text-muted">Mã lớp: {item.classCode}</p>
+                    </div>
                     <Badge tone="success">Đang hoạt động</Badge>
                   </div>
-                  <p className="text-sm text-muted">
-                    {item.mode === 'online' ? 'Trực tuyến' : `Trực tiếp · ${item.publicArea ?? ''}`}
-                  </p>
-                  <div>
+                  <div className="flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-4 text-sm text-muted">
+                    <span className="inline-flex items-center gap-2">
+                      <MapPin className="size-4 shrink-0 text-primary" aria-hidden="true" />
+                      {item.mode === 'online'
+                        ? 'Trực tuyến'
+                        : `Trực tiếp · ${item.publicArea ?? ''}`}
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
                     <Button
                       variant="secondary"
                       onClick={() => {
@@ -146,49 +170,63 @@ export function TutorAssignedClassesPage() {
       )}
       {selectedId && (
         <section
-          className="rounded-lg border border-border bg-surface p-4"
+          className="overflow-hidden rounded-xl border border-border bg-bg shadow-card"
           aria-label="Liên hệ phụ huynh"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Liên hệ phụ huynh</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 bg-primary px-5 py-4 text-white">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <UserRound className="size-5" aria-hidden="true" />
+              Liên hệ phụ huynh
+            </h2>
             <Button variant="secondary" onClick={closeContact}>
               Đóng
             </Button>
           </div>
-          {contact.isPending ? (
-            <PageLoading label="Đang kiểm tra quyền xem liên hệ…" />
-          ) : contact.isError ? (
-            <Alert
-              tone="danger"
-              action={
-                <Button variant="secondary" onClick={() => void contact.refetch()}>
-                  Thử lại
-                </Button>
-              }
-            >
-              {contact.error.message}
-            </Alert>
-          ) : (
-            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-[9rem_1fr]">
-              <dt className="font-medium text-muted">Phụ huynh</dt>
-              <dd>{contact.data.parentDisplayName}</dd>
-              <dt className="font-medium text-muted">Điện thoại</dt>
-              <dd>
-                <a className="text-primary underline" href={`tel:${contact.data.phone}`}>
-                  {contact.data.phone}
-                </a>
-              </dd>
-              <dt className="font-medium text-muted">Địa chỉ</dt>
-              <dd>{contact.data.address ?? 'Phụ huynh chưa cung cấp'}</dd>
-            </dl>
-          )}
+          <div className="p-5">
+            {contact.isPending ? (
+              <PageLoading label="Đang kiểm tra quyền xem liên hệ…" />
+            ) : contact.isError ? (
+              <Alert
+                tone="danger"
+                action={
+                  <Button variant="secondary" onClick={() => void contact.refetch()}>
+                    Thử lại
+                  </Button>
+                }
+              >
+                {contact.error.message}
+              </Alert>
+            ) : (
+              <dl className="grid gap-3 text-sm sm:grid-cols-[9rem_1fr]">
+                <dt className="font-medium text-muted">Phụ huynh</dt>
+                <dd>{contact.data.parentDisplayName}</dd>
+                <dt className="flex items-center gap-2 font-medium text-muted">
+                  <Phone className="size-4" aria-hidden="true" />
+                  Điện thoại
+                </dt>
+                <dd>
+                  <a className="text-primary underline" href={`tel:${contact.data.phone}`}>
+                    {contact.data.phone}
+                  </a>
+                </dd>
+                <dt className="flex items-center gap-2 font-medium text-muted">
+                  <MapPin className="size-4" aria-hidden="true" />
+                  Địa chỉ
+                </dt>
+                <dd>{contact.data.address ?? 'Phụ huynh chưa cung cấp'}</dd>
+              </dl>
+            )}
+          </div>
         </section>
       )}
       <section
-        className="rounded-lg border border-border bg-surface p-4"
+        className="rounded-xl border border-border bg-bg p-5 shadow-card"
         aria-label="Lịch sử lớp được giao"
       >
-        <h2 className="text-lg font-semibold text-primary">Lịch sử lớp đã kết thúc hoặc rút gán</h2>
+        <h2 className="flex items-center gap-2 text-xl font-semibold text-primary">
+          <Clock3 className="size-5" aria-hidden="true" />
+          Lịch sử lớp đã kết thúc hoặc rút gán
+        </h2>
         {history.isPending ? (
           <PageLoading label="Đang tải lịch sử lớp…" />
         ) : history.isError ? (
@@ -210,7 +248,7 @@ export function TutorAssignedClassesPage() {
               {history.data.items.map((item) => (
                 <li
                   key={item.assignmentId}
-                  className="rounded border border-border bg-bg p-3 text-sm"
+                  className="rounded-lg border border-border bg-surface p-4 text-sm"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <strong>

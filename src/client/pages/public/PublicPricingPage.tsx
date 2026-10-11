@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { BadgeCheck, CheckCircle2, CircleHelp, GraduationCap, Info, Wallet } from 'lucide-react';
 import type { FeeOptionKey, FeeOptionVersion } from '../../../shared/schemas/classes';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
@@ -37,31 +38,47 @@ export function PublicPricingPage() {
 
   return (
     <>
-      <header className="bg-gradient-to-br from-primary to-primary-gradient-end px-4 py-12 text-on-primary md:py-16">
-        <div className="mx-auto max-w-[var(--container-max)]">
-          <p className="text-sm font-semibold tracking-wide text-accent">BẢNG GIÁ</p>
-          <h1 className="mt-3 text-3xl font-bold md:text-4xl">Phí dịch vụ</h1>
-          <p className="mt-4 max-w-2xl text-lg text-on-primary/90">
-            Phụ huynh gửi yêu cầu tìm gia sư miễn phí. Gia sư chọn phương án phí đã công bố khi ứng
-            tuyển lớp.
+      <header className="bg-gradient-to-br from-primary to-primary-gradient-end px-4 py-16 text-center text-on-primary">
+        <div className="mx-auto max-w-4xl">
+          <Wallet aria-hidden="true" className="mx-auto mb-6 size-16 text-accent" />
+          <h1 className="text-4xl font-bold md:text-5xl">Bảng Giá Gia Sư</h1>
+          <p className="mt-6 text-xl text-on-primary/90">
+            Phụ huynh tìm gia sư miễn phí. Phương án phí nhận lớp dành cho gia sư được công bố theo
+            từng phiên bản.
           </p>
         </div>
       </header>
-      <div className="mx-auto max-w-[var(--container-max)] space-y-10 px-4 py-10">
+      <div className="mx-auto max-w-[var(--container-max)] space-y-16 px-4 py-16">
+        <div className="text-center">
+          <h2 className="text-3xl font-bold text-primary">Phí dịch vụ</h2>
+          <p className="mt-3 text-lg text-muted">
+            Xem chính sách dành cho phụ huynh và phương án đã công bố cho gia sư.
+          </p>
+        </div>
         <section
           aria-labelledby="parent-fee-heading"
-          className="rounded-xl border border-border bg-surface p-6 shadow-card"
+          className="mx-auto max-w-4xl rounded-xl border-2 border-accent bg-gradient-to-br from-warning-surface to-bg p-6 shadow-card md:p-8"
         >
-          <Badge tone="success">Phụ huynh</Badge>
-          <h2 id="parent-fee-heading" className="mt-3 text-2xl font-semibold">
-            Miễn phí dịch vụ tìm gia sư
-          </h2>
-          <p className="mt-2 text-muted">
-            Học phí của lớp được thỏa thuận theo yêu cầu và gia sư được gán.
-          </p>
-          <ButtonLink to="/parent/request" className="mt-5">
-            Gửi yêu cầu
-          </ButtonLink>
+          <div className="flex flex-col items-start gap-5 sm:flex-row">
+            <span
+              aria-hidden="true"
+              className="flex size-16 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent"
+            >
+              <BadgeCheck className="size-8" />
+            </span>
+            <div>
+              <Badge tone="success">Phụ huynh</Badge>
+              <h2 id="parent-fee-heading" className="mt-3 text-2xl font-semibold text-primary">
+                Miễn phí dịch vụ tìm gia sư
+              </h2>
+              <p className="mt-2 text-muted">
+                Học phí của lớp được thỏa thuận theo yêu cầu và gia sư được gán.
+              </p>
+              <ButtonLink to="/parent/request" className="mt-5">
+                Gửi yêu cầu
+              </ButtonLink>
+            </div>
+          </div>
         </section>
 
         {editorial.isPending ? (
@@ -69,9 +86,13 @@ export function PublicPricingPage() {
         ) : editorial.isSuccess ? (
           <section
             aria-labelledby="pricing-copy-heading"
-            className="rounded-xl border border-border bg-surface p-6"
+            className="mx-auto max-w-4xl rounded-xl border-2 border-accent bg-warning-surface p-6 shadow-card"
           >
-            <h2 id="pricing-copy-heading" className="text-2xl font-semibold">
+            <h2
+              id="pricing-copy-heading"
+              className="flex items-center gap-3 text-2xl font-semibold text-primary"
+            >
+              <Info aria-hidden="true" className="size-7 shrink-0" />
               {editorial.data.title}
             </h2>
             {editorial.data.summary && <p className="mt-2 text-muted">{editorial.data.summary}</p>}
@@ -93,12 +114,13 @@ export function PublicPricingPage() {
           </Alert>
         ) : null}
 
-        <section aria-labelledby="tutor-fee-heading" className="space-y-4">
-          <div>
-            <h2 id="tutor-fee-heading" className="text-2xl font-semibold">
+        <section aria-labelledby="tutor-fee-heading" className="space-y-8">
+          <div className="text-center">
+            <GraduationCap aria-hidden="true" className="mx-auto mb-3 size-10 text-primary" />
+            <h2 id="tutor-fee-heading" className="text-3xl font-bold text-primary">
               Phương án phí dành cho gia sư
             </h2>
-            <p className="mt-2 text-muted">
+            <p className="mx-auto mt-3 max-w-2xl text-lg text-muted">
               Kiểm duyệt viên công bố mức phí và thời điểm áp dụng cho từng phương án. Phí nhận lớp
               chỉ được lựa chọn trong quy trình ứng tuyển.
             </p>
@@ -127,45 +149,54 @@ export function PublicPricingPage() {
               description="Kiểm duyệt viên chưa công bố mức phí áp dụng. Hệ thống chưa nhận ứng tuyển lớp khi không có phương án phù hợp."
             />
           ) : (
-            <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <ul className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
               {fees.data.map((option) => (
                 <li
                   key={option.id}
-                  className="rounded-xl border border-border bg-surface p-5 shadow-card"
+                  className="overflow-hidden rounded-xl border-2 border-primary/20 bg-bg shadow-card"
                 >
-                  <p className="text-sm font-semibold text-primary">
-                    {OPTION_LABELS[option.optionKey]}
-                  </p>
-                  <h3 className="mt-2 text-xl font-bold">{option.title}</h3>
-                  <p className="mt-3 text-lg font-semibold">{rateText(option)}</p>
-                  <p className="mt-3 whitespace-pre-line text-sm text-muted">{option.policyText}</p>
-                  <dl className="mt-4 space-y-1 border-t border-border pt-3 text-sm">
-                    {option.scopeSubjectId && (
+                  <div className="bg-gradient-to-r from-primary to-primary-gradient-end px-5 py-4 text-on-primary">
+                    <p className="text-sm font-semibold text-accent">
+                      {OPTION_LABELS[option.optionKey]}
+                    </p>
+                    <h3 className="mt-2 text-xl font-bold">{option.title}</h3>
+                  </div>
+                  <div className="p-5">
+                    <p className="text-lg font-semibold text-primary">{rateText(option)}</p>
+                    <p className="mt-3 whitespace-pre-line text-sm text-muted">
+                      {option.policyText}
+                    </p>
+                    <dl className="mt-4 space-y-1 border-t border-border pt-3 text-sm">
+                      {option.scopeSubjectId && (
+                        <div className="flex gap-2">
+                          <dt className="font-medium">Môn:</dt>
+                          <dd>{subjectName.get(option.scopeSubjectId) ?? 'Môn được chỉ định'}</dd>
+                        </div>
+                      )}
+                      {option.scopeMode && (
+                        <div className="flex gap-2">
+                          <dt className="font-medium">Hình thức:</dt>
+                          <dd>{option.scopeMode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}</dd>
+                        </div>
+                      )}
                       <div className="flex gap-2">
-                        <dt className="font-medium">Môn:</dt>
-                        <dd>{subjectName.get(option.scopeSubjectId) ?? 'Môn được chỉ định'}</dd>
+                        <dt className="font-medium">Phiên bản:</dt>
+                        <dd>{option.version}</dd>
                       </div>
-                    )}
-                    {option.scopeMode && (
-                      <div className="flex gap-2">
-                        <dt className="font-medium">Hình thức:</dt>
-                        <dd>{option.scopeMode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}</dd>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <dt className="font-medium">Phiên bản:</dt>
-                      <dd>{option.version}</dd>
-                    </div>
-                  </dl>
+                    </dl>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </section>
-        <section aria-labelledby="pricing-faq-heading" className="space-y-4">
-          <h2 id="pricing-faq-heading" className="text-2xl font-semibold">
-            Câu Hỏi Thường Gặp
-          </h2>
+        <section aria-labelledby="pricing-faq-heading" className="space-y-8 bg-surface px-4 py-12">
+          <div className="text-center">
+            <CircleHelp aria-hidden="true" className="mx-auto mb-3 size-10 text-primary" />
+            <h2 id="pricing-faq-heading" className="text-3xl font-bold text-primary">
+              Câu Hỏi Thường Gặp
+            </h2>
+          </div>
           {faq.isPending ? (
             <Skeleton className="h-24" />
           ) : faq.isError ? (
@@ -181,9 +212,12 @@ export function PublicPricingPage() {
               {faq.error.message}
             </Alert>
           ) : faq.data.items.length ? (
-            <div className="space-y-3">
+            <div className="mx-auto max-w-3xl space-y-4">
               {faq.data.items.map((item) => (
-                <details key={item.id} className="rounded-xl border border-border bg-surface p-4">
+                <details
+                  key={item.id}
+                  className="rounded-xl border border-primary/20 bg-bg p-5 shadow-card"
+                >
                   <summary className="min-h-11 cursor-pointer font-semibold text-primary focus-visible:outline-2 focus-visible:outline-focus">
                     {item.title}
                   </summary>
@@ -198,6 +232,26 @@ export function PublicPricingPage() {
           )}
         </section>
       </div>
+      <section className="bg-gradient-to-br from-primary to-primary-gradient-end px-4 py-16 text-center text-on-primary">
+        <div className="mx-auto max-w-3xl">
+          <h2 className="text-3xl font-bold">Bạn Cần Tư Vấn Thêm?</h2>
+          <p className="mt-4 text-xl text-on-primary/90">
+            Xem các thông tin đã công bố hoặc liên hệ để trao đổi về nhu cầu học tập.
+          </p>
+          <div className="mt-8 flex flex-wrap justify-center gap-4">
+            <ButtonLink to="/parent/request" variant="accent" className="px-8 text-lg">
+              <CheckCircle2 aria-hidden="true" className="size-5" />
+              Đăng ký tìm gia sư
+            </ButtonLink>
+            <ButtonLink
+              to="/lien-he"
+              className="border border-white/30 bg-primary px-8 text-lg hover:bg-primary-hover"
+            >
+              Liên hệ tư vấn
+            </ButtonLink>
+          </div>
+        </div>
+      </section>
     </>
   );
 }

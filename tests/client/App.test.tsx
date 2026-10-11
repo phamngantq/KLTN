@@ -17,7 +17,7 @@ describe('routing and guards', () => {
     );
     renderRoute('/');
     expect(await screen.findByRole('heading', { level: 1 })).toBeTruthy();
-    expect(await screen.findByRole('link', { name: 'Tạo tài khoản' })).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'Đăng ký' })).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Bỏ qua tới nội dung chính' })).toBeTruthy();
   });
 
@@ -153,6 +153,7 @@ describe('sign-up field errors', () => {
     await user.type(await screen.findByLabelText(/Họ và tên/), 'An');
     await user.type(screen.getByLabelText(/Email/), 'a@example.com');
     await user.type(screen.getByLabelText(/Mật khẩu/), 'short');
+    await user.type(screen.getByLabelText(/Xác nhận mật khẩu/), 'short');
     await user.click(screen.getByRole('button', { name: 'Tạo tài khoản' }));
     const message = await screen.findByText('Mật khẩu tối thiểu 8 ký tự.');
     const input = screen.getByLabelText(/Mật khẩu/);

@@ -1,16 +1,27 @@
+import {
+  CalendarDays,
+  Clock3,
+  Eye,
+  FileText,
+  GraduationCap,
+  MapPin,
+  Search,
+  Wallet,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { isReadOnlyPreview } from '../../app/preview';
+import { classScheduleText } from '../../components/domain/ClassCard';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
   useTutorApplications,
   useWithdrawApplication,
   type TutorClassApplication,
 } from '../../features/classes/api';
-import { formatDate } from '../../lib/format';
+import { formatDate, formatVnd } from '../../lib/format';
 
 const STATUS_LABELS: Record<string, string> = {
   pending: 'Chờ xét duyệt',
@@ -59,11 +70,51 @@ export function TutorApplicationsPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader
-        title="Đơn ứng tuyển lớp"
-        description="Theo dõi trạng thái đơn được lưu trên hệ thống."
-        actions={<ButtonLink to="/tutor/new-classes">Tìm lớp mới</ButtonLink>}
-      />
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Yêu cầu nhận lớp</h1>
+          <p className="mt-2 text-muted">Theo dõi trạng thái đơn ứng tuyển đã gửi trên hệ thống.</p>
+        </div>
+        <ButtonLink to="/tutor/new-classes" variant="accent">
+          <Search aria-hidden="true" size={18} />
+          Tìm lớp mới
+        </ButtonLink>
+      </header>
+      <nav
+        aria-label="Khu vực nhận lớp"
+        className="rounded-xl border border-primary/20 bg-bg p-2 shadow-card"
+      >
+        <ul className="grid gap-2 sm:grid-cols-3">
+          <li>
+            <Link
+              to="/tutor/class-requests"
+              aria-current="page"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent px-3 text-sm font-semibold text-on-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              <FileText aria-hidden="true" size={18} />
+              Đơn của tôi
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/tutor/classes"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              <GraduationCap aria-hidden="true" size={18} />
+              Lớp đã nhận
+            </Link>
+          </li>
+          <li>
+            <Link
+              to="/tutor/class-history"
+              className="flex min-h-11 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            >
+              <CalendarDays aria-hidden="true" size={18} />
+              Lịch sử lớp
+            </Link>
+          </li>
+        </ul>
+      </nav>
       {applications.isPending ? (
         <PageLoading label="Đang tải đơn ứng tuyển…" />
       ) : applications.isError ? (
@@ -86,19 +137,22 @@ export function TutorApplicationsPage() {
         />
       ) : (
         <>
-          <p className="text-sm text-muted">
-            {applications.data.total} đơn · Trang {applications.data.page}
+          <p className="text-sm text-muted" role="status">
+            Tìm thấy{' '}
+            <strong className="text-primary">
+              {applications.data.total.toLocaleString('vi-VN')}
+            </strong>{' '}
+            đơn · Trang {applications.data.page}
           </p>
-          <ul className="grid gap-4">
+          <ul className="grid gap-4 lg:grid-cols-2">
             {applications.data.items.map((application) => (
-              <li
-                key={application.id}
-                className="rounded-xl border border-border bg-bg p-5 shadow-card"
-              >
-                <article className="flex flex-col gap-3">
+              <li key={application.id} className="min-w-0">
+                <article className="flex h-full flex-col gap-4 rounded-xl border border-primary/20 border-l-4 border-l-accent bg-bg p-5 shadow-card transition-shadow hover:shadow-lg">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-xs text-muted">{application.class.code}</p>
+                      <p className="text-xs font-semibold text-muted">
+                        Lớp {application.class.code}
+                      </p>
                       <h2 className="text-lg font-semibold text-primary">
                         {application.class.subjectName} · {application.class.grade}
                       </h2>
@@ -115,18 +169,67 @@ export function TutorApplicationsPage() {
                       {applicationStatus(application.status)}
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted">
-                    {application.class.mode === 'online'
-                      ? 'Trực tuyến'
-                      : application.class.publicArea || 'Trực tiếp'}
-                    {' · '}Gửi ngày {formatDate(application.createdAt, 'Asia/Ho_Chi_Minh')}
-                  </p>
-                  <div className="flex flex-wrap items-center gap-3 border-t border-border pt-3">
+                  <dl className="grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="flex items-start gap-2">
+                      <MapPin
+                        aria-hidden="true"
+                        size={18}
+                        className="mt-0.5 shrink-0 text-warning"
+                      />
+                      <div>
+                        <dt className="sr-only">Khu vực</dt>
+                        <dd>
+                          {application.class.mode === 'online'
+                            ? 'Trực tuyến'
+                            : application.class.publicArea || 'Trực tiếp'}
+                        </dd>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <CalendarDays
+                        aria-hidden="true"
+                        size={18}
+                        className="mt-0.5 shrink-0 text-warning"
+                      />
+                      <div>
+                        <dt className="sr-only">Ngày gửi</dt>
+                        <dd>Gửi ngày {formatDate(application.createdAt, 'Asia/Ho_Chi_Minh')}</dd>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 sm:col-span-2">
+                      <Clock3
+                        aria-hidden="true"
+                        size={18}
+                        className="mt-0.5 shrink-0 text-warning"
+                      />
+                      <div>
+                        <dt className="sr-only">Lịch mong muốn</dt>
+                        <dd>{classScheduleText(application.class)}</dd>
+                      </div>
+                    </div>
+                    {application.class.expectedBudgetMinor !== null && (
+                      <div className="flex items-start gap-2 sm:col-span-2">
+                        <Wallet
+                          aria-hidden="true"
+                          size={18}
+                          className="mt-0.5 shrink-0 text-warning"
+                        />
+                        <div>
+                          <dt className="text-xs text-muted">Học phí dự kiến</dt>
+                          <dd className="font-semibold text-primary">
+                            {formatVnd(application.class.expectedBudgetMinor)}
+                          </dd>
+                        </div>
+                      </div>
+                    )}
+                  </dl>
+                  <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border pt-4">
                     {application.class.status === 'open' && (
                       <Link
                         to={`/tutor/new-classes/${encodeURIComponent(application.classId)}`}
-                        className="inline-flex min-h-11 items-center font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-md border border-primary px-3 font-medium text-primary transition-colors hover:bg-primary hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                       >
+                        <Eye aria-hidden="true" size={16} />
                         Xem lớp
                       </Link>
                     )}

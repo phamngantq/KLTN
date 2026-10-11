@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { DollarSign, Plus } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import {
   FEE_OPTION_KEYS,
@@ -10,7 +11,7 @@ import {
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useSubjects } from '../../features/tutor-profile/api';
@@ -120,10 +121,12 @@ export function AdminPricingPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader
-        title="Bảng giá & phí nhận lớp"
-        description="Cấu hình và công bố ba lựa chọn phí nhận lớp cho gia sư. Phụ huynh không trả phí dịch vụ."
-      />
+      <header>
+        <h1 className="text-3xl font-semibold text-primary">Bảng giá &amp; Phí nhận lớp</h1>
+        <p className="mt-2 text-muted">
+          Quản lý ba lựa chọn phí nhận lớp cho gia sư. Phụ huynh không trả phí dịch vụ.
+        </p>
+      </header>
       <Alert tone="info">
         Để gia sư ứng tuyển một lớp, cả ba công thức cần có phiên bản đã công bố và còn hiệu lực cho
         môn học, hình thức của lớp đó.
@@ -136,13 +139,20 @@ export function AdminPricingPage() {
       )}
       {notice && <Alert tone="success">{notice}</Alert>}
       <section
-        className="rounded-lg border border-border bg-bg p-4 shadow-card"
+        className="overflow-hidden rounded-xl border border-border bg-bg shadow-card"
         aria-labelledby="fee-form-title"
       >
-        <h2 id="fee-form-title" className="mb-4 text-lg font-semibold">
-          Tạo phiên bản phương án phí
-        </h2>
-        <form className="grid gap-4 md:grid-cols-2" onSubmit={submit}>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-4 py-4 sm:px-6">
+          <h2
+            id="fee-form-title"
+            className="flex items-center gap-2 text-lg font-semibold text-primary"
+          >
+            <DollarSign aria-hidden="true" className="size-5" />
+            Phí nhận lớp cho gia sư
+          </h2>
+          <Badge tone="info">Ba công thức lựa chọn</Badge>
+        </div>
+        <form className="grid gap-4 p-4 sm:p-6 md:grid-cols-2" onSubmit={submit}>
           <SelectField
             label="Công thức"
             value={form.optionKey}
@@ -250,79 +260,93 @@ export function AdminPricingPage() {
             {create.isError && <Alert tone="danger">{create.error.message}</Alert>}
             <Button
               type="submit"
+              variant="accent"
               loading={create.isPending}
               disabled={isReadOnlyPreview()}
-              className="mt-3"
+              className="mt-3 rounded-xl"
             >
+              <Plus aria-hidden="true" className="size-4" />
               Lưu bản nháp
             </Button>
           </div>
         </form>
       </section>
-      <section aria-labelledby="fee-list-title" className="flex flex-col gap-4">
-        <h2 id="fee-list-title" className="text-lg font-semibold">
-          Các phiên bản phí
-        </h2>
-        {options.isPending ? (
-          <PageLoading label="Đang tải phương án phí…" />
-        ) : options.isError ? (
-          <Alert
-            tone="danger"
-            action={
-              <Button variant="secondary" onClick={() => void options.refetch()}>
-                Thử lại
-              </Button>
-            }
-          >
-            {options.error.message}
-          </Alert>
-        ) : options.data.length === 0 ? (
-          <EmptyState
-            title="Chưa có phương án phí"
-            description="Kiểm duyệt viên cần lưu và xuất bản mức phí cho từng công thức trước khi gia sư ứng tuyển lớp."
-          />
-        ) : (
-          <ul className="grid gap-4">
-            {options.data.map((option) => (
-              <li key={option.id} className="rounded-lg border border-border bg-bg p-4 shadow-card">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h3 className="font-semibold text-primary">
-                    {option.title} · v{option.version}
-                  </h3>
-                  <Badge tone={option.status === 'published' ? 'success' : 'neutral'}>
-                    {option.status === 'published' ? 'Đã công bố' : 'Bản nháp'}
-                  </Badge>
-                </div>
-                <p className="mt-2 text-sm font-medium">{displayRate(option)}</p>
-                <p className="mt-2 whitespace-pre-line text-sm">{option.policyText}</p>
-                <p className="mt-2 text-xs text-muted">
-                  {option.scopeSubjectId
-                    ? `Môn ${subjects.data?.find((subject) => subject.id === option.scopeSubjectId)?.name ?? option.scopeSubjectId}`
-                    : 'Tất cả môn'}{' '}
-                  ·{' '}
-                  {option.scopeMode === 'online'
-                    ? 'Trực tuyến'
-                    : option.scopeMode === 'offline'
-                      ? 'Trực tiếp'
-                      : 'Mọi hình thức'}
-                </p>
-                {option.status === 'draft' && (
-                  <Button
-                    className="mt-3"
-                    disabled={isReadOnlyPreview()}
-                    onClick={() => {
-                      publish.reset();
-                      setNotice('');
-                      setSelected(option);
-                    }}
-                  >
-                    Công bố phương án
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
+      <section
+        aria-labelledby="fee-list-title"
+        className="overflow-hidden rounded-xl border border-border bg-bg shadow-card"
+      >
+        <div className="flex items-center gap-2 border-b border-border bg-surface px-4 py-4 sm:px-6">
+          <DollarSign aria-hidden="true" className="size-5 text-primary" />
+          <h2 id="fee-list-title" className="text-lg font-semibold text-primary">
+            Các phiên bản phí nhận lớp
+          </h2>
+        </div>
+        <div className="p-4 sm:p-6">
+          {options.isPending ? (
+            <PageLoading label="Đang tải phương án phí…" />
+          ) : options.isError ? (
+            <Alert
+              tone="danger"
+              action={
+                <Button variant="secondary" onClick={() => void options.refetch()}>
+                  Thử lại
+                </Button>
+              }
+            >
+              {options.error.message}
+            </Alert>
+          ) : options.data.length === 0 ? (
+            <EmptyState
+              title="Chưa có phương án phí"
+              description="Kiểm duyệt viên cần lưu và xuất bản mức phí cho từng công thức trước khi gia sư ứng tuyển lớp."
+            />
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {options.data.map((option) => (
+                <li
+                  key={option.id}
+                  className="flex min-w-0 flex-col rounded-xl border border-border bg-bg p-4 transition-shadow hover:shadow-card"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <h3 className="font-semibold text-primary">
+                      {option.title} · v{option.version}
+                    </h3>
+                    <Badge tone={option.status === 'published' ? 'success' : 'neutral'}>
+                      {option.status === 'published' ? 'Đã công bố' : 'Bản nháp'}
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-2xl font-bold text-primary">{displayRate(option)}</p>
+                  <p className="mt-2 whitespace-pre-line text-sm text-muted">{option.policyText}</p>
+                  <p className="mt-2 text-xs text-muted">
+                    {option.scopeSubjectId
+                      ? `Môn ${subjects.data?.find((subject) => subject.id === option.scopeSubjectId)?.name ?? option.scopeSubjectId}`
+                      : 'Tất cả môn'}{' '}
+                    ·{' '}
+                    {option.scopeMode === 'online'
+                      ? 'Trực tuyến'
+                      : option.scopeMode === 'offline'
+                        ? 'Trực tiếp'
+                        : 'Mọi hình thức'}
+                  </p>
+                  {option.status === 'draft' && (
+                    <Button
+                      className="mt-4 self-start rounded-xl"
+                      variant="accent"
+                      disabled={isReadOnlyPreview()}
+                      onClick={() => {
+                        publish.reset();
+                        setNotice('');
+                        setSelected(option);
+                      }}
+                    >
+                      Công bố phương án
+                    </Button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </section>
       <ConfirmDialog
         open={selected !== null}

@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarDays, Clock3, MapPin, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import {
@@ -46,6 +47,7 @@ export function AdminRequestsPage() {
   const [createFrom, setCreateFrom] = useState<AdminRequestDetail | null>(null);
   const [publicArea, setPublicArea] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
   const queryClient = useQueryClient();
   const list = useQuery({
     queryKey: [...LIST_KEY, status, page],
@@ -116,19 +118,36 @@ export function AdminRequestsPage() {
   const data = list.data;
   const totalPages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1;
   const errors = fieldErrors(create.error);
+  const normalizedSearch = searchText.trim().toLocaleLowerCase('vi');
+  const visibleRequests = normalizedSearch
+    ? (data?.items ?? []).filter((request) =>
+        [request.code, request.subjectName, request.grade, request.area ?? '']
+          .join(' ')
+          .toLocaleLowerCase('vi')
+          .includes(normalizedSearch),
+      )
+    : (data?.items ?? []);
 
   return (
-    <section className="flex min-w-0 flex-col gap-6">
+    <section className="flex min-w-0 flex-col gap-8">
       <PageHeader
         title="Yêu cầu tìm gia sư"
-        description="Xem yêu cầu phụ huynh đã gửi và tạo lớp từ dữ liệu đã được đồng ý chia sẻ."
+        description="Quản lý các yêu cầu phụ huynh đã gửi và tạo lớp từ dữ liệu được đồng ý chia sẻ."
       />
       {notice && (
         <Alert tone="success" action={<ButtonLink to="/admin/classes">Quản lý lớp</ButtonLink>}>
           {notice}
         </Alert>
       )}
-      <div className="max-w-xs">
+      <div className="grid gap-4 rounded-xl border border-border bg-bg p-5 shadow-card md:grid-cols-[minmax(0,1fr)_16rem] md:items-end">
+        <TextField
+          label="Tìm trong trang hiện tại"
+          placeholder="Mã yêu cầu, môn học, khối lớp, khu vực"
+          value={searchText}
+          maxLength={120}
+          onChange={(event) => setSearchText(event.target.value)}
+          hint="Danh sách chưa hỗ trợ tìm trên toàn bộ các trang."
+        />
         <SelectField
           label="Lọc theo trạng thái"
           value={status}
@@ -142,6 +161,24 @@ export function AdminRequestsPage() {
           ))}
         </SelectField>
       </div>
+      <nav aria-label="Nhóm trạng thái yêu cầu" className="flex flex-wrap gap-2">
+        {[
+          { value: '', label: 'Tất cả' },
+          { value: 'submitted', label: 'Chờ xử lý' },
+          { value: 'assigned', label: 'Đã gán' },
+          { value: 'fulfilled', label: 'Hoàn thành' },
+        ].map((tab) => (
+          <Button
+            key={tab.value}
+            size="sm"
+            variant={status === tab.value ? 'accent' : 'secondary'}
+            onClick={() => setFilter(tab.value)}
+            aria-current={status === tab.value ? 'page' : undefined}
+          >
+            {tab.label}
+          </Button>
+        ))}
+      </nav>
 
       <div aria-live="polite" aria-busy={list.isFetching}>
         {list.isPending ? (
@@ -165,49 +202,95 @@ export function AdminRequestsPage() {
           />
         ) : (
           <>
-            <p className="mb-3 text-sm text-muted" role="status">
-              {list.data.total} yêu cầu · Trang {list.data.page}
+            <p className="mb-4 text-sm text-muted" role="status">
+              {list.data.total} yêu cầu theo bộ lọc · Trang {list.data.page}
+              {normalizedSearch && ` · ${visibleRequests.length} yêu cầu khớp trong trang`}
             </p>
-            <ul className="grid min-w-0 gap-4">
-              {list.data.items.map((request) => (
-                <li key={request.id} className="min-w-0 rounded-lg border border-border bg-bg p-4">
-                  <article className="flex min-w-0 flex-col gap-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <h2 className="break-all font-semibold text-primary">
-                        {request.code} · {request.subjectName} · {request.grade}
-                      </h2>
-                      <Badge tone={statusTone[request.status]}>
-                        {REQUEST_STATUS_LABELS[request.status]}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted">
-                      {request.mode === 'online'
-                        ? 'Trực tuyến'
-                        : `Trực tiếp · ${request.area ?? 'Chưa có khu vực'}`}
-                      {request.expectedBudgetMinor !== null &&
-                        ` · Dự kiến ${formatVnd(request.expectedBudgetMinor)}`}
-                    </p>
-                    {request.description && (
-                      <p className="line-clamp-2 whitespace-pre-line text-sm">
-                        {request.description}
-                      </p>
-                    )}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-xs text-muted">
-                        Gửi ngày {requestDate(request.updatedAt)}
-                      </p>
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => selectRequest(request.id)}
-                      >
-                        Xem chi tiết
-                      </Button>
-                    </div>
-                  </article>
-                </li>
-              ))}
-            </ul>
+            {visibleRequests.length === 0 ? (
+              <EmptyState
+                title="Không có yêu cầu khớp trong trang hiện tại"
+                description="Thử từ khóa khác hoặc chuyển trang để tìm tiếp."
+                action={
+                  <Button variant="secondary" onClick={() => setSearchText('')}>
+                    Xóa tìm kiếm
+                  </Button>
+                }
+              />
+            ) : (
+              <ul className="grid min-w-0 gap-4 md:grid-cols-2">
+                {visibleRequests.map((request) => (
+                  <li
+                    key={request.id}
+                    className="min-w-0 rounded-xl border border-primary/20 bg-bg p-5 shadow-card"
+                  >
+                    <article className="flex min-w-0 h-full flex-col gap-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="text-xs font-semibold tracking-wide text-muted">
+                            {request.code}
+                          </p>
+                          <h2 className="mt-1 text-xl font-semibold text-primary">
+                            {request.subjectName} · {request.grade}
+                          </h2>
+                        </div>
+                        <Badge tone={statusTone[request.status]}>
+                          {REQUEST_STATUS_LABELS[request.status]}
+                        </Badge>
+                      </div>
+                      <div className="grid gap-2 text-sm text-muted sm:grid-cols-2">
+                        <p className="flex items-start gap-2">
+                          <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                          <span>
+                            {request.mode === 'online'
+                              ? 'Trực tuyến'
+                              : `Trực tiếp · ${request.area ?? 'Chưa có khu vực'}`}
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-2">
+                          <Wallet aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                          <span>
+                            {request.expectedBudgetMinor === null
+                              ? 'Ngân sách: trao đổi sau'
+                              : `Dự kiến ${formatVnd(request.expectedBudgetMinor)}`}
+                          </span>
+                        </p>
+                        <p className="flex items-start gap-2 sm:col-span-2">
+                          <Clock3 aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                          <span>
+                            {request.schedule.discussLater
+                              ? 'Lịch học: trao đổi sau'
+                              : request.schedule.windows
+                                  .map(
+                                    (window) =>
+                                      `${weekdayLabel(window.weekday)} ${window.startLocal}–${window.endLocal}`,
+                                  )
+                                  .join('; ')}
+                          </span>
+                        </p>
+                      </div>
+                      {request.description && (
+                        <p className="line-clamp-2 whitespace-pre-line text-sm">
+                          {request.description}
+                        </p>
+                      )}
+                      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+                        <p className="flex items-center gap-1 text-xs text-muted">
+                          <CalendarDays aria-hidden="true" className="size-4" />
+                          Gửi ngày {requestDate(request.updatedAt)}
+                        </p>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => selectRequest(request.id)}
+                        >
+                          Xem chi tiết
+                        </Button>
+                      </div>
+                    </article>
+                  </li>
+                ))}
+              </ul>
+            )}
             {totalPages > 1 && (
               <nav aria-label="Trang yêu cầu" className="mt-4 flex flex-wrap items-center gap-3">
                 <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
@@ -231,11 +314,11 @@ export function AdminRequestsPage() {
 
       {selectedId && (
         <section
-          className="flex min-w-0 flex-col gap-4 rounded-lg border border-border bg-surface p-4"
+          className="flex min-w-0 flex-col gap-4 rounded-xl border-2 border-primary/20 bg-bg p-5 shadow-card md:p-6"
           aria-label="Chi tiết yêu cầu"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Chi tiết yêu cầu</h2>
+            <h2 className="text-2xl font-semibold text-primary">Chi tiết yêu cầu</h2>
             <Button variant="secondary" onClick={() => selectRequest(null)}>
               Đóng
             </Button>
@@ -256,7 +339,7 @@ export function AdminRequestsPage() {
             </Alert>
           ) : (
             <>
-              <p className="font-semibold">
+              <p className="rounded-lg bg-info-surface p-4 font-semibold text-primary">
                 {detail.data.code} · {detail.data.subjectName} · {detail.data.grade}
               </p>
               <dl className="grid min-w-0 gap-x-6 gap-y-2 text-sm sm:grid-cols-[minmax(9rem,auto)_minmax(0,1fr)]">

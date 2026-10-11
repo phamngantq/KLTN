@@ -1,8 +1,18 @@
 import { useState } from 'react';
+import {
+  ArrowLeft,
+  CalendarDays,
+  Clock3,
+  LockKeyhole,
+  MapPin,
+  Pencil,
+  Phone,
+  Wallet,
+} from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { CONTACT_SHARING_CONSENT_TEXT } from '../../../shared/schemas/requests';
 import { Button, ButtonLink } from '../../components/ui/Button';
-import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useOwnParentRequest, useSubmitParentRequest } from '../../features/parent-requests/api';
 import {
@@ -48,6 +58,14 @@ export function ParentRequestDetailPage() {
 
   const request = detail.data;
   const canEdit = request.status === 'draft' || request.status === 'submitted';
+  const statusTone =
+    request.status === 'assigned' || request.status === 'fulfilled'
+      ? 'success'
+      : request.status === 'sourcing'
+        ? 'warning'
+        : request.status === 'submitted'
+          ? 'info'
+          : 'neutral';
 
   function send() {
     if (!consent || !id || submit.isPending) return;
@@ -56,28 +74,30 @@ export function ParentRequestDetailPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <Link to="/parent" className="self-start text-sm text-primary underline">
+      <Link
+        to="/parent"
+        className="inline-flex min-h-11 items-center gap-2 self-start text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+      >
+        <ArrowLeft aria-hidden="true" className="size-4" />
         Về danh sách yêu cầu
       </Link>
-      <PageHeader
-        title={`Yêu cầu ${request.code}`}
-        description={`Tạo ngày ${requestDate(request.createdAt)} · Phiên bản ${request.version}`}
-        actions={
-          canEdit ? (
-            <ButtonLink
-              to={`/parent/requests/${encodeURIComponent(request.id)}/edit`}
-              variant="secondary"
-            >
-              Chỉnh sửa yêu cầu
-            </ButtonLink>
-          ) : undefined
-        }
-      />
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted">Trạng thái</span>
-        <Badge tone={request.status === 'draft' ? 'neutral' : 'info'}>
-          {REQUEST_STATUS_LABELS[request.status]}
-        </Badge>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-primary">Yêu cầu {request.code}</h1>
+          <p className="mt-1 text-sm text-muted">
+            Chi tiết yêu cầu tìm gia sư của bạn · Tạo ngày {requestDate(request.createdAt)}
+          </p>
+        </div>
+        {canEdit && (
+          <ButtonLink
+            to={`/parent/requests/${encodeURIComponent(request.id)}/edit`}
+            variant="secondary"
+            className="rounded-xl"
+          >
+            <Pencil aria-hidden="true" className="size-4" />
+            Chỉnh sửa yêu cầu
+          </ButtonLink>
+        )}
       </div>
       {request.status === 'cancelled' && request.cancellationReason && (
         <Alert tone="warning" title="Yêu cầu đã hủy">
@@ -85,67 +105,120 @@ export function ParentRequestDetailPage() {
         </Alert>
       )}
 
-      <dl className="grid min-w-0 gap-x-6 gap-y-3 rounded-lg border border-border bg-bg p-4 sm:grid-cols-[minmax(9rem,auto)_minmax(0,1fr)]">
-        <dt className="font-medium text-muted">Môn học và lớp</dt>
-        <dd className="min-w-0 break-words">
-          {request.subjectName} · {request.grade}
-        </dd>
-        <dt className="font-medium text-muted">Hình thức</dt>
-        <dd>{request.mode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}</dd>
-        <dt className="font-medium text-muted">Khu vực chung</dt>
-        <dd className="min-w-0 break-words">{request.area ?? 'Không áp dụng'}</dd>
-        <dt className="font-medium text-muted">Mức chi dự kiến</dt>
-        <dd>
-          {request.expectedBudgetMinor === null
-            ? 'Chưa xác định'
-            : formatVnd(request.expectedBudgetMinor)}
-        </dd>
-        <dt className="font-medium text-muted">Mô tả nhu cầu</dt>
-        <dd className="min-w-0 whitespace-pre-line break-words">
-          {request.description || 'Chưa có mô tả'}
-        </dd>
-        <dt className="font-medium text-muted">Lịch học mong muốn</dt>
-        <dd>
-          {request.schedule.discussLater ? (
-            'Trao đổi lịch sau'
-          ) : (
-            <ul className="space-y-1">
-              {request.schedule.windows.map((window, index) => (
-                <li key={`${window.weekday}-${window.startLocal}-${index}`}>
-                  {weekdayLabel(window.weekday)} · {window.startLocal}–{window.endLocal}
-                </li>
-              ))}
-            </ul>
-          )}
-          <span className="block text-xs text-muted">{request.schedule.timezone}</span>
-        </dd>
-      </dl>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,0.38fr)]">
+        <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+            <div>
+              <h2 className="text-lg font-semibold text-primary">Chi tiết yêu cầu</h2>
+              <p className="mt-1 font-mono text-xs text-muted">{request.code}</p>
+            </div>
+            <Badge tone={statusTone}>{REQUEST_STATUS_LABELS[request.status]}</Badge>
+          </div>
+          <dl className="grid gap-x-6 gap-y-5 p-5 text-sm sm:grid-cols-2 sm:p-6">
+            <div>
+              <dt className="text-xs text-muted">Môn – Lớp</dt>
+              <dd className="mt-1 break-words font-semibold text-primary">
+                {request.subjectName} · {request.grade}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Hình thức</dt>
+              <dd className="mt-1 font-medium">
+                {request.mode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}
+              </dd>
+            </div>
+            <div>
+              <dt className="flex items-center gap-1 text-xs text-muted">
+                <MapPin aria-hidden="true" className="size-3.5" /> Khu vực chung
+              </dt>
+              <dd className="mt-1 break-words">{request.area ?? 'Không áp dụng'}</dd>
+            </div>
+            <div>
+              <dt className="flex items-center gap-1 text-xs text-muted">
+                <Wallet aria-hidden="true" className="size-3.5" /> Mức chi dự kiến
+              </dt>
+              <dd className="mt-1">
+                {request.expectedBudgetMinor === null
+                  ? 'Chưa xác định'
+                  : formatVnd(request.expectedBudgetMinor)}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="flex items-center gap-1 text-xs text-muted">
+                <Clock3 aria-hidden="true" className="size-3.5" /> Lịch học mong muốn
+              </dt>
+              <dd className="mt-2">
+                {request.schedule.discussLater ? (
+                  <span>Trao đổi lịch sau</span>
+                ) : (
+                  <ul className="flex flex-wrap gap-2">
+                    {request.schedule.windows.map((window, index) => (
+                      <li
+                        key={`${window.weekday}-${window.startLocal}-${index}`}
+                        className="rounded-md border border-primary/20 bg-info-surface px-2.5 py-1 text-xs font-medium text-primary"
+                      >
+                        {weekdayLabel(window.weekday)} {window.startLocal}–{window.endLocal}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <span className="mt-1 block text-xs text-muted">{request.schedule.timezone}</span>
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="text-xs text-muted">Mô tả nhu cầu</dt>
+              <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
+                {request.description || 'Chưa có mô tả'}
+              </dd>
+            </div>
+            <div className="sm:col-span-2">
+              <dt className="flex items-center gap-1 text-xs text-muted">
+                <CalendarDays aria-hidden="true" className="size-3.5" /> Ngày tạo
+              </dt>
+              <dd className="mt-1">{requestDate(request.createdAt)}</dd>
+            </div>
+          </dl>
+        </article>
 
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <h2 className="font-semibold text-primary">Liên hệ riêng tư</h2>
-        <p className="mt-2 break-all text-sm">
-          Số điện thoại: {request.contactPhone ?? 'Chưa cung cấp'}
-        </p>
-        <p className="mt-1 break-words text-sm">
-          Địa chỉ: {request.contactAddress ?? 'Chưa cung cấp'}
-        </p>
-        <p className="mt-2 text-xs text-muted">
-          Chỉ bạn và kiểm duyệt viên được xem thông tin này trước khi gán gia sư.
-        </p>
-        {request.contactConsentAt && (
-          <p className="mt-2 text-xs text-muted">
-            Đã ghi nhận đồng ý chia sẻ liên hệ · {requestDate(request.contactConsentAt)}
+        <aside className="min-w-0 self-start rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
+          <h2 className="flex items-center gap-2 font-semibold text-primary">
+            <LockKeyhole aria-hidden="true" className="size-5 text-accent" />
+            Liên hệ riêng tư
+          </h2>
+          <dl className="mt-5 space-y-4 text-sm">
+            <div>
+              <dt className="flex items-center gap-1.5 text-xs text-muted">
+                <Phone aria-hidden="true" className="size-3.5" /> Số điện thoại
+              </dt>
+              <dd className="mt-1 break-all font-medium">
+                {request.contactPhone ?? 'Chưa cung cấp'}
+              </dd>
+            </div>
+            <div>
+              <dt className="flex items-center gap-1.5 text-xs text-muted">
+                <MapPin aria-hidden="true" className="size-3.5" /> Địa chỉ
+              </dt>
+              <dd className="mt-1 break-words">{request.contactAddress ?? 'Chưa cung cấp'}</dd>
+            </div>
+          </dl>
+          <p className="mt-5 rounded-lg bg-info-surface p-3 text-xs text-muted">
+            Chỉ bạn và kiểm duyệt viên được xem thông tin này trước khi gán gia sư.
           </p>
-        )}
+          {request.contactConsentAt && (
+            <p className="mt-3 text-xs text-muted">
+              Đã ghi nhận đồng ý chia sẻ liên hệ · {requestDate(request.contactConsentAt)}
+            </p>
+          )}
+        </aside>
       </div>
 
       {request.status === 'draft' && (
-        <div className="flex max-w-2xl flex-col gap-4 rounded-lg border border-border p-4">
-          <h2 className="font-semibold text-primary">Gửi yêu cầu cho kiểm duyệt viên</h2>
+        <div className="flex max-w-2xl flex-col gap-4 rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
+          <h2 className="text-lg font-semibold text-primary">Gửi yêu cầu cho kiểm duyệt viên</h2>
           <p className="text-sm text-muted">
             Cần số điện thoại, mô tả nhu cầu và lịch mong muốn hợp lệ trước khi gửi.
           </p>
-          <label className="flex min-h-11 items-start gap-3">
+          <label className="flex min-h-11 items-start gap-3 rounded-lg border border-border bg-surface p-3">
             <input
               type="checkbox"
               checked={consent}
@@ -161,7 +234,12 @@ export function ParentRequestDetailPage() {
               {submit.error.message}
             </Alert>
           )}
-          <Button onClick={send} loading={submit.isPending} disabled={!consent}>
+          <Button
+            onClick={send}
+            loading={submit.isPending}
+            disabled={!consent}
+            className="self-start rounded-xl"
+          >
             Gửi yêu cầu
           </Button>
         </div>

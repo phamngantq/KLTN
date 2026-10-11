@@ -1,4 +1,4 @@
-# DESIGN RULES — Tutor Matching Platform
+# DESIGN RULES — Gia Sư Đỗ Hằng
 
 > Version 0.2 / 2026-10-11
 > Dùng như specification cho UI/UX, code review và AI coding assistant.  
@@ -17,6 +17,8 @@ Thứ tự ưu tiên khi có xung đột:
 Không tự sáng tác trạng thái, màn hình, button hoặc feature không có trong scope. Nếu Figma thiếu error/empty/loading state, bổ sung theo rule dưới đây và ghi gap để review.
 
 ## B. Figma-to-code fidelity
+
+Tên thương hiệu trên giao diện, tiêu đề trình duyệt và tài liệu giới thiệu là **Gia Sư Đỗ Hằng**, khẩu hiệu **Uy tín - Chất lượng**, quan sát từ `figma/src/app/pages/public/PublicLayout.tsx` và `HomePage.tsx`. Tên kỹ thuật của Figma Make URL và package không được dùng thay tên công khai. Các layout vai trò trong export dùng nhãn generic khác; bản tích hợp dùng một thương hiệu thống nhất cho mọi vai trò và vẫn hiển thị rõ vai trò phụ huynh, gia sư, kiểm duyệt viên.
 
 ### B1. Audit trước khi code UI
 - Với mỗi route trong export, ghi file page/layout tương ứng, vai trò, CTA, navigation, dữ liệu đang mock và trạng thái tương tác; đối chiếu với route/API hiện tại trong `FIGMA_INVENTORY.md` và `FIGMA_GAP_LOG.md`.

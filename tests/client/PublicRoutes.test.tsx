@@ -46,8 +46,9 @@ describe('public product foundation', () => {
     const { router } = renderRoute('/lop-hoc');
     expect(await screen.findByRole('heading', { name: 'Danh sách lớp học' })).toBeTruthy();
     expect(await screen.findByRole('heading', { name: 'Chưa có lớp phù hợp' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Tìm gia sư' }).getAttribute('href')).toBe('/tutors');
     expect(router.state.location.pathname).toBe('/lop-hoc');
+    await router.navigate('/tutors');
+    expect(await screen.findByRole('heading', { name: 'Tìm gia sư' })).toBeTruthy();
   });
 
   it('maps the exported login path to real session authentication', async () => {

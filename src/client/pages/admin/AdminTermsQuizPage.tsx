@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { FileText, Plus, Save } from 'lucide-react';
 import { Link } from 'react-router';
 import {
   createQuizSchema,
@@ -8,7 +9,7 @@ import {
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { Alert, Badge, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge } from '../../components/ui/Feedback';
 import { TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { usePublishedContent } from '../../features/content/api';
@@ -118,16 +119,34 @@ export function AdminTermsQuizPage() {
   const actionError = actions.create.error || actions.edit.error || actions.publish.error;
   const canEdit = !readOnly && !busy && current?.status !== 'published';
   return (
-    <section className="flex min-w-0 flex-col gap-5">
-      <PageHeader
-        title="Bài kiểm tra điều khoản gia sư"
-        description="Biên soạn câu hỏi theo đúng phiên bản điều khoản đã công bố. Gia sư phải đạt điểm và xác nhận trước khi ứng tuyển."
-        actions={
-          <ButtonLink variant="secondary" to="/admin/content/terms">
-            Biên tập điều khoản
-          </ButtonLink>
-        }
-      />
+    <section className="flex min-w-0 flex-col gap-6">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-[#0e2f5f]">Bài kiểm tra điều khoản gia sư</h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            Biên soạn câu hỏi theo đúng phiên bản điều khoản đã công bố. Gia sư phải đạt điểm và xác
+            nhận trước khi ứng tuyển.
+          </p>
+        </div>
+        <ButtonLink variant="accent" to="/admin/content/terms">
+          Biên tập điều khoản
+        </ButtonLink>
+      </div>
+      <nav aria-label="Quản lý điều khoản" className="grid gap-2 sm:grid-cols-2">
+        <Link
+          to="/admin/content/terms"
+          className="flex min-h-11 items-center justify-center rounded-lg border border-border bg-white px-4 text-sm font-semibold text-[#0e2f5f] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          Nội dung điều khoản
+        </Link>
+        <Link
+          to="/admin/terms/quiz"
+          aria-current="page"
+          className="flex min-h-11 items-center justify-center rounded-lg border border-[#0e2f5f] bg-[#0e2f5f] px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          Bài kiểm tra điều khoản
+        </Link>
+      </nav>
       {readOnly && <Alert tone="info">Bản xem trước chỉ cho phép đọc.</Alert>}
       {notice && <Alert tone="success">{notice}</Alert>}
       {actionError && <Alert tone="danger">{actionError.message}</Alert>}
@@ -161,11 +180,17 @@ export function AdminTermsQuizPage() {
               : 'Cần công bố bài kiểm tra cho phiên bản này trước khi gia sư có thể ứng tuyển.'}
           </Alert>
           {quizzes.data.length > 0 && (
-            <div className="rounded-lg border border-border bg-bg p-4">
-              <h2 className="font-semibold">Lịch sử bài kiểm tra</h2>
-              <ul className="mt-2 grid gap-2 text-sm">
+            <div className="rounded-xl border border-border bg-white p-5 shadow-card">
+              <h2 className="flex items-center gap-2 font-semibold text-[#0e2f5f]">
+                <FileText aria-hidden="true" className="size-5" />
+                Lịch sử bài kiểm tra
+              </h2>
+              <ul className="mt-4 grid gap-2 text-sm">
                 {quizzes.data.map((quiz) => (
-                  <li key={quiz.id} className="flex flex-wrap items-center gap-2">
+                  <li
+                    key={quiz.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3"
+                  >
                     <span>
                       Phiên bản nội dung{' '}
                       {quiz.termsContentRevisionId === terms.data.id
@@ -180,22 +205,39 @@ export function AdminTermsQuizPage() {
               </ul>
             </div>
           )}
-          <form className="space-y-5" onSubmit={save} aria-label="Biên soạn bài kiểm tra">
-            <TextField
-              label="Số câu đúng tối thiểu"
-              type="number"
-              min={1}
-              max={questions.length}
-              value={minimumCorrect}
-              disabled={!canEdit}
-              onChange={(event) =>
-                updateForm((form) => ({ ...form, minimumCorrect: Number(event.target.value) }))
-              }
-              required
-            />
+          <form
+            className="space-y-5 rounded-xl border border-border bg-white p-4 shadow-card sm:p-6"
+            onSubmit={save}
+            aria-label="Biên soạn bài kiểm tra"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]">
+                <FileText aria-hidden="true" className="size-5" />
+                Câu hỏi bài kiểm tra điều khoản
+              </h2>
+              <Badge tone={current?.status === 'published' ? 'success' : 'warning'}>
+                {current?.status === 'published' ? 'Đã công bố' : 'Bản nháp'}
+              </Badge>
+            </div>
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
+              <div className="max-w-60">
+                <TextField
+                  label="Số câu đúng tối thiểu"
+                  type="number"
+                  min={1}
+                  max={questions.length}
+                  value={minimumCorrect}
+                  disabled={!canEdit}
+                  onChange={(event) =>
+                    updateForm((form) => ({ ...form, minimumCorrect: Number(event.target.value) }))
+                  }
+                  required
+                />
+              </div>
+            </div>
             {questions.map((question, index) => (
-              <fieldset key={question.id} className="rounded-lg border border-border bg-bg p-4">
-                <legend className="px-1 font-semibold">Câu hỏi {index + 1}</legend>
+              <fieldset key={question.id} className="rounded-xl border border-border bg-white p-5">
+                <legend className="px-1 font-semibold text-[#0e2f5f]">Câu hỏi {index + 1}</legend>
                 <div className="mt-3 space-y-3">
                   <TextField
                     label={`Nội dung câu ${index + 1}`}
@@ -294,6 +336,7 @@ export function AdminTermsQuizPage() {
                 updateForm((form) => ({ ...form, questions: [...form.questions, newQuestion()] }))
               }
             >
+              <Plus aria-hidden="true" className="size-4" />
               Thêm câu hỏi
             </Button>
             {localError && <Alert tone="danger">{localError}</Alert>}
@@ -304,6 +347,7 @@ export function AdminTermsQuizPage() {
                   loading={actions.create.isPending || actions.edit.isPending}
                   disabled={!canEdit}
                 >
+                  <Save aria-hidden="true" className="size-4" />
                   Lưu bản nháp
                 </Button>
                 <Button

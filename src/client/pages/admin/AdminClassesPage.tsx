@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BookOpen, CheckCircle2, MapPin, Search, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { CLASS_STATUSES, type AdminClass, type ClassStatus } from '../../../shared/schemas/classes';
@@ -76,6 +77,21 @@ export function AdminClassesPage() {
   const [selected, setSelected] = useState<AdminClass | null>(null);
   const [lifecycleFrom, setLifecycleFrom] = useState<AdminClass | null>(null);
   const [notice, setNotice] = useState('');
+  const [searchText, setSearchText] = useState('');
+  const normalizedSearch = searchText.trim().toLocaleLowerCase('vi');
+  const pageItems = classes.data?.items ?? [];
+  const visibleClasses = normalizedSearch
+    ? pageItems.filter((item) =>
+        [item.code, item.subjectName, item.grade, item.publicArea ?? '']
+          .join(' ')
+          .toLocaleLowerCase('vi')
+          .includes(normalizedSearch),
+      )
+    : pageItems;
+  const processingCount = pageItems.filter((item) =>
+    ['draft', 'open', 'active'].includes(item.status),
+  ).length;
+  const completedCount = pageItems.filter((item) => item.status === 'completed').length;
 
   function confirmPublish() {
     if (!selected) return;
@@ -102,10 +118,10 @@ export function AdminClassesPage() {
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-5">
+    <section className="flex min-w-0 flex-col gap-8">
       <PageHeader
         title="Quản lý lớp học"
-        description="Tạo lớp từ yêu cầu đã gửi, kiểm tra khu vực công khai rồi xuất bản cho gia sư."
+        description="Tạo lớp từ yêu cầu đã gửi, kiểm tra thông tin công khai và theo dõi vòng đời lớp học."
         actions={<ButtonLink to="/admin/requests">Xem yêu cầu tìm gia sư</ButtonLink>}
       />
       {isReadOnlyPreview() && (
@@ -114,7 +130,39 @@ export function AdminClassesPage() {
         </Alert>
       )}
       {notice && <Alert tone="success">{notice}</Alert>}
-      <div className="max-w-xs">
+      {classes.isSuccess && !classes.isPlaceholderData && (
+        <div className="grid gap-4 md:grid-cols-3" aria-label="Số liệu lớp học theo bộ lọc">
+          {[
+            { label: 'Tổng lớp theo bộ lọc', value: classes.data.total, icon: BookOpen },
+            { label: 'Đang xử lý trong trang', value: processingCount, icon: BookOpen },
+            { label: 'Hoàn thành trong trang', value: completedCount, icon: CheckCircle2 },
+          ].map(({ label, value, icon: Icon }) => (
+            <div
+              key={label}
+              className="flex items-center justify-between rounded-xl border border-primary/20 bg-surface p-5 shadow-card"
+            >
+              <div>
+                <p className="text-sm text-muted">{label}</p>
+                <p className="mt-2 text-3xl font-bold text-primary">
+                  {value.toLocaleString('vi-VN')}
+                </p>
+              </div>
+              <Icon aria-hidden="true" className="size-10 text-primary/30" />
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="grid gap-4 rounded-xl border border-border bg-bg p-5 shadow-card md:grid-cols-[minmax(0,1fr)_16rem] md:items-end">
+        <div>
+          <TextField
+            label="Tìm trong trang hiện tại"
+            placeholder="Mã lớp, môn học, khối lớp, khu vực"
+            value={searchText}
+            maxLength={120}
+            onChange={(event) => setSearchText(event.target.value)}
+            hint="Tìm trong danh sách của trang đang xem."
+          />
+        </div>
         <SelectField
           label="Lọc theo trạng thái"
           value={status}
@@ -142,7 +190,7 @@ export function AdminClassesPage() {
         >
           {classes.error.message}
         </Alert>
-      ) : classes.data.items.length === 0 ? (
+      ) : pageItems.length === 0 ? (
         <EmptyState
           title="Chưa có lớp phù hợp"
           description="Kiểm duyệt viên có thể tạo lớp từ một yêu cầu đã được phụ huynh gửi."
@@ -150,86 +198,126 @@ export function AdminClassesPage() {
         />
       ) : (
         <>
-          <p className="text-sm text-muted" role="status">
-            {classes.data.total} lớp · Trang {classes.data.page}
-          </p>
-          <ul className="grid gap-4">
-            {classes.data.items.map((item) => (
-              <li key={item.id} className="rounded-lg border border-border bg-bg p-4 shadow-card">
-                <article className="flex flex-col gap-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h2 className="font-semibold text-primary">
-                      {item.code} · {item.subjectName} · {item.grade}
-                    </h2>
-                    <Badge
-                      tone={
-                        item.status === 'active' || item.status === 'completed'
-                          ? 'success'
-                          : item.status === 'open'
-                            ? 'info'
-                            : 'neutral'
-                      }
-                    >
-                      {LABELS[item.status]}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted">
-                    {item.mode === 'online'
-                      ? 'Trực tuyến'
-                      : `Trực tiếp · ${item.publicArea ?? 'Chưa có khu vực công khai'}`}
-                    {item.expectedBudgetMinor !== null &&
-                      ` · Ngân sách dự kiến ${formatVnd(item.expectedBudgetMinor)}`}
-                  </p>
-                  <p className="text-sm text-muted">
-                    Nguồn:{' '}
-                    <Link
-                      className="text-primary underline"
-                      to={`/admin/requests?selected=${encodeURIComponent(item.sourceRequestId)}`}
-                    >
-                      yêu cầu {item.sourceRequestId.slice(0, 8)}
-                    </Link>
-                  </p>
-                  {(item.status === 'open' || item.status === 'active') && (
-                    <Link
-                      className="text-sm text-primary underline"
-                      to={`/admin/applications?classId=${encodeURIComponent(item.id)}`}
-                    >
-                      Xem đơn ứng tuyển của lớp
-                    </Link>
-                  )}
-                  <Button variant="secondary" onClick={() => setLifecycleFrom(item)}>
-                    Vòng đời và lịch sử
-                  </Button>
-                  {item.status === 'draft' && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        disabled={isReadOnlyPreview()}
-                        onClick={() => {
-                          publish.reset();
-                          setNotice('');
-                          setSelected(item);
-                        }}
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-xl font-semibold text-primary">Danh sách lớp học</h2>
+              <p className="mt-1 text-sm text-muted" role="status">
+                {classes.data.total} lớp theo bộ lọc · Trang {classes.data.page}
+                {normalizedSearch && ` · ${visibleClasses.length} lớp khớp trong trang`}
+              </p>
+            </div>
+            <Search aria-hidden="true" className="size-6 text-primary/40" />
+          </div>
+          {visibleClasses.length === 0 ? (
+            <EmptyState
+              title="Không có lớp khớp trong trang hiện tại"
+              description="Thử từ khóa khác hoặc chuyển trang để tìm tiếp."
+              action={
+                <Button variant="secondary" onClick={() => setSearchText('')}>
+                  Xóa tìm kiếm
+                </Button>
+              }
+            />
+          ) : (
+            <ul className="grid gap-4 md:grid-cols-2">
+              {visibleClasses.map((item) => (
+                <li
+                  key={item.id}
+                  className="rounded-xl border border-primary/20 bg-bg p-5 shadow-card"
+                >
+                  <article className="flex h-full flex-col gap-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-semibold tracking-wide text-muted">
+                          {item.code}
+                        </p>
+                        <h3 className="mt-1 text-xl font-semibold text-primary">
+                          {item.subjectName} · {item.grade}
+                        </h3>
+                      </div>
+                      <Badge
+                        tone={
+                          item.status === 'active' || item.status === 'completed'
+                            ? 'success'
+                            : item.status === 'open'
+                              ? 'info'
+                              : 'neutral'
+                        }
                       >
-                        Xuất bản lớp
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        disabled={isReadOnlyPreview()}
-                        onClick={() => {
-                          refresh.reset();
-                          setNotice('');
-                          setRefreshPublicArea('');
-                          setRefreshFrom(item);
-                        }}
+                        {LABELS[item.status]}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-2 text-sm text-muted sm:grid-cols-2">
+                      <p className="flex items-start gap-2">
+                        <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                          {item.mode === 'online'
+                            ? 'Trực tuyến'
+                            : `Trực tiếp · ${item.publicArea ?? 'Chưa có khu vực công khai'}`}
+                        </span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <Wallet aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                          {item.expectedBudgetMinor === null
+                            ? 'Ngân sách: trao đổi sau'
+                            : `Ngân sách dự kiến ${formatVnd(item.expectedBudgetMinor)}`}
+                        </span>
+                      </p>
+                    </div>
+                    <p className="text-sm text-muted">
+                      Nguồn:{' '}
+                      <Link
+                        className="text-primary underline"
+                        to={`/admin/requests?selected=${encodeURIComponent(item.sourceRequestId)}`}
                       >
-                        Cập nhật từ yêu cầu
+                        yêu cầu {item.sourceRequestId.slice(0, 8)}
+                      </Link>
+                    </p>
+                    {(item.status === 'open' || item.status === 'active') && (
+                      <Link
+                        className="text-sm text-primary underline"
+                        to={`/admin/applications?classId=${encodeURIComponent(item.id)}`}
+                      >
+                        Xem đơn ứng tuyển của lớp
+                      </Link>
+                    )}
+                    <div className="mt-auto">
+                      <Button variant="secondary" onClick={() => setLifecycleFrom(item)}>
+                        Vòng đời và lịch sử
                       </Button>
                     </div>
-                  )}
-                </article>
-              </li>
-            ))}
-          </ul>
+                    {item.status === 'draft' && (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          disabled={isReadOnlyPreview()}
+                          onClick={() => {
+                            publish.reset();
+                            setNotice('');
+                            setSelected(item);
+                          }}
+                        >
+                          Xuất bản lớp
+                        </Button>
+                        <Button
+                          variant="secondary"
+                          disabled={isReadOnlyPreview()}
+                          onClick={() => {
+                            refresh.reset();
+                            setNotice('');
+                            setRefreshPublicArea('');
+                            setRefreshFrom(item);
+                          }}
+                        >
+                          Cập nhật từ yêu cầu
+                        </Button>
+                      </div>
+                    )}
+                  </article>
+                </li>
+              ))}
+            </ul>
+          )}
           <nav aria-label="Trang lớp học" className="flex flex-wrap items-center gap-3">
             <Button
               variant="secondary"

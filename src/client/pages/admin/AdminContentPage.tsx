@@ -1,4 +1,6 @@
 import { useState, type FormEvent } from 'react';
+import { FileText, Plus } from 'lucide-react';
+import { Link } from 'react-router';
 import {
   CONTENT_AUDIENCES,
   CONTENT_KINDS,
@@ -13,7 +15,7 @@ import {
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
-import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
 import { Skeleton } from '../../components/ui/Spinner';
 import {
@@ -210,24 +212,52 @@ export function AdminContentPage({
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader
-        title={title}
-        description="Biên tập bản nháp, xem trước nội dung và công bố phiên bản đã duyệt. Nội dung công bố được giữ nguyên để đối chiếu lịch sử."
-        actions={
-          <Button variant="secondary" onClick={resetEditor}>
-            Tạo nội dung mới
-          </Button>
-        }
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-[#0e2f5f]">{title}</h1>
+          <p className="mt-2 max-w-3xl text-sm text-muted">
+            Biên tập bản nháp, xem trước nội dung và công bố phiên bản đã duyệt. Nội dung công bố
+            được giữ nguyên để đối chiếu lịch sử.
+          </p>
+        </div>
+        <Button variant="accent" onClick={resetEditor}>
+          <Plus aria-hidden="true" className="size-4" />
+          Tạo nội dung mới
+        </Button>
+      </div>
+      {kind === 'terms' && (
+        <nav aria-label="Quản lý điều khoản" className="grid gap-2 sm:grid-cols-2">
+          <Link
+            to="/admin/content/terms"
+            aria-current="page"
+            className="flex min-h-11 items-center justify-center rounded-lg border border-[#0e2f5f] bg-[#0e2f5f] px-4 text-sm font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Nội dung điều khoản
+          </Link>
+          <Link
+            to="/admin/terms/quiz"
+            className="flex min-h-11 items-center justify-center rounded-lg border border-border bg-white px-4 text-sm font-semibold text-[#0e2f5f] hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Bài kiểm tra điều khoản
+          </Link>
+        </nav>
+      )}
       {readOnly && <Alert tone="info">Bản xem trước chỉ cho phép đọc nội dung.</Alert>}
       {notice && <Alert tone="success">{notice}</Alert>}
       {actionError && <Alert tone="danger">{actionError.message}</Alert>}
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
-        <section className="min-w-0 space-y-4" aria-labelledby="content-list-heading">
-          <h2 id="content-list-heading" className="text-xl font-semibold">
+        <section
+          className="min-w-0 space-y-5 rounded-xl border border-border bg-white p-4 shadow-card sm:p-6"
+          aria-labelledby="content-list-heading"
+        >
+          <h2
+            id="content-list-heading"
+            className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]"
+          >
+            <FileText aria-hidden="true" className="size-5" />
             Các phiên bản nội dung
           </h2>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 rounded-lg border border-slate-200 bg-slate-50 p-4 sm:grid-cols-3">
             {!kind && (
               <SelectField
                 label="Loại"
@@ -298,17 +328,17 @@ export function AdminContentPage({
             <EmptyState title="Chưa có nội dung" />
           ) : (
             <>
-              <ul className="space-y-2">
+              <ul className="space-y-3">
                 {list.data.items.map((item) => (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => select(item)}
                       aria-current={selectedId === item.id ? 'true' : undefined}
-                      className="flex min-h-16 w-full flex-col items-start gap-1 rounded-lg border border-border bg-surface p-3 text-left hover:border-primary focus-visible:outline-2 focus-visible:outline-focus"
+                      className={`flex min-h-20 w-full flex-col items-start gap-2 rounded-xl border bg-white p-4 text-left transition-shadow hover:border-[#0e2f5f] hover:shadow-md focus-visible:outline-2 focus-visible:outline-focus ${selectedId === item.id ? 'border-[#0e2f5f] shadow-md' : 'border-border'}`}
                     >
                       <span className="flex w-full flex-wrap items-center gap-2">
-                        <span className="font-semibold">{item.title}</span>
+                        <span className="font-semibold text-[#0e2f5f]">{item.title}</span>
                         <Badge
                           tone={
                             item.status === 'published'
@@ -358,12 +388,21 @@ export function AdminContentPage({
         </section>
 
         <section
-          className="min-w-0 rounded-xl border border-border bg-surface p-4 shadow-card sm:p-6"
+          className="min-w-0 rounded-xl border border-border bg-white p-4 shadow-card sm:p-6"
           aria-labelledby="content-editor-heading"
         >
-          <h2 id="content-editor-heading" className="text-xl font-semibold">
+          <h2
+            id="content-editor-heading"
+            className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]"
+          >
+            <FileText aria-hidden="true" className="size-5 shrink-0" />
             {current ? `Phiên bản ${current.revision}: ${current.title}` : 'Tạo bản nháp'}
           </h2>
+          <p className="mt-2 text-sm text-muted">
+            {current?.status === 'published'
+              ? 'Phiên bản đã công bố được giữ nguyên. Tạo bản nháp mới để chỉnh sửa.'
+              : 'Nội dung chỉ hiển thị cho người đọc sau khi được công bố.'}
+          </p>
           {selectedId && detail.isPending ? (
             <Skeleton className="mt-4 h-80" />
           ) : selectedId && detail.isError ? (
@@ -412,7 +451,7 @@ export function AdminContentPage({
                   )}
                 </div>
               ) : (
-                <form onSubmit={save} className="mt-5 space-y-4">
+                <form onSubmit={save} className="mt-5 space-y-5 border-t border-border pt-5">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <SelectField
                       label="Loại nội dung"

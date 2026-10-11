@@ -1,4 +1,5 @@
 import { useId, useState, type FormEvent } from 'react';
+import { BookOpen, CircleCheck, GraduationCap, UserRound } from 'lucide-react';
 import {
   APPROVAL_STATUS_LABELS,
   GRADE_OPTIONS,
@@ -11,7 +12,7 @@ import {
 } from '../../../shared/schemas/tutors';
 import { useSession } from '../../app/auth';
 import { Button } from '../../components/ui/Button';
-import { Alert, Badge, PageHeader } from '../../components/ui/Feedback';
+import { Alert, Badge } from '../../components/ui/Feedback';
 import { TextareaField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
@@ -58,7 +59,7 @@ const STATUS_TONE: Record<ApprovalStatus, 'neutral' | 'info' | 'success' | 'dang
 
 const STATUS_HELP: Record<ApprovalStatus, string> = {
   draft: 'Hồ sơ chưa công khai. Hoàn thiện thông tin rồi gửi duyệt.',
-  pending: 'Quản trị viên đang xem xét hồ sơ. Hồ sơ chưa xuất hiện trong tìm kiếm.',
+  pending: 'Kiểm duyệt viên đang xem xét hồ sơ. Hồ sơ chưa xuất hiện trong tìm kiếm.',
   approved: 'Hồ sơ đã được duyệt.',
   rejected: 'Hồ sơ bị từ chối. Hãy chỉnh sửa và gửi duyệt lại.',
 };
@@ -207,13 +208,33 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
 
   return (
     <section className="flex flex-col gap-6">
-      <PageHeader
-        title="Hồ sơ gia sư"
-        description="Thông tin hiển thị với học viên sau khi hồ sơ được duyệt."
-      />
+      <header>
+        <h1 className="text-3xl font-bold text-primary">Hồ sơ gia sư</h1>
+        <p className="mt-2 text-muted">
+          Cập nhật thông tin giảng dạy và sở thích nhận lớp. Hồ sơ chỉ được công khai sau khi duyệt.
+        </p>
+      </header>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border p-4">
+      <nav aria-label="Các phần hồ sơ" className="flex flex-wrap gap-2 border-b border-border pb-2">
+        <a
+          href="#profile-basic"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          <UserRound aria-hidden="true" size={18} />
+          Thông tin cơ bản
+        </a>
+        <a
+          href="#profile-preferences"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          <BookOpen aria-hidden="true" size={18} />
+          Đăng ký lớp học phù hợp
+        </a>
+      </nav>
+
+      <div className="flex flex-col gap-3 rounded-xl border border-primary/20 border-l-4 border-l-accent bg-bg p-5 shadow-card">
         <div className="flex items-center gap-2">
+          <CircleCheck aria-hidden="true" size={20} className="text-primary" />
           <span className="text-sm text-muted">Trạng thái:</span>
           <Badge tone={STATUS_TONE[status]}>{APPROVAL_STATUS_LABELS[status]}</Badge>
           {profile?.visibility === 'public' && <Badge tone="success">Đang công khai</Badge>}
@@ -224,7 +245,7 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
             : STATUS_HELP[status]}
         </p>
         {profile?.moderationNote && (status === 'rejected' || profile.visibility === 'private') && (
-          <Alert tone="warning" title="Phản hồi từ quản trị viên">
+          <Alert tone="warning" title="Phản hồi từ kiểm duyệt viên">
             {profile.moderationNote}
           </Alert>
         )}
@@ -250,188 +271,230 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
         {submit.isSuccess && <Alert tone="success">Đã gửi hồ sơ để duyệt.</Alert>}
       </div>
 
-      <form onSubmit={onSubmit} noValidate className="flex max-w-2xl flex-col gap-5">
+      <form onSubmit={onSubmit} noValidate className="flex w-full max-w-4xl flex-col gap-6">
         {update.isError && !Object.keys(errors).length && (
           <Alert tone="danger" title="Không lưu được hồ sơ">
             {update.error.message}
           </Alert>
         )}
-        <TextField
-          label="Tên hiển thị"
-          required
-          maxLength={100}
-          value={form.displayName}
-          onChange={(e) => set('displayName', e.target.value)}
-          error={errors.displayName}
-        />
-        <TextareaField
-          label="Giới thiệu"
-          hint="Kinh nghiệm, phương pháp dạy, thành tích. Tối đa 2.000 ký tự."
-          maxLength={2000}
-          value={form.bio}
-          onChange={(e) => set('bio', e.target.value)}
-          error={errors.bio}
-        />
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">Môn dạy</legend>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-            {subjects.map((subject) => (
-              <label
-                key={subject.id}
-                className="flex min-h-11 items-center gap-2 rounded-md border border-border px-3"
-              >
-                <input
-                  type="checkbox"
-                  className="size-4 accent-[var(--color-primary)]"
-                  checked={form.subjectIds.includes(subject.id)}
-                  onChange={(e) => toggleSubject(subject.id, e.target.checked)}
-                />
-                <span className="text-sm">{subject.name}</span>
-              </label>
-            ))}
-          </div>
-          {(errors.subjectIds || errors['subjectIds.0']) && (
-            <p className="text-sm text-danger">{errors.subjectIds ?? errors['subjectIds.0']}</p>
-          )}
-        </fieldset>
-        <TextField
-          label="Học phí (₫/giờ)"
-          inputMode="numeric"
-          type="number"
-          min={10000}
-          step={RATE_STEP}
-          value={form.hourlyRate}
-          onChange={(e) => set('hourlyRate', e.target.value)}
-          hint={
-            form.hourlyRate && Number.isFinite(rate)
-              ? `${formatVnd(rate)} mỗi giờ. Bội số của 1.000 ₫.`
-              : 'Bội số của 1.000 ₫, tối thiểu 10.000 ₫.'
-          }
-          error={errors.hourlyRateMinor}
-        />
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-1 text-sm font-medium">Hình thức dạy</legend>
-          {(
-            [
-              ['teachesOnline', 'Trực tuyến'],
-              ['teachesOffline', 'Trực tiếp'],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key} className="flex min-h-11 items-center gap-2">
-              <input
-                type="checkbox"
-                className="size-4 accent-[var(--color-primary)]"
-                checked={form[key]}
-                onChange={(e) => set(key, e.target.checked)}
-              />
-              <span className="text-sm">{label}</span>
-            </label>
-          ))}
-        </fieldset>
-        <section aria-labelledby="class-preferences-title" className="flex flex-col gap-5">
-          <div>
-            <h2 id="class-preferences-title" className="text-lg font-semibold">
-              Sở thích nhận lớp
+        <section
+          id="profile-basic"
+          aria-labelledby="profile-basic-title"
+          className="flex scroll-mt-24 flex-col gap-5 rounded-xl border border-primary/20 bg-bg p-5 shadow-card md:p-6"
+        >
+          <div className="flex items-center gap-3 border-b border-border pb-4">
+            <span
+              aria-hidden="true"
+              className="flex size-11 items-center justify-center rounded-lg bg-accent text-on-accent"
+            >
+              <UserRound size={22} />
+            </span>
+            <h2 id="profile-basic-title" className="text-xl font-semibold text-primary">
+              Thông tin cơ bản
             </h2>
-            <p className="text-sm text-muted">
-              Chọn lớp học, khu vực và khả năng thương lượng lịch.
-            </p>
           </div>
-          <fieldset
-            className="flex flex-col gap-2"
-            aria-invalid={Boolean(gradeError)}
-            aria-describedby={gradeError ? gradeErrorId : undefined}
-          >
-            <legend className="mb-1 text-sm font-medium">Lớp học mong muốn</legend>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
-              {GRADE_OPTIONS.map((grade) => (
+          <TextField
+            label="Tên hiển thị"
+            required
+            maxLength={100}
+            value={form.displayName}
+            onChange={(e) => set('displayName', e.target.value)}
+            error={errors.displayName}
+          />
+          <TextareaField
+            label="Giới thiệu"
+            hint="Kinh nghiệm, phương pháp dạy, thành tích. Tối đa 2.000 ký tự."
+            maxLength={2000}
+            value={form.bio}
+            onChange={(e) => set('bio', e.target.value)}
+            error={errors.bio}
+          />
+          <TextField
+            label="Học phí (₫/giờ)"
+            inputMode="numeric"
+            type="number"
+            min={10000}
+            step={RATE_STEP}
+            value={form.hourlyRate}
+            onChange={(e) => set('hourlyRate', e.target.value)}
+            hint={
+              form.hourlyRate && Number.isFinite(rate)
+                ? `${formatVnd(rate)} mỗi giờ. Bội số của 1.000 ₫.`
+                : 'Bội số của 1.000 ₫, tối thiểu 10.000 ₫.'
+            }
+            error={errors.hourlyRateMinor}
+          />
+        </section>
+
+        <section
+          id="profile-preferences"
+          aria-labelledby="profile-preferences-title"
+          className="flex scroll-mt-24 flex-col gap-5 rounded-xl border border-primary/20 bg-bg p-5 shadow-card md:p-6"
+        >
+          <div className="flex items-center gap-3 border-b border-border pb-4">
+            <span
+              aria-hidden="true"
+              className="flex size-11 items-center justify-center rounded-lg bg-accent text-on-accent"
+            >
+              <GraduationCap size={22} />
+            </span>
+            <div>
+              <h2 id="profile-preferences-title" className="text-xl font-semibold text-primary">
+                Đăng ký lớp học phù hợp
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Chọn môn, lớp, khu vực và hình thức có thể dạy.
+              </p>
+            </div>
+          </div>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-sm font-medium">Môn dạy</legend>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {subjects.map((subject) => (
                 <label
-                  key={grade}
-                  className="flex min-h-11 items-center gap-2 rounded-md border border-border px-3"
+                  key={subject.id}
+                  className="flex min-h-11 items-center gap-2 rounded-md border border-border px-3 transition-colors hover:border-primary"
                 >
                   <input
                     type="checkbox"
                     className="size-4 accent-[var(--color-primary)]"
-                    checked={form.preferredGrades.includes(grade)}
-                    onChange={(event) => toggleGrade(grade, event.target.checked)}
+                    checked={form.subjectIds.includes(subject.id)}
+                    onChange={(e) => toggleSubject(subject.id, e.target.checked)}
                   />
-                  <span className="text-sm">{grade}</span>
+                  <span className="text-sm">{subject.name}</span>
                 </label>
               ))}
             </div>
-            {gradeError && (
-              <p id={gradeErrorId} className="text-sm text-danger">
-                {gradeError}
-              </p>
+            {(errors.subjectIds || errors['subjectIds.0']) && (
+              <p className="text-sm text-danger">{errors.subjectIds ?? errors['subjectIds.0']}</p>
             )}
           </fieldset>
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <TextField
-                  label="Khu vực muốn nhận lớp"
-                  hint={`Tối đa ${MAX_PREFERRED_AREAS} khu vực, mỗi khu vực tối đa 80 ký tự.`}
-                  maxLength={80}
-                  value={areaDraft}
-                  onChange={(event) => {
-                    setAreaDraft(event.target.value);
-                    setAreaError(null);
-                    setSaved(false);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault();
-                      addArea();
-                    }
-                  }}
-                  error={preferredAreaError}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="mb-1 text-sm font-medium">Hình thức dạy</legend>
+            {(
+              [
+                ['teachesOnline', 'Trực tuyến'],
+                ['teachesOffline', 'Trực tiếp'],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key} className="flex min-h-11 items-center gap-2">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--color-primary)]"
+                  checked={form[key]}
+                  onChange={(e) => set(key, e.target.checked)}
                 />
-              </div>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={addArea}
-                disabled={!areaDraft.trim()}
-              >
-                Thêm khu vực
-              </Button>
+                <span className="text-sm">{label}</span>
+              </label>
+            ))}
+          </fieldset>
+          <section aria-labelledby="class-preferences-title" className="flex flex-col gap-5">
+            <div>
+              <h3 id="class-preferences-title" className="text-lg font-semibold text-primary">
+                Sở thích nhận lớp
+              </h3>
+              <p className="text-sm text-muted">
+                Chọn lớp học, khu vực và khả năng thương lượng lịch.
+              </p>
             </div>
-            {form.preferredAreas.length > 0 && (
-              <ul aria-label="Khu vực đã chọn" className="flex flex-wrap gap-2">
-                {form.preferredAreas.map((area) => (
-                  <li
-                    key={area}
-                    className="flex min-w-0 max-w-full items-center gap-2 rounded-md border border-border px-2"
+            <fieldset
+              className="flex flex-col gap-2"
+              aria-invalid={Boolean(gradeError)}
+              aria-describedby={gradeError ? gradeErrorId : undefined}
+            >
+              <legend className="mb-1 text-sm font-medium">Lớp học mong muốn</legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3">
+                {GRADE_OPTIONS.map((grade) => (
+                  <label
+                    key={grade}
+                    className="flex min-h-11 items-center gap-2 rounded-md border border-border px-3 transition-colors hover:border-primary"
                   >
-                    <span className="min-w-0 break-all text-sm">{area}</span>
-                    <button
-                      type="button"
-                      aria-label={`Xóa khu vực ${area}`}
-                      className="min-h-11 shrink-0 rounded-md px-2 text-sm text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-                      onClick={() =>
-                        set(
-                          'preferredAreas',
-                          form.preferredAreas.filter((item) => item !== area),
-                        )
-                      }
-                    >
-                      Xóa
-                    </button>
-                  </li>
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-[var(--color-primary)]"
+                      checked={form.preferredGrades.includes(grade)}
+                      onChange={(event) => toggleGrade(grade, event.target.checked)}
+                    />
+                    <span className="text-sm">{grade}</span>
+                  </label>
                 ))}
-              </ul>
+              </div>
+              {gradeError && (
+                <p id={gradeErrorId} className="text-sm text-danger">
+                  {gradeError}
+                </p>
+              )}
+            </fieldset>
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <div className="min-w-0 flex-1">
+                  <TextField
+                    label="Khu vực muốn nhận lớp"
+                    hint={`Tối đa ${MAX_PREFERRED_AREAS} khu vực, mỗi khu vực tối đa 80 ký tự.`}
+                    maxLength={80}
+                    value={areaDraft}
+                    onChange={(event) => {
+                      setAreaDraft(event.target.value);
+                      setAreaError(null);
+                      setSaved(false);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault();
+                        addArea();
+                      }
+                    }}
+                    error={preferredAreaError}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={addArea}
+                  disabled={!areaDraft.trim()}
+                >
+                  Thêm khu vực
+                </Button>
+              </div>
+              {form.preferredAreas.length > 0 && (
+                <ul aria-label="Khu vực đã chọn" className="flex flex-wrap gap-2">
+                  {form.preferredAreas.map((area) => (
+                    <li
+                      key={area}
+                      className="flex min-w-0 max-w-full items-center gap-2 rounded-full bg-info-surface px-2 text-primary"
+                    >
+                      <span className="min-w-0 break-all text-sm">{area}</span>
+                      <button
+                        type="button"
+                        aria-label={`Xóa khu vực ${area}`}
+                        className="min-h-11 shrink-0 rounded-md px-2 text-sm text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        onClick={() =>
+                          set(
+                            'preferredAreas',
+                            form.preferredAreas.filter((item) => item !== area),
+                          )
+                        }
+                      >
+                        Xóa
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <label className="flex min-h-11 items-center gap-2">
+              <input
+                type="checkbox"
+                className="size-4 accent-[var(--color-primary)]"
+                checked={form.negotiableTime}
+                onChange={(event) => set('negotiableTime', event.target.checked)}
+              />
+              <span className="text-sm">Có thể thương lượng lịch học</span>
+            </label>
+            {errors.negotiableTime && (
+              <p className="text-sm text-danger">{errors.negotiableTime}</p>
             )}
-          </div>
-          <label className="flex min-h-11 items-center gap-2">
-            <input
-              type="checkbox"
-              className="size-4 accent-[var(--color-primary)]"
-              checked={form.negotiableTime}
-              onChange={(event) => set('negotiableTime', event.target.checked)}
-            />
-            <span className="text-sm">Có thể thương lượng lịch học</span>
-          </label>
-          {errors.negotiableTime && <p className="text-sm text-danger">{errors.negotiableTime}</p>}
+          </section>
         </section>
         <div className="flex flex-wrap items-center gap-3">
           <Button type="submit" loading={update.isPending} disabled={!hasUnsavedChanges}>

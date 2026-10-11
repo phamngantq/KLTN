@@ -3,7 +3,10 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { PublishedContentPage } from '../../src/client/pages/public/PublishedContentPage';
+import {
+  PublishedContentCollectionPage,
+  PublishedContentPage,
+} from '../../src/client/pages/public/PublishedContentPage';
 import { PublicPricingPage } from '../../src/client/pages/public/PublicPricingPage';
 import { PublicContactPage } from '../../src/client/pages/public/PublicContactPage';
 import { AdminContentPage } from '../../src/client/pages/admin/AdminContentPage';
@@ -49,6 +52,60 @@ describe('published content pages', () => {
     expect(await screen.findByRole('heading', { name: 'Về Chúng Tôi' })).toBeTruthy();
     expect(screen.getByText(unsafeText)).toBeTruthy();
     expect(view.container.querySelector('img')).toBeNull();
+  });
+
+  it('uses published blog entries for the correct category and keeps article text escaped', async () => {
+    const unsafeText = '<img src=x onerror=alert(1)>';
+    const article = {
+      id: 'blog-1',
+      kind: 'blog',
+      slug: 'phu-huynh-chon-gia-su',
+      audience: 'public',
+      revision: 1,
+      title: 'Chọn gia sư cho con',
+      summary: 'Gợi ý dành cho phụ huynh.',
+      bodyText: unsafeText,
+      publishedAt: '2026-10-01T00:00:00.000Z',
+    };
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return anonymous;
+      if (
+        req.path === '/content?kind=blog&audience=public&slugPrefix=phu-huynh-&page=1&pageSize=12'
+      ) {
+        return { data: { items: [article], page: 1, pageSize: 12, total: 1 } };
+      }
+      if (req.path === '/content/blog/phu-huynh-chon-gia-su?audience=public') {
+        return { data: article };
+      }
+      return undefined;
+    });
+    const list = show(
+      <PublishedContentCollectionPage
+        kind="blog"
+        slugPrefix="phu-huynh-"
+        title="Tin tức phụ huynh"
+        detailBase="/blog/phu-huynh"
+      />,
+    );
+    expect(await screen.findByRole('heading', { name: 'Blog Dành Cho Phụ Huynh' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: article.title })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Đọc ngay/ }).getAttribute('href')).toBe(
+      '/blog/phu-huynh/phu-huynh-chon-gia-su',
+    );
+    expect(list.container.querySelector('img')).toBeNull();
+    list.unmount();
+
+    const detail = show(
+      <PublishedContentPage
+        kind="blog"
+        slug={article.slug}
+        fallbackTitle="Không tìm thấy bài viết"
+      />,
+    );
+    expect(await screen.findByRole('heading', { name: article.title })).toBeTruthy();
+    expect(screen.getByText(unsafeText)).toBeTruthy();
+    expect(detail.container.querySelector('img')).toBeNull();
+    expect(calls.some((call) => call.path.includes('slugPrefix=phu-huynh-'))).toBe(true);
   });
 
   it('shows parent-free policy but no fabricated tutor rate before publication', async () => {

@@ -1,10 +1,19 @@
 import { useRef, useState } from 'react';
+import {
+  ArrowLeft,
+  BookOpen,
+  CalendarDays,
+  Clock,
+  DollarSign,
+  GraduationCap,
+  MapPin,
+} from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { FEE_OPTION_KEYS } from '../../../shared/schemas/classes';
 import { useSession } from '../../app/auth';
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
-import { Alert, Badge, PageHeader } from '../../components/ui/Feedback';
+import { Alert } from '../../components/ui/Feedback';
 import { SelectField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
@@ -18,69 +27,88 @@ import { isApiError } from '../../lib/api-client';
 
 function ClassFacts({ item }: { item: PublicClass }) {
   return (
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[2fr_1fr]">
-      <section className="min-w-0 rounded-xl border border-border bg-bg p-5 shadow-card">
-        <h2 className="text-xl font-semibold text-primary">Thông tin lớp</h2>
-        <dl className="mt-4 grid gap-x-6 gap-y-4 sm:grid-cols-2">
-          <div>
-            <dt className="text-sm text-muted">Môn học</dt>
-            <dd className="font-medium">{item.subjectName}</dd>
+    <section className="min-w-0 p-5 sm:p-6" aria-labelledby="class-facts-heading">
+      <h2 id="class-facts-heading" className="font-semibold text-primary">
+        Thông tin lớp học
+      </h2>
+      <dl className="mt-5 grid gap-5 sm:grid-cols-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <GraduationCap aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" />
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">Môn học · Khối lớp</dt>
+            <dd className="font-medium text-fg">
+              {item.subjectName} · {item.grade}
+            </dd>
           </div>
-          <div>
-            <dt className="text-sm text-muted">Khối lớp</dt>
-            <dd className="font-medium">{item.grade}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted">Hình thức</dt>
-            <dd className="font-medium">{item.mode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}</dd>
-          </div>
-          <div>
-            <dt className="text-sm text-muted">Khu vực công khai</dt>
-            <dd className="font-medium">
+        </div>
+        <div className="flex min-w-0 items-start gap-3">
+          <MapPin aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" />
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">Địa điểm</dt>
+            <dd className="font-medium text-fg">
               {item.mode === 'online' ? 'Học trực tuyến' : item.publicArea || 'Chưa công bố'}
             </dd>
           </div>
-          <div>
+        </div>
+        <div className="flex min-w-0 items-start gap-3">
+          <Clock aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" />
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">Lịch học mong muốn</dt>
+            <dd className="text-fg">
+              {item.schedule.discussLater ? (
+                'Trao đổi thời gian sau'
+              ) : item.schedule.windows.length ? (
+                <ul className="space-y-1">
+                  {item.schedule.windows.map((window) => (
+                    <li key={`${window.weekday}-${window.startLocal}`}>
+                      {WEEKDAY_LABELS[window.weekday] ?? `Ngày ${window.weekday}`} ·{' '}
+                      {window.startLocal}–{window.endLocal}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                'Chưa có khung giờ cụ thể'
+              )}
+              <span className="mt-1 block text-xs text-muted">
+                Múi giờ {item.schedule.timezone}
+              </span>
+            </dd>
+          </div>
+        </div>
+        <div className="flex min-w-0 items-start gap-3">
+          <DollarSign aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" />
+          <div className="min-w-0">
             <dt className="text-sm text-muted">Học phí dự kiến</dt>
-            <dd className="font-medium">
+            <dd className="text-lg font-bold text-primary">
               {item.expectedBudgetMinor === null
                 ? 'Trao đổi thêm'
                 : formatVnd(item.expectedBudgetMinor)}
             </dd>
+            <p className="text-xs text-muted">
+              Mức chi của phụ huynh; phí nhận lớp được chọn khi ứng tuyển.
+            </p>
           </div>
-          <div>
-            <dt className="text-sm text-muted">Công bố</dt>
-            <dd className="font-medium">
+        </div>
+        <div className="flex min-w-0 items-start gap-3">
+          <BookOpen aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" />
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">Hình thức dạy</dt>
+            <dd className="font-medium text-fg">
+              {item.mode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}
+            </dd>
+          </div>
+        </div>
+        <div className="flex min-w-0 items-start gap-3">
+          <CalendarDays aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-accent" />
+          <div className="min-w-0">
+            <dt className="text-sm text-muted">Ngày công bố</dt>
+            <dd className="font-medium text-fg">
               {item.publishedAt ? formatDate(item.publishedAt, 'Asia/Ho_Chi_Minh') : 'Chưa công bố'}
             </dd>
           </div>
-        </dl>
-      </section>
-      <section className="min-w-0 rounded-xl border border-border bg-surface p-5">
-        <h2 className="text-xl font-semibold text-primary">Lịch mong muốn</h2>
-        <p className="mt-1 text-sm text-muted">Múi giờ {item.schedule.timezone}</p>
-        {item.schedule.discussLater ? (
-          <p className="mt-4">Phụ huynh muốn trao đổi lịch sau.</p>
-        ) : item.schedule.windows.length ? (
-          <ul className="mt-4 space-y-2">
-            {item.schedule.windows.map((window) => (
-              <li
-                key={`${window.weekday}-${window.startLocal}`}
-                className="rounded-md border border-border bg-bg px-3 py-2 text-sm"
-              >
-                <span className="font-medium">
-                  {WEEKDAY_LABELS[window.weekday] ?? `Ngày ${window.weekday}`}
-                </span>
-                {' · '}
-                {window.startLocal}–{window.endLocal}
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="mt-4 text-muted">Chưa có khung giờ cụ thể.</p>
-        )}
-      </section>
-    </div>
+        </div>
+      </dl>
+    </section>
   );
 }
 
@@ -126,10 +154,7 @@ function TutorApplicationForm({ item }: { item: PublicClass }) {
   }
 
   return (
-    <section
-      className="rounded-xl border border-border bg-bg p-5 shadow-card"
-      aria-labelledby="apply-heading"
-    >
+    <section className="p-5 sm:p-6" aria-labelledby="apply-heading">
       <h2 id="apply-heading" className="text-xl font-semibold text-primary">
         Đăng ký nhận lớp
       </h2>
@@ -212,7 +237,13 @@ function TutorApplicationForm({ item }: { item: PublicClass }) {
               )}
             </Alert>
           )}
-          <Button onClick={submit} loading={apply.isPending} disabled={!feeOptionVersionId}>
+          <Button
+            variant="accent"
+            className="w-full rounded-xl text-base font-semibold"
+            onClick={submit}
+            loading={apply.isPending}
+            disabled={!feeOptionVersionId}
+          >
             Gửi đơn ứng tuyển
           </Button>
         </div>
@@ -229,12 +260,13 @@ function Detail({ tutor }: { tutor: boolean }) {
   const tutorPath = `/tutor/new-classes/${encodeURIComponent(id ?? '')}`;
 
   return (
-    <section className="flex min-w-0 flex-col gap-6">
+    <section className="mx-auto flex w-full max-w-3xl min-w-0 flex-col gap-5">
       <Link
         to={backTo}
-        className="w-fit font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        className="inline-flex min-h-11 w-fit items-center gap-2 font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
-        ← Danh sách lớp
+        <ArrowLeft aria-hidden="true" className="size-4" />
+        Danh sách lớp
       </Link>
       {detail.isPending ? (
         <PageLoading label="Đang tải thông tin lớp…" />
@@ -251,29 +283,62 @@ function Detail({ tutor }: { tutor: boolean }) {
           {detail.error.message}
         </Alert>
       ) : (
-        <>
-          <div>
-            <PageHeader
-              title={`${detail.data.subjectName} · ${detail.data.grade}`}
-              description={`Mã lớp ${detail.data.code}`}
-              actions={<Badge tone="success">Đang tìm gia sư</Badge>}
-            />
-          </div>
+        <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg shadow-card">
+          <header className="bg-primary px-5 py-5 text-on-primary sm:px-6">
+            <div className="mb-3 flex flex-wrap gap-2 text-xs font-medium">
+              <span className="rounded-full bg-accent px-3 py-1 text-on-accent">
+                {detail.data.subjectName}
+              </span>
+              <span className="rounded-full border border-white/50 px-3 py-1">
+                {detail.data.grade}
+              </span>
+              <span className="rounded-full border border-green-300 bg-green-700 px-3 py-1 text-white">
+                Đang tìm gia sư
+              </span>
+            </div>
+            <h1 className="text-2xl font-semibold">
+              {detail.data.subjectName} · {detail.data.grade}
+            </h1>
+            <p className="mt-1 text-sm text-white/80">
+              Mã lớp: {detail.data.code}
+              {detail.data.publishedAt
+                ? ` · Đăng ngày ${formatDate(detail.data.publishedAt, 'Asia/Ho_Chi_Minh')}`
+                : ''}
+            </p>
+          </header>
           <ClassFacts item={detail.data} />
-          {tutor ? (
-            <TutorApplicationForm item={detail.data} />
-          ) : user?.role === 'tutor' ? (
-            <ButtonLink to={tutorPath}>Đăng ký nhận lớp</ButtonLink>
-          ) : user ? (
-            <Alert title="Dành cho gia sư">
-              Chỉ gia sư đã được duyệt mới có thể ứng tuyển lớp.
-            </Alert>
-          ) : (
-            <ButtonLink to={`/sign-in?next=${encodeURIComponent(tutorPath)}`}>
-              Đăng nhập gia sư để ứng tuyển
-            </ButtonLink>
-          )}
-        </>
+          <div className="border-t border-border">
+            {tutor ? (
+              <TutorApplicationForm item={detail.data} />
+            ) : user?.role === 'tutor' ? (
+              <div className="p-5 sm:p-6">
+                <ButtonLink
+                  variant="accent"
+                  className="w-full rounded-xl text-base font-semibold"
+                  to={tutorPath}
+                >
+                  Đăng ký nhận lớp
+                </ButtonLink>
+              </div>
+            ) : user ? (
+              <div className="p-5 sm:p-6">
+                <Alert title="Dành cho gia sư">
+                  Chỉ gia sư đã được duyệt mới có thể ứng tuyển lớp.
+                </Alert>
+              </div>
+            ) : (
+              <div className="p-5 sm:p-6">
+                <ButtonLink
+                  variant="accent"
+                  className="w-full rounded-xl text-base font-semibold"
+                  to={`/sign-in?next=${encodeURIComponent(tutorPath)}`}
+                >
+                  Đăng nhập gia sư để ứng tuyển
+                </ButtonLink>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );

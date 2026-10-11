@@ -1,95 +1,255 @@
-import { NavLink, Outlet } from 'react-router';
+import type { LucideIcon } from 'lucide-react';
+import {
+  BookOpen,
+  CalendarDays,
+  ChevronDown,
+  CircleHelp,
+  ClipboardList,
+  FileText,
+  GraduationCap,
+  Home,
+  LayoutDashboard,
+  MessageSquare,
+  Settings,
+  UserRound,
+  Users,
+  Wallet,
+} from 'lucide-react';
+import { NavLink, Outlet, useLocation } from 'react-router';
 
 type Area = 'parent' | 'tutor' | 'moderator';
 
-interface AreaConfig {
+interface MenuLink {
+  to: string;
   label: string;
-  home: string;
-  links: { to: string; label: string }[];
+  icon: LucideIcon;
 }
 
-const AREAS: Record<Area, AreaConfig> = {
+interface MenuGroup {
+  label: string;
+  icon: LucideIcon;
+  items: MenuLink[];
+}
+
+type MenuEntry = MenuLink | MenuGroup;
+
+const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
   parent: {
     label: 'Phụ huynh',
-    home: '/parent',
-    links: [
-      { to: '/parent', label: 'Yêu cầu tìm gia sư' },
-      { to: '/parent/trang-chu', label: 'Trang chủ' },
-      { to: '/parent/profile', label: 'Hồ sơ' },
-      { to: '/parent/lop-hoc', label: 'Lớp học' },
-      { to: '/parent/bang-gia', label: 'Bảng giá' },
-      { to: '/parent/blog', label: 'Tin tức' },
-      { to: '/parent/khieu-nai', label: 'Khiếu nại' },
-      { to: '/student/bookings', label: 'Lịch đã đặt' },
+    entries: [
+      { to: '/parent/trang-chu', label: 'Trang chủ', icon: Home },
+      { to: '/parent', label: 'Thuê gia sư', icon: ClipboardList },
+      { to: '/parent/profile', label: 'Hồ sơ', icon: UserRound },
+      { to: '/parent/lop-hoc', label: 'Lớp học', icon: GraduationCap },
+      { to: '/parent/bang-gia', label: 'Bảng giá', icon: Wallet },
+      {
+        label: 'Thông tin',
+        icon: BookOpen,
+        items: [
+          { to: '/parent/gioi-thieu', label: 'Giới thiệu', icon: CircleHelp },
+          { to: '/parent/dich-vu', label: 'Dịch vụ', icon: BookOpen },
+          { to: '/parent/blog', label: 'Tin tức', icon: FileText },
+          { to: '/parent/lien-he', label: 'Liên hệ', icon: MessageSquare },
+        ],
+      },
+      { to: '/parent/khieu-nai', label: 'Khiếu nại', icon: MessageSquare },
+      {
+        label: 'Lịch cũ',
+        icon: CalendarDays,
+        items: [{ to: '/student/bookings', label: 'Lịch đã đặt', icon: CalendarDays }],
+      },
     ],
   },
   tutor: {
     label: 'Gia sư',
-    home: '/tutor',
-    links: [
-      { to: '/tutor', label: 'Tổng quan' },
-      { to: '/tutor/new-classes', label: 'Lớp mới' },
-      { to: '/tutor/matched-classes', label: 'Lớp phù hợp' },
-      { to: '/tutor/class-requests', label: 'Đơn nhận lớp' },
-      { to: '/tutor/classes', label: 'Lớp của tôi' },
-      { to: '/tutor/profile', label: 'Hồ sơ của tôi' },
-      { to: '/tutor/contracts', label: 'Hợp đồng' },
-      { to: '/tutor/terms', label: 'Điều khoản trách nhiệm' },
-      { to: '/tutor/how-to-accept', label: 'Hướng dẫn nhận lớp' },
-      { to: '/tutor/class-history', label: 'Lịch sử lớp' },
-      { to: '/tutor/khieu-nai', label: 'Khiếu nại' },
-      { to: '/tutor/bookings', label: 'Lịch đặt hiện tại' },
+    entries: [
+      { to: '/tutor', label: 'Trang chủ', icon: Home },
+      { to: '/tutor/profile', label: 'Hồ sơ gia sư', icon: UserRound },
+      {
+        label: 'Lớp học',
+        icon: GraduationCap,
+        items: [
+          { to: '/tutor/new-classes', label: 'Danh sách lớp mới', icon: GraduationCap },
+          { to: '/tutor/matched-classes', label: 'Lớp phù hợp', icon: Users },
+          { to: '/tutor/class-requests', label: 'Đơn nhận lớp', icon: ClipboardList },
+          { to: '/tutor/classes', label: 'Lớp của tôi', icon: BookOpen },
+          { to: '/tutor/class-history', label: 'Lịch sử lớp', icon: CalendarDays },
+        ],
+      },
+      {
+        label: 'Nội dung',
+        icon: FileText,
+        items: [
+          { to: '/tutor/how-to-accept', label: 'Hướng dẫn nhận lớp', icon: CircleHelp },
+          { to: '/tutor/contracts', label: 'Hợp đồng', icon: FileText },
+          { to: '/tutor/terms', label: 'Điều khoản trách nhiệm', icon: ClipboardList },
+          { to: '/tutor/blog', label: 'Tin tức gia sư', icon: BookOpen },
+        ],
+      },
+      { to: '/tutor/pricing', label: 'Bảng giá', icon: Wallet },
+      { to: '/tutor/khieu-nai', label: 'Khiếu nại', icon: MessageSquare },
+      { to: '/tutor/contact', label: 'Liên hệ', icon: MessageSquare },
+      {
+        label: 'Lịch cũ',
+        icon: CalendarDays,
+        items: [
+          { to: '/tutor/bookings', label: 'Lịch đặt hiện tại', icon: CalendarDays },
+          { to: '/tutor/availability', label: 'Lịch dạy', icon: ClipboardList },
+        ],
+      },
     ],
   },
   moderator: {
     label: 'Kiểm duyệt viên',
-    home: '/admin',
-    links: [
-      { to: '/admin', label: 'Tổng quan' },
-      { to: '/admin/users', label: 'Người dùng' },
-      { to: '/admin/requests', label: 'Yêu cầu' },
-      { to: '/admin/applications', label: 'Đơn nhận lớp' },
-      { to: '/admin/classes', label: 'Lớp học' },
-      { to: '/admin/tutors', label: 'Duyệt hồ sơ' },
-      { to: '/admin/services', label: 'Dịch vụ' },
-      { to: '/admin/pricing', label: 'Phương án phí' },
-      { to: '/admin/terms/quiz', label: 'Bài kiểm tra điều khoản' },
-      { to: '/admin/contracts', label: 'Hợp đồng lớp' },
-      { to: '/admin/content/pages', label: 'Trang thông tin' },
-      { to: '/admin/content/blog', label: 'Nội dung' },
-      { to: '/admin/support', label: 'Hỗ trợ' },
-      { to: '/admin/reports', label: 'Báo cáo' },
-      { to: '/admin/settings', label: 'Cài đặt' },
+    entries: [
+      { to: '/admin', label: 'Tổng quan', icon: LayoutDashboard },
+      { to: '/admin/users', label: 'Người dùng', icon: Users },
+      {
+        label: 'Quản lý yêu cầu',
+        icon: ClipboardList,
+        items: [
+          { to: '/admin/requests', label: 'Yêu cầu tìm gia sư', icon: ClipboardList },
+          { to: '/admin/applications', label: 'Đơn nhận lớp', icon: FileText },
+          { to: '/admin/classes', label: 'Lớp học', icon: GraduationCap },
+          { to: '/admin/contracts', label: 'Hợp đồng lớp', icon: FileText },
+          { to: '/admin/tutors', label: 'Duyệt hồ sơ gia sư', icon: Users },
+        ],
+      },
+      {
+        label: 'Nội dung',
+        icon: BookOpen,
+        items: [
+          { to: '/admin/content/pages', label: 'Trang thông tin', icon: FileText },
+          { to: '/admin/content/blog', label: 'Tin tức', icon: BookOpen },
+          { to: '/admin/content/faq', label: 'Câu hỏi thường gặp', icon: CircleHelp },
+          { to: '/admin/content/contracts', label: 'Mẫu hợp đồng', icon: FileText },
+          { to: '/admin/content/terms', label: 'Điều khoản trách nhiệm', icon: ClipboardList },
+          { to: '/admin/terms/quiz', label: 'Bài kiểm tra điều khoản', icon: ClipboardList },
+          { to: '/admin/content/how-to-accept', label: 'Hướng dẫn nhận lớp', icon: CircleHelp },
+        ],
+      },
+      {
+        label: 'Dịch vụ & Giá',
+        icon: Wallet,
+        items: [
+          { to: '/admin/services', label: 'Dịch vụ', icon: BookOpen },
+          { to: '/admin/pricing', label: 'Phương án phí', icon: Wallet },
+        ],
+      },
+      {
+        label: 'Báo cáo',
+        icon: LayoutDashboard,
+        items: [
+          { to: '/admin/reports', label: 'Tổng quan báo cáo', icon: LayoutDashboard },
+          { to: '/admin/reports/conversion', label: 'Tỷ lệ chuyển đổi', icon: Users },
+          { to: '/admin/reports/no-tutor', label: 'Lớp thiếu gia sư', icon: GraduationCap },
+          { to: '/admin/reports/revenue', label: 'Doanh thu', icon: Wallet },
+        ],
+      },
+      { to: '/admin/support', label: 'Khiếu nại', icon: MessageSquare },
+      { to: '/admin/settings', label: 'Cài đặt', icon: Settings },
     ],
   },
 };
 
+function isGroup(entry: MenuEntry): entry is MenuGroup {
+  return 'items' in entry;
+}
+
+function isCurrentPath(pathname: string, to: string) {
+  return (
+    pathname === to ||
+    (to !== '/parent' && to !== '/tutor' && to !== '/admin' && pathname.startsWith(`${to}/`))
+  );
+}
+
 const linkClass = ({ isActive }: { isActive: boolean }) =>
-  `inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-    isActive ? 'bg-info-surface text-primary' : 'text-fg hover:bg-surface'
+  `inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+    isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
   }`;
+
+const submenuLinkClass = ({ isActive }: { isActive: boolean }) =>
+  `inline-flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+    isActive ? 'bg-accent text-on-accent' : 'text-primary hover:bg-info-surface'
+  }`;
+
+function MenuIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return <Icon aria-hidden="true" size={16} strokeWidth={2} />;
+}
 
 /** Role navigation only; API role and ownership checks remain on the Worker. */
 export function RoleShell({ area }: { area: Area }) {
   const config = AREAS[area];
+  const { pathname } = useLocation();
 
   return (
-    <div className="mx-auto grid w-full max-w-[var(--container-max)] gap-6 px-4 py-6 print:block print:max-w-none print:px-0 print:py-0 lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-8">
-      <aside className="min-w-0 print:hidden" aria-label={`Khu vực ${config.label}`}>
-        <p className="mb-2 text-sm font-semibold text-primary">Khu vực {config.label}</p>
-        <nav aria-label={`Điều hướng ${config.label}`}>
-          <ul className="flex min-w-0 gap-1 overflow-x-auto pb-2 lg:flex-col lg:overflow-visible lg:pb-0">
-            {config.links.map((link) => (
-              <li key={link.to} className="shrink-0 lg:shrink">
-                <NavLink to={link.to} end={link.to === config.home} className={linkClass}>
-                  {link.label}
-                </NavLink>
-              </li>
-            ))}
+    <div className="w-full min-w-0 print:block">
+      <div className="relative z-30 border-t border-white/20 bg-primary text-on-primary print:hidden">
+        <nav
+          aria-label={`Điều hướng ${config.label}`}
+          className="mx-auto w-full max-w-[var(--container-max)] px-4 py-2"
+        >
+          <ul className="flex flex-wrap items-center gap-1">
+            {config.entries.map((entry) => {
+              if (!isGroup(entry)) {
+                return (
+                  <li key={entry.to}>
+                    <NavLink
+                      to={entry.to}
+                      end={entry.to === '/parent' || entry.to === '/tutor' || entry.to === '/admin'}
+                      className={linkClass}
+                    >
+                      <MenuIcon icon={entry.icon} />
+                      {entry.label}
+                    </NavLink>
+                  </li>
+                );
+              }
+
+              const isActive = entry.items.some((item) => isCurrentPath(pathname, item.to));
+              return (
+                <li key={entry.label} className="relative min-w-0 max-md:w-full">
+                  <details
+                    key={pathname}
+                    className="group"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Escape') {
+                        event.currentTarget.open = false;
+                        event.currentTarget.querySelector('summary')?.focus();
+                      }
+                    }}
+                  >
+                    <summary
+                      className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden ${
+                        isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
+                      }`}
+                    >
+                      <MenuIcon icon={entry.icon} />
+                      <span>{entry.label}</span>
+                      <ChevronDown
+                        aria-hidden="true"
+                        size={14}
+                        className="ml-auto transition-transform group-open:rotate-180 md:ml-0"
+                      />
+                    </summary>
+                    <ul className="z-40 mt-1 min-w-56 rounded-md border border-border bg-bg p-1 text-primary shadow-card 2xl:absolute 2xl:top-full 2xl:left-0 2xl:max-h-[min(70dvh,32rem)] 2xl:overflow-y-auto">
+                      {entry.items.map((item) => (
+                        <li key={item.to}>
+                          <NavLink to={item.to} className={submenuLinkClass}>
+                            <MenuIcon icon={item.icon} />
+                            {item.label}
+                          </NavLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         </nav>
-      </aside>
-      <div className="min-w-0">
+      </div>
+      <div className="mx-auto w-full max-w-[var(--container-max)] min-w-0 px-4 py-6 print:max-w-none print:px-0 print:py-0">
         <Outlet />
       </div>
     </div>

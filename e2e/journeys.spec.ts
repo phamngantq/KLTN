@@ -208,7 +208,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(admin.getByText(`Đã xuất bản lớp ${cls!.code}.`)).toBeVisible();
 
     await guest.goto(`/lop-hoc/${cls!.id}`);
-    await expect(guest.getByText(`Mã lớp ${cls!.code}`)).toBeVisible();
+    await expect(guest.getByText(new RegExp(`Mã lớp:? ${cls!.code}`))).toBeVisible();
     expect(await guest.locator('body').innerText()).not.toContain(phone);
     expect(await guest.locator('body').innerText()).not.toContain(address);
     const publicClass = await getData<unknown>(guest, `/classes/${cls!.id}`);
@@ -298,7 +298,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
       admin.getByText('Yêu cầu đã gửi', { exact: true }).locator('..').locator('p').last(),
     ).toHaveText('1');
     await expect(
-      admin.getByText('Lớp hoạt động', { exact: true }).locator('..').locator('p').last(),
+      admin.getByText('Lớp hoạt động', { exact: true }).locator('..').locator('p').first(),
     ).toHaveText('1');
     const pdf = await admin.pdf({ format: 'A4', printBackground: true });
     expect(pdf.subarray(0, 4).toString()).toBe('%PDF');
@@ -329,8 +329,8 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(admin.getByRole('heading', { name: 'Cài đặt và nội dung' })).toBeVisible();
     await expect(admin.getByRole('link', { name: /Phương án phí Đặt giá trị/ })).toBeVisible();
     await tutor.goto('/tutor/class-history');
-    await expect(tutor.getByRole('heading', { name: 'Lịch sử lớp học' })).toBeVisible();
-    await expect(tutor.getByText('Chưa có lịch sử rút gán hoặc hoàn tất.')).toBeVisible();
+    await expect(tutor.getByRole('heading', { name: 'Lịch sử nhận lớp' })).toBeVisible();
+    await expect(tutor.getByRole('heading', { name: 'Chưa có lịch sử lớp học' })).toBeVisible();
   } finally {
     await Promise.all(
       [parent, tutor, admin, outsider, guest].map((page) => page.context().close()),

@@ -5,13 +5,15 @@
 
 > **LOCAL_ONLY:** `./figma` là bản export do người dùng cung cấp tại máy và được Git ignore vì chứa dữ liệu/ảnh mẫu chưa duyệt. Các liên kết tương đối đến `figma/` trong tài liệu chỉ mở được trong workspace có export; chúng không phải bằng chứng source đã có trên GitHub. Không stage/push nguyên thư mục.
 
+**Tên giao diện:** `figma/src/app/pages/public/PublicLayout.tsx` và `HomePage.tsx` dùng **Gia Sư Đỗ Hằng** với khẩu hiệu **Uy tín - Chất lượng**; slug Figma “Tutor Matching Platform” là tên đường dẫn của source. Bản tích hợp dùng tên này ở trang công khai, đăng nhập, shell các vai trò và tiêu đề trình duyệt. Màu và bố cục các màn trọng tâm được đối chiếu với export local; điều đó chưa xác nhận hình ảnh của frame Make hiện tại.
+
 ## Public và tài khoản
 
 Route: [`routes.tsx` dòng 77–132](figma/src/app/routes.tsx#L77). Shell, menu và footer: [`PublicLayout.tsx`](figma/src/app/pages/public/PublicLayout.tsx#L21).
 
 | Route export | Page trong `figma/src/app/pages/` | App hiện tại | Trạng thái/ý nghĩa |
 |---|---|---|---|
-| `/` | `public/HomePage.tsx` | `/` | CODE_EXPORTED; home nội dung khác |
+| `/` | `public/HomePage.tsx` | `/` | CODE_EXPORTED; hero, thẻ vai trò, quy trình và CTA theo bố cục export, dùng dữ liệu/copy đã duyệt thay số mẫu |
 | `/gioi-thieu` | `public/AboutPage.tsx` | `/gioi-thieu` + CMS published | CODE_EXPORTED; nội dung seed đã duyệt, sửa bằng revision |
 | `/dich-vu` | `public/ServicesPage.tsx` | `/dich-vu` + CMS service | CODE_EXPORTED; có một dịch vụ seed được duyệt, không có gói thanh toán |
 | `/bang-gia` | `public/PricingPage.tsx` | `/bang-gia` + fee versions | CODE_EXPORTED; phụ huynh miễn phí, mức phí gia sư chỉ hiện sau khi admin publish |

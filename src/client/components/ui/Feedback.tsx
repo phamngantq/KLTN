@@ -70,7 +70,7 @@ export function Badge({
 }) {
   return (
     <span
-      className={`inline-flex items-center rounded-sm border px-2 py-0.5 text-[length:var(--text-caption)] font-medium ${BADGE_TONES[tone]}`}
+      className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[length:var(--text-caption)] font-medium ${BADGE_TONES[tone]}`}
     >
       {children}
     </span>
@@ -88,8 +88,8 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-[length:var(--text-heading)] font-bold text-fg">{title}</h1>
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-bold text-primary md:text-3xl">{title}</h1>
         {description && <p className="text-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap gap-2">{actions}</div>}

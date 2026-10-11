@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { BookOpen, CalendarDays, CircleCheck, CircleX, EyeOff, GraduationCap } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import {
@@ -16,7 +17,7 @@ import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedba
 import { TextareaField } from '../../components/ui/Field';
 import { Skeleton } from '../../components/ui/Spinner';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
-import { formatVnd } from '../../lib/format';
+import { formatDate, formatVnd } from '../../lib/format';
 
 const ADMIN_TUTORS_KEY = ['admin-tutors'] as const;
 
@@ -104,22 +105,23 @@ export function AdminTutorsPage() {
   const errors = fieldErrors(mutation.error);
 
   return (
-    <section className="flex flex-col gap-4">
+    <section className="flex flex-col gap-6">
       <PageHeader
         title="Duyệt gia sư"
         description="Chỉ hồ sơ đã duyệt và công khai mới xuất hiện trong tìm kiếm."
       />
-      <nav aria-label="Hàng đợi" className="overflow-x-auto">
-        <ul className="flex gap-1 border-b border-border">
+      <nav
+        aria-label="Hàng đợi"
+        className="overflow-x-auto rounded-xl border border-primary/20 bg-bg p-3 shadow-card"
+      >
+        <ul className="flex min-w-max gap-2">
           {ADMIN_TUTOR_FILTERS.map((f) => (
             <li key={f}>
               <Link
                 to={`?status=${f}`}
                 aria-current={f === filter ? 'page' : undefined}
-                className={`inline-flex min-h-11 items-center px-3 text-sm font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:outline-focus ${
-                  f === filter
-                    ? 'border-b-2 border-primary text-primary'
-                    : 'text-muted hover:text-fg'
+                className={`inline-flex min-h-11 items-center rounded-md px-4 text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+                  f === filter ? 'bg-accent text-on-accent' : 'text-primary hover:bg-info-surface'
                 }`}
               >
                 {ADMIN_FILTER_LABELS[f]}
@@ -148,46 +150,92 @@ export function AdminTutorsPage() {
         ) : list.data.items.length === 0 ? (
           <EmptyState title={`Không có hồ sơ "${ADMIN_FILTER_LABELS[filter]}"`} />
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="grid gap-4 lg:grid-cols-2">
             {list.data.items.map((tutor) => (
-              <li key={tutor.userId}>
-                <article className="flex flex-col gap-2 rounded-lg border border-border p-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-semibold">{tutor.displayName}</h2>
-                    <span className="text-sm break-all text-muted">{tutor.email}</span>
-                    <Badge>{ADMIN_FILTER_LABELS[filter]}</Badge>
+              <li key={tutor.userId} className="min-w-0">
+                <article className="flex h-full flex-col gap-4 rounded-xl border border-primary/20 border-l-4 border-l-accent bg-bg p-5 shadow-card transition-shadow hover:shadow-lg">
+                  <div className="flex flex-wrap items-start gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-info-surface text-primary"
+                    >
+                      <GraduationCap size={22} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-lg font-semibold text-primary">{tutor.displayName}</h2>
+                      <p className="break-all text-sm text-muted">{tutor.email}</p>
+                    </div>
+                    <Badge
+                      tone={
+                        filter === 'approved'
+                          ? 'success'
+                          : filter === 'pending'
+                            ? 'warning'
+                            : 'neutral'
+                      }
+                    >
+                      {ADMIN_FILTER_LABELS[filter]}
+                    </Badge>
                   </div>
-                  <p className="text-sm">
-                    {tutor.subjects.map((s) => s.name).join(', ') || 'Chưa chọn môn'} ·{' '}
-                    {teachingModes(tutor) || 'Chưa chọn hình thức'} ·{' '}
-                    {tutor.hourlyRateMinor !== null
-                      ? `${formatVnd(tutor.hourlyRateMinor)}/giờ`
-                      : 'Chưa có học phí'}
-                  </p>
-                  <p className="text-sm whitespace-pre-line text-muted">
+                  <div className="space-y-2 text-sm">
+                    <p className="flex items-start gap-2">
+                      <BookOpen
+                        aria-hidden="true"
+                        size={17}
+                        className="mt-0.5 shrink-0 text-warning"
+                      />
+                      <span>
+                        {tutor.subjects.map((s) => s.name).join(', ') || 'Chưa chọn môn'} ·{' '}
+                        {teachingModes(tutor) || 'Chưa chọn hình thức'} ·{' '}
+                        {tutor.hourlyRateMinor !== null
+                          ? `${formatVnd(tutor.hourlyRateMinor)}/giờ`
+                          : 'Chưa có học phí'}
+                      </span>
+                    </p>
+                    <p className="flex items-center gap-2 text-muted">
+                      <CalendarDays
+                        aria-hidden="true"
+                        size={17}
+                        className="shrink-0 text-warning"
+                      />
+                      Cập nhật {formatDate(tutor.updatedAt, 'Asia/Ho_Chi_Minh')}
+                    </p>
+                  </div>
+                  <p className="whitespace-pre-line rounded-md bg-surface p-3 text-sm text-muted">
                     {tutor.bio || '(Chưa có giới thiệu)'}
                   </p>
                   {tutor.moderationNote && (
-                    <p className="text-sm">Ghi chú kiểm duyệt: {tutor.moderationNote}</p>
+                    <p className="rounded-md border-l-4 border-warning bg-warning-surface p-3 text-sm">
+                      <strong>Ghi chú kiểm duyệt:</strong> {tutor.moderationNote}
+                    </p>
                   )}
                   {ACTIONS_FOR[filter].length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {ACTIONS_FOR[filter].map((action) => (
-                        <Button
-                          key={action}
-                          size="sm"
-                          variant={
-                            action === 'approve'
-                              ? 'primary'
-                              : action === 'reject'
-                                ? 'danger'
-                                : 'secondary'
-                          }
-                          onClick={() => open(tutor, action)}
-                        >
-                          {ACTION_LABELS[action]}
-                        </Button>
-                      ))}
+                    <div className="mt-auto flex flex-wrap gap-2 border-t border-border pt-4">
+                      {ACTIONS_FOR[filter].map((action) => {
+                        const Icon =
+                          action === 'approve'
+                            ? CircleCheck
+                            : action === 'reject'
+                              ? CircleX
+                              : EyeOff;
+                        return (
+                          <Button
+                            key={action}
+                            size="sm"
+                            variant={
+                              action === 'approve'
+                                ? 'primary'
+                                : action === 'reject'
+                                  ? 'danger'
+                                  : 'secondary'
+                            }
+                            onClick={() => open(tutor, action)}
+                          >
+                            <Icon aria-hidden="true" size={16} />
+                            {ACTION_LABELS[action]}
+                          </Button>
+                        );
+                      })}
                     </div>
                   )}
                 </article>

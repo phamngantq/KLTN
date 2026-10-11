@@ -24,10 +24,11 @@ export async function newPage(
 export async function signUp(page: Page, role: 'student' | 'tutor', name: string, email: string) {
   const response = await page.goto('/sign-up');
   expect(response?.status(), 'sign-up navigation failed').toBe(200);
-  await page.getByLabel(role === 'tutor' ? /Gia sư — tạo hồ sơ/ : /Phụ huynh/).check();
+  await page.getByLabel('Vai trò').selectOption(role === 'tutor' ? 'tutor' : 'parent');
   await page.getByLabel(/Họ và tên/).fill(name);
   await page.getByLabel(/^Email/).fill(email);
   await page.getByLabel(/^Mật khẩu/).fill(PASSWORD);
+  await page.locator('input[name="confirmPassword"]').fill(PASSWORD);
   await page.getByRole('button', { name: 'Tạo tài khoản' }).click();
   await expect(page.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
 }

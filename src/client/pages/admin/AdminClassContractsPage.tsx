@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CalendarDays, Eye, FileText, UserRound } from 'lucide-react';
 import { Link } from 'react-router';
 import type {
   AdminContractCandidate,
@@ -46,12 +47,13 @@ export function AdminClassContractsPage() {
   }
 
   return (
-    <section className="flex min-w-0 flex-col gap-5">
+    <section className="flex min-w-0 flex-col gap-6">
       <PageHeader
         title="Hợp đồng lớp"
         description="Phát hành phiên bản hợp đồng đã công bố cho lớp được gán và theo dõi xác nhận của gia sư."
         actions={
-          <ButtonLink variant="secondary" to="/admin/content/contracts">
+          <ButtonLink variant="secondary" to="/admin/content/contracts" className="rounded-xl">
+            <FileText aria-hidden="true" className="size-4" />
             Biên tập mẫu hợp đồng
           </ButtonLink>
         }
@@ -70,24 +72,52 @@ export function AdminClassContractsPage() {
           trước khi phát hành cho lớp.
         </Alert>
       ) : (
-        <article className="rounded-lg border border-border bg-bg p-4">
-          <h2 className="font-semibold text-primary">Mẫu hiện hành: {template.data.title}</h2>
-          <p className="text-sm text-muted">
-            Phiên bản {template.data.revision}. Hồ sơ đã phát hành giữ phiên bản tại thời điểm phát
-            hành.
-          </p>
-          <details className="mt-3">
-            <summary className="cursor-pointer font-medium">Xem nội dung mẫu</summary>
-            <div className="mt-3 whitespace-pre-wrap break-words text-sm leading-7">
+        <article className="overflow-hidden rounded-xl border border-border bg-bg shadow-card">
+          <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-primary">
+                <FileText aria-hidden="true" className="size-5" />
+                Mẫu hiện hành: {template.data.title}
+              </h2>
+              <p className="mt-1 text-sm text-muted">
+                Hồ sơ đã phát hành giữ phiên bản tại thời điểm phát hành.
+              </p>
+            </div>
+            <Badge tone="info">Phiên bản {template.data.revision}</Badge>
+          </div>
+          <details className="p-5 sm:p-6">
+            <summary className="min-h-11 cursor-pointer py-2 font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus">
+              Xem nội dung mẫu
+            </summary>
+            <div className="mt-3 whitespace-pre-wrap break-words rounded-lg bg-surface p-4 text-sm leading-7">
               {template.data.bodyText}
             </div>
           </details>
         </article>
       )}
-      <section className="space-y-4" aria-labelledby="contract-candidates-heading">
-        <h2 id="contract-candidates-heading" className="text-xl font-semibold">
+      <nav aria-label="Mục hợp đồng" className="flex flex-wrap gap-2 border-b border-border pb-3">
+        <a
+          href="#contract-candidates-heading"
+          className="inline-flex min-h-11 items-center rounded-lg border border-primary bg-info-surface px-4 text-sm font-medium text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
           Lớp đã gán
-        </h2>
+        </a>
+        <a
+          href="#contract-records-heading"
+          className="inline-flex min-h-11 items-center rounded-lg border border-border bg-bg px-4 text-sm font-medium text-primary hover:bg-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          Hồ sơ đã phát hành
+        </a>
+      </nav>
+      <section className="space-y-4" aria-labelledby="contract-candidates-heading">
+        <div>
+          <h2 id="contract-candidates-heading" className="text-xl font-semibold text-primary">
+            Lớp đã gán
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Phát hành mẫu hiện hành cho lớp có gia sư được gán.
+          </p>
+        </div>
         {candidates.isPending ? (
           <PageLoading label="Đang tải lớp đã gán…" />
         ) : candidates.isError ? (
@@ -108,25 +138,31 @@ export function AdminClassContractsPage() {
           />
         ) : (
           <>
-            <ul className="grid gap-3">
+            <ul className="grid gap-4 md:grid-cols-2">
               {candidates.data.items.map((item) => (
                 <li
                   key={item.assignmentId}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-bg p-4"
+                  className="flex min-w-0 flex-col justify-between gap-5 rounded-xl border border-border bg-bg p-5 shadow-card"
                 >
                   <div>
-                    <p className="font-semibold">
-                      {item.classCode} · {item.tutorDisplayName}
+                    <p className="font-mono text-xs text-muted">{item.classCode}</p>
+                    <p className="mt-1 flex items-center gap-2 break-words font-semibold text-primary">
+                      <UserRound aria-hidden="true" className="size-4 shrink-0" />
+                      {item.tutorDisplayName}
                     </p>
-                    <p className="text-sm text-muted">
+                    <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
+                      <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
                       Gán lúc {new Date(item.assignedAt).toLocaleString('vi-VN')}
                     </p>
                   </div>
                   {item.contractId ? (
-                    <Badge tone="success">Đã phát hành</Badge>
+                    <div>
+                      <Badge tone="success">Đã phát hành</Badge>
+                    </div>
                   ) : (
                     <Button
                       disabled={!template.data || readOnly}
+                      className="self-start rounded-xl"
                       onClick={() => {
                         setNotice('');
                         setSelected(item);
@@ -138,7 +174,10 @@ export function AdminClassContractsPage() {
                 </li>
               ))}
             </ul>
-            <nav aria-label="Trang lớp đã gán" className="flex items-center gap-3">
+            <nav
+              aria-label="Trang lớp đã gán"
+              className="flex flex-wrap items-center gap-3 text-sm"
+            >
               <Button
                 variant="secondary"
                 disabled={candidatePage <= 1}
@@ -162,7 +201,7 @@ export function AdminClassContractsPage() {
         )}
       </section>
       <section className="space-y-4" aria-labelledby="contract-records-heading">
-        <h2 id="contract-records-heading" className="text-xl font-semibold">
+        <h2 id="contract-records-heading" className="text-xl font-semibold text-primary">
           Hồ sơ đã phát hành
         </h2>
         {records.isPending ? (
@@ -182,35 +221,45 @@ export function AdminClassContractsPage() {
           <EmptyState title="Chưa phát hành hồ sơ nào" />
         ) : (
           <>
-            <ul className="grid gap-3">
+            <ul className="grid gap-4 md:grid-cols-2">
               {records.data.items.map((item) => (
                 <li
                   key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-bg p-4"
+                  className="flex min-w-0 flex-col justify-between gap-5 rounded-xl border border-border bg-bg p-5 shadow-card"
                 >
                   <div>
-                    <p className="font-semibold">
-                      {item.classCode} · {item.contractTitle}
+                    <p className="font-mono text-xs text-muted">{item.classCode}</p>
+                    <p className="mt-1 break-words font-semibold text-primary">
+                      {item.contractTitle}
                     </p>
-                    <p className="text-sm text-muted">
+                    <p className="mt-2 flex items-center gap-1.5 text-sm text-muted">
+                      <CalendarDays aria-hidden="true" className="size-4 shrink-0" />
                       Phiên bản {item.contractRevision} · phát hành{' '}
                       {new Date(item.issuedAt).toLocaleString('vi-VN')}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <Badge tone={item.status === 'acknowledged' ? 'success' : 'warning'}>
                       {item.status === 'acknowledged'
                         ? 'Gia sư đã xác nhận'
                         : 'Chờ gia sư xác nhận'}
                     </Badge>
-                    <Button variant="secondary" onClick={() => setPreview(item)}>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setPreview(item)}
+                      className="rounded-xl"
+                    >
+                      <Eye aria-hidden="true" className="size-4" />
                       Xem
                     </Button>
                   </div>
                 </li>
               ))}
             </ul>
-            <nav aria-label="Trang hồ sơ hợp đồng" className="flex items-center gap-3">
+            <nav
+              aria-label="Trang hồ sơ hợp đồng"
+              className="flex flex-wrap items-center gap-3 text-sm"
+            >
               <Button
                 variant="secondary"
                 disabled={recordPage <= 1}
@@ -235,25 +284,32 @@ export function AdminClassContractsPage() {
       </section>
       {preview && (
         <article
-          className="rounded-lg border border-border bg-bg p-5"
+          className="overflow-hidden rounded-xl border border-border bg-bg shadow-card"
           aria-label="Chi tiết hồ sơ hợp đồng"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold">{preview.contractTitle}</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-5 py-4 sm:px-6">
+            <h2 className="flex items-center gap-2 text-xl font-semibold text-primary">
+              <FileText aria-hidden="true" className="size-5" />
+              {preview.contractTitle}
+            </h2>
             <Button variant="secondary" onClick={() => setPreview(null)}>
               Đóng
             </Button>
           </div>
-          <p className="mt-1 text-sm text-muted">
-            Lớp {preview.classCode} · phiên bản {preview.contractRevision}
-          </p>
-          <div className="mt-4 whitespace-pre-wrap break-words text-sm leading-7">
-            {preview.contractBodyText}
+          <div className="space-y-4 p-5 sm:p-6">
+            <p className="text-sm text-muted">
+              Lớp {preview.classCode} · phiên bản {preview.contractRevision}
+            </p>
+            <div className="whitespace-pre-wrap break-words rounded-lg bg-surface p-4 text-sm leading-7">
+              {preview.contractBodyText}
+            </div>
+            <div className="rounded-lg border border-border p-4">
+              <p className="font-medium text-primary">Phương án phí: {preview.feeOptionTitle}</p>
+              <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted">
+                {preview.feePolicyText}
+              </p>
+            </div>
           </div>
-          <p className="mt-4 font-medium">Phương án phí: {preview.feeOptionTitle}</p>
-          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-muted">
-            {preview.feePolicyText}
-          </p>
         </article>
       )}
       <ConfirmDialog

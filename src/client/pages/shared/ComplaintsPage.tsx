@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarDays, Eye, MessageSquare, Plus, Send } from 'lucide-react';
 import { useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
 import {
@@ -11,9 +12,9 @@ import {
 } from '../../../shared/schemas/complaints';
 import type { Page } from '../../../shared/schemas/discovery';
 import { isReadOnlyPreview } from '../../app/preview';
-import { Button } from '../../components/ui/Button';
-import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
-import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
+import { Button, buttonClass } from '../../components/ui/Button';
+import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
+import { TextareaField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
 
@@ -85,20 +86,33 @@ export function ComplaintsPage() {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader
-        title="Khiếu nại của tôi"
-        description="Gửi và theo dõi yêu cầu hỗ trợ. Nội dung chỉ hiển thị cho bạn và kiểm duyệt viên."
-      />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-semibold text-[#0e2f5f]">Khiếu nại của tôi</h1>
+          <p className="mt-2 text-sm text-muted">
+            Quản lý và theo dõi các khiếu nại gửi đến trung tâm. Nội dung chỉ hiển thị cho bạn và
+            kiểm duyệt viên.
+          </p>
+        </div>
+        <a href="#new-complaint" className={buttonClass('primary')}>
+          <Plus aria-hidden="true" className="size-4" />
+          Tạo khiếu nại
+        </a>
+      </div>
       {isReadOnlyPreview() && (
         <Alert tone="info">Bản xem trước chỉ cho phép xem, chưa nhận khiếu nại mới.</Alert>
       )}
       {notice && <Alert tone="success">{notice}</Alert>}
 
       <form
+        id="new-complaint"
         onSubmit={submit}
-        className="flex max-w-2xl flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+        className="flex max-w-2xl scroll-mt-24 flex-col gap-4 rounded-xl border border-border bg-white p-5 shadow-card sm:p-6"
       >
-        <h2 className="text-lg font-semibold">Gửi khiếu nại</h2>
+        <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]">
+          <MessageSquare aria-hidden="true" className="size-5" />
+          Gửi khiếu nại
+        </h2>
         {classId && <p className="text-sm text-muted">Khiếu nại liên quan đến lớp được chọn.</p>}
         <TextField
           label="Tiêu đề"
@@ -129,93 +143,124 @@ export function ComplaintsPage() {
         {create.isError && <Alert tone="danger">{create.error.message}</Alert>}
         <div>
           <Button type="submit" loading={create.isPending} disabled={isReadOnlyPreview()}>
+            <Send aria-hidden="true" className="size-4" />
             Gửi khiếu nại
           </Button>
         </div>
       </form>
 
-      <div className="flex max-w-xs flex-col gap-1">
-        <SelectField
-          label="Lọc trạng thái"
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value as ComplaintStatus | '');
-            setPage(1);
-          }}
-        >
-          <option value="">Tất cả</option>
-          {COMPLAINT_STATUSES.map((value) => (
-            <option key={value} value={value}>
-              {LABELS[value]}
-            </option>
-          ))}
-        </SelectField>
-      </div>
-      {complaints.isPending ? (
-        <PageLoading label="Đang tải khiếu nại…" />
-      ) : complaints.isError ? (
-        <Alert
-          tone="danger"
-          action={
-            <Button variant="secondary" onClick={() => void complaints.refetch()}>
-              Thử lại
-            </Button>
-          }
-        >
-          {complaints.error.message}
-        </Alert>
-      ) : complaints.data.items.length === 0 ? (
-        <EmptyState
-          title="Chưa có khiếu nại"
-          description="Khi gửi thành công, khiếu nại sẽ xuất hiện tại đây."
-        />
-      ) : (
-        <>
-          <ul className="grid gap-3">
-            {complaints.data.items.map((item) => (
-              <li key={item.id} className="rounded-lg border border-border bg-surface p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div>
-                    <p className="font-semibold">{item.title}</p>
-                    <p className="text-sm text-muted">
-                      {item.code} · {new Date(item.createdAt).toLocaleDateString('vi-VN')}
-                    </p>
-                  </div>
-                  <Badge tone={item.status === 'resolved' ? 'success' : 'info'}>
-                    {LABELS[item.status]}
-                  </Badge>
-                </div>
-                <Button variant="secondary" className="mt-3" onClick={() => setSelectedId(item.id)}>
-                  Xem chi tiết
-                </Button>
-              </li>
+      <section
+        className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-card"
+        aria-labelledby="complaint-list-heading"
+      >
+        <div className="border-b border-border px-4 pt-5 sm:px-6">
+          <h2
+            id="complaint-list-heading"
+            className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]"
+          >
+            <MessageSquare aria-hidden="true" className="size-5" />
+            Danh sách khiếu nại
+          </h2>
+          <div
+            role="group"
+            className="mt-4 flex gap-1 overflow-x-auto"
+            aria-label="Lọc trạng thái khiếu nại"
+          >
+            {(['', ...COMPLAINT_STATUSES] as const).map((value) => (
+              <button
+                key={value || 'all'}
+                type="button"
+                aria-pressed={status === value}
+                onClick={() => {
+                  setStatus(value);
+                  setPage(1);
+                }}
+                className={`min-h-11 shrink-0 border-b-2 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-focus ${status === value ? 'border-[#0e2f5f] text-[#0e2f5f]' : 'border-transparent text-muted hover:text-[#0e2f5f]'}`}
+              >
+                {value ? LABELS[value] : 'Tất cả'}
+              </button>
             ))}
-          </ul>
-          <nav aria-label="Phân trang khiếu nại" className="flex items-center gap-3">
-            <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              Trước
-            </Button>
-            <span>
-              Trang {page}/{totalPages}
-            </span>
-            <Button
-              variant="secondary"
-              disabled={page >= totalPages}
-              onClick={() => setPage(page + 1)}
+          </div>
+        </div>
+        <div className="p-4 sm:p-6">
+          {complaints.isPending ? (
+            <PageLoading label="Đang tải khiếu nại…" />
+          ) : complaints.isError ? (
+            <Alert
+              tone="danger"
+              action={
+                <Button variant="secondary" onClick={() => void complaints.refetch()}>
+                  Thử lại
+                </Button>
+              }
             >
-              Sau
-            </Button>
-          </nav>
-        </>
-      )}
+              {complaints.error.message}
+            </Alert>
+          ) : complaints.data.items.length === 0 ? (
+            <EmptyState
+              title="Chưa có khiếu nại"
+              description="Khi gửi thành công, khiếu nại sẽ xuất hiện tại đây."
+            />
+          ) : (
+            <>
+              <ul className="grid gap-3">
+                {complaints.data.items.map((item) => (
+                  <li
+                    key={item.id}
+                    className="rounded-lg border border-border bg-white p-4 transition-shadow hover:shadow-md"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-[#0e2f5f]">{item.title}</p>
+                        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
+                          <span className="font-mono text-xs">{item.code}</span>
+                          <span aria-hidden="true">·</span>
+                          <CalendarDays aria-hidden="true" className="size-4" />
+                          {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+                        </p>
+                      </div>
+                      <Badge tone={item.status === 'resolved' ? 'success' : 'info'}>
+                        {LABELS[item.status]}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      className="mt-3"
+                      onClick={() => setSelectedId(item.id)}
+                    >
+                      <Eye aria-hidden="true" className="size-4" />
+                      Xem chi tiết
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              <nav aria-label="Phân trang khiếu nại" className="flex items-center gap-3">
+                <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
+                  Trước
+                </Button>
+                <span>
+                  Trang {page}/{totalPages}
+                </span>
+                <Button
+                  variant="secondary"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage(page + 1)}
+                >
+                  Sau
+                </Button>
+              </nav>
+            </>
+          )}
+        </div>
+      </section>
 
       {selectedId && (
         <section
-          className="max-w-2xl rounded-lg border border-border p-5"
+          className="max-w-2xl rounded-xl border border-border bg-white p-5 shadow-card sm:p-6"
           aria-label="Chi tiết khiếu nại"
         >
           <div className="mb-3 flex justify-between gap-3">
-            <h2 className="text-lg font-semibold">Chi tiết khiếu nại</h2>
+            <h2 className="text-lg font-semibold text-[#0e2f5f]">Chi tiết khiếu nại</h2>
             <Button variant="secondary" onClick={() => setSelectedId(null)}>
               Đóng
             </Button>

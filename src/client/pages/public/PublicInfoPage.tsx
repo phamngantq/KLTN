@@ -1,3 +1,4 @@
+import { Info } from 'lucide-react';
 import { Link } from 'react-router';
 import { ButtonLink } from '../../components/ui/Button';
 
@@ -16,34 +17,29 @@ const CONTENT: Record<PageKind, { eyebrow: string; title: string; intro: string;
   {
     about: {
       eyebrow: 'GIỚI THIỆU',
-      title: 'Kết nối phụ huynh và gia sư',
-      intro:
-        'Bản thiết kế mới hướng tới hành trình phụ huynh gửi yêu cầu, gia sư ứng tuyển và kiểm duyệt viên điều phối lớp học.',
-      status:
-        'Luồng ghép lớp đang được triển khai. Bạn vẫn có thể xem hồ sơ gia sư trong hệ thống hiện tại.',
+      title: 'Về Chúng Tôi',
+      intro: 'Kết nối phụ huynh và gia sư qua yêu cầu, ứng tuyển và điều phối lớp học.',
+      status: 'Thông tin giới thiệu đang được kiểm duyệt để công bố.',
     },
     services: {
       eyebrow: 'DỊCH VỤ',
       title: 'Dịch vụ tìm gia sư',
-      intro:
-        'Trang dịch vụ sẽ giải thích cách gửi yêu cầu, chọn gia sư và theo dõi lớp học khi quy trình mới được đưa vào hoạt động.',
+      intro: 'Phụ huynh gửi yêu cầu, gia sư ứng tuyển và kiểm duyệt viên điều phối lớp học.',
       status: 'Các gói dịch vụ và điều kiện áp dụng chưa được công bố.',
     },
     pricing: {
       eyebrow: 'BẢNG GIÁ',
       title: 'Bảng giá đang được xác nhận',
       intro:
-        'Mức học phí và phí nhận lớp cần có chính sách được duyệt trước khi hiển thị hoặc áp dụng cho giao dịch.',
+        'Phụ huynh tìm gia sư miễn phí. Phí nhận lớp dành cho gia sư chỉ hiển thị sau khi được công bố.',
       status:
-        'Hiện chưa có bảng giá chính thức trên hệ thống này. Không thực hiện thanh toán qua trang này.',
+        'Chưa có mức phí được công bố tại trang này. Không thực hiện thanh toán qua trang này.',
     },
     classes: {
       eyebrow: 'LỚP HỌC',
       title: 'Danh sách lớp học',
-      intro:
-        'Lớp học sẽ xuất hiện tại đây khi yêu cầu được kiểm tra và kiểm duyệt viên xuất bản từ dữ liệu thật.',
-      status:
-        'Chưa có danh sách lớp để đăng ký trực tuyến. Chức năng ứng tuyển lớp đang được triển khai.',
+      intro: 'Lớp học xuất hiện khi kiểm duyệt viên công bố yêu cầu đã được xem xét.',
+      status: 'Chưa có lớp học được công bố tại trang này.',
     },
     'blog-parent': {
       eyebrow: 'TIN TỨC',
@@ -87,18 +83,22 @@ export function PublicInfoPage({ kind }: { kind: PageKind }) {
 
   return (
     <>
-      <section className="bg-gradient-to-br from-primary to-primary-gradient-end px-4 py-12 text-on-primary md:py-16">
-        <div className="mx-auto max-w-[var(--container-max)]">
+      <section className="bg-gradient-to-br from-primary to-primary-gradient-end px-4 py-16 text-center text-on-primary">
+        <div className="mx-auto max-w-4xl">
           <p className="text-sm font-semibold tracking-wide text-accent">{content.eyebrow}</p>
-          <h1 className="mt-3 max-w-3xl text-3xl leading-tight font-bold md:text-4xl">
-            {content.title}
-          </h1>
-          <p className="mt-4 max-w-2xl text-lg text-on-primary/90">{content.intro}</p>
+          <h1 className="mt-4 text-4xl leading-tight font-bold md:text-5xl">{content.title}</h1>
+          <p className="mx-auto mt-6 max-w-2xl text-xl text-on-primary/90">{content.intro}</p>
         </div>
       </section>
-      <section className="mx-auto max-w-[var(--container-max)] px-4 py-12">
-        <div className="max-w-3xl rounded-lg border border-border bg-surface p-6 shadow-card">
-          <h2 className="text-xl font-semibold text-primary">Trạng thái hiện tại</h2>
+      <section className="px-4 py-16">
+        <div className="mx-auto max-w-4xl rounded-xl border-2 border-primary/20 bg-bg p-6 shadow-card md:p-8">
+          <span
+            aria-hidden="true"
+            className="mb-5 flex size-14 items-center justify-center rounded-xl bg-accent text-on-accent"
+          >
+            <Info className="size-7" />
+          </span>
+          <h2 className="text-2xl font-semibold text-primary">Trạng thái hiện tại</h2>
           <p className="mt-2 text-muted">{content.status}</p>
           <div className="mt-6 flex flex-wrap gap-3">
             <ButtonLink to="/">Về trang chủ</ButtonLink>
@@ -110,7 +110,7 @@ export function PublicInfoPage({ kind }: { kind: PageKind }) {
           </div>
         </div>
         {(kind === 'blog-parent' || kind === 'blog-tutor') && (
-          <p className="mt-6 text-sm text-muted">
+          <p className="mx-auto mt-6 max-w-4xl text-sm text-muted">
             {kind === 'blog-parent' ? 'Bạn là gia sư?' : 'Bạn là phụ huynh?'}{' '}
             <Link
               to={kind === 'blog-parent' ? '/blog/gia-su' : '/blog/phu-huynh'}

@@ -1,12 +1,15 @@
-import type { FormEvent } from 'react';
+import type { FormEvent, ReactNode } from 'react';
 import type { UseQueryResult } from '@tanstack/react-query';
-import { useSearchParams } from 'react-router';
+import { BookOpen, Search, Users } from 'lucide-react';
+import { useLocation, useSearchParams } from 'react-router';
 import { REQUEST_GRADE_OPTIONS } from '../../../shared/schemas/requests';
 import { classSorts } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
 import { ClassCard } from '../../components/domain/ClassCard';
+import { useSession } from '../../app/auth';
+import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
-import { Alert, EmptyState, PageHeader } from '../../components/ui/Feedback';
+import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { SelectField, TextField } from '../../components/ui/Field';
 import { Skeleton } from '../../components/ui/Spinner';
 import {
@@ -16,6 +19,38 @@ import {
   type PublicClass,
 } from '../../features/classes/api';
 import { useSubjects } from '../../features/tutor-profile/api';
+
+function ClassHero({
+  title,
+  description,
+  actions,
+  embedded,
+}: {
+  title: string;
+  description: string;
+  actions?: ReactNode;
+  embedded?: boolean;
+}) {
+  return (
+    <header
+      className={`bg-gradient-to-br from-primary to-primary-gradient-end px-4 py-14 text-on-primary md:py-16 ${embedded ? 'rounded-2xl' : ''}`}
+    >
+      <div className="mx-auto max-w-4xl text-center">
+        <BookOpen
+          aria-hidden="true"
+          size={64}
+          strokeWidth={1.75}
+          className="mx-auto mb-5 text-accent"
+        />
+        <h1 className="text-4xl font-bold leading-tight md:text-5xl">{title}</h1>
+        <p className="mx-auto mt-5 max-w-3xl text-lg text-on-primary/90 md:text-xl">
+          {description}
+        </p>
+        {actions && <div className="mt-6 flex flex-wrap justify-center gap-3">{actions}</div>}
+      </div>
+    </header>
+  );
+}
 
 function pageFromUrl(params: URLSearchParams): number {
   const value = Number(params.get('page') ?? '1');
@@ -69,7 +104,7 @@ function ClassFiltersForm({
       onSubmit={apply}
       role="search"
       aria-label="Bộ lọc lớp học"
-      className="grid gap-3 rounded-xl border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_1fr_auto] lg:items-end"
+      className="grid gap-4 rounded-xl border border-primary/20 bg-bg p-5 shadow-lg md:grid-cols-2 xl:grid-cols-5 xl:p-6"
     >
       <SelectField label="Môn học" name="subjectId" defaultValue={filters.subjectId ?? ''}>
         <option value="">Tất cả môn</option>
@@ -99,8 +134,11 @@ function ClassFiltersForm({
         <option value="budget_asc">Ngân sách tăng dần</option>
         <option value="budget_desc">Ngân sách giảm dần</option>
       </SelectField>
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit">Lọc</Button>
+      <div className="flex flex-wrap items-end justify-end gap-2 md:col-span-2 xl:col-span-5">
+        <Button type="submit">
+          <Search aria-hidden="true" size={18} />
+          Lọc lớp học
+        </Button>
         {hasFilters && (
           <Button variant="secondary" onClick={() => setParams(new URLSearchParams())}>
             Xóa lọc
@@ -135,7 +173,10 @@ function ClassResults({
   return (
     <div aria-live="polite" aria-busy={query.isFetching}>
       {query.isPending ? (
-        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Đang tải lớp học">
+        <ul
+          className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+          aria-label="Đang tải lớp học"
+        >
           {Array.from({ length: 6 }, (_, index) => (
             <li key={index}>
               <Skeleton className="h-64" />
@@ -172,8 +213,13 @@ function ClassResults({
         />
       ) : (
         <>
-          <p className="mb-3 text-sm text-muted">{query.data.total} lớp đang tìm gia sư</p>
-          <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <p className="mb-5 flex items-center gap-2 text-sm text-muted">
+            <Users aria-hidden="true" size={18} />
+            Tìm thấy{' '}
+            <strong className="text-primary">{query.data.total.toLocaleString('vi-VN')}</strong> lớp
+            đang tìm gia sư
+          </p>
+          <ul className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {query.data.items.map((item) => (
               <li key={item.id} className="min-w-0">
                 <ClassCard
@@ -215,31 +261,80 @@ function ClassResults({
 
 function BrowseClasses({ tutor }: { tutor: boolean }) {
   const [params, setParams] = useSearchParams();
+  const { pathname } = useLocation();
+  const { user } = useSession();
   const filters = filtersFromUrl(params);
   const query = usePublicClasses(filters);
   const filtered = Boolean(filters.subjectId || filters.grade || filters.mode || filters.area);
+  const preview = isReadOnlyPreview();
+  const parent = user?.role === 'student';
+  const tutorAccount = user?.role === 'tutor';
 
   return (
-    <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader
+    <section className="min-w-0">
+      <ClassHero
         title={tutor ? 'Lớp mới' : 'Danh sách lớp học'}
-        description="Xem các lớp đã được kiểm duyệt viên công bố. Thông tin liên hệ riêng chỉ mở cho gia sư được gán."
+        description={
+          tutor
+            ? 'Tìm kiếm lớp học phù hợp với năng lực và thời gian của bạn.'
+            : 'Tìm kiếm lớp học đã được công bố. Thông tin liên hệ riêng chỉ mở cho gia sư được gán.'
+        }
+        embedded={tutor || pathname.startsWith('/parent/')}
         actions={
           tutor ? (
-            <ButtonLink to="/tutor/class-requests" variant="secondary">
+            <ButtonLink to="/tutor/class-requests" variant="accent">
               Đơn ứng tuyển của tôi
             </ButtonLink>
           ) : undefined
         }
       />
-      <ClassFiltersForm params={params} setParams={setParams} />
-      <ClassResults
-        query={query}
-        params={params}
-        setParams={setParams}
-        detailBase={tutor ? '/tutor/new-classes' : '/lop-hoc'}
-        filtered={filtered}
-      />
+      <div className="bg-surface px-4 py-8">
+        <div className="mx-auto max-w-[var(--container-max)]">
+          <ClassFiltersForm params={params} setParams={setParams} />
+        </div>
+      </div>
+      <div className="mx-auto max-w-[var(--container-max)] px-4 py-12">
+        <ClassResults
+          query={query}
+          params={params}
+          setParams={setParams}
+          detailBase={tutor ? '/tutor/new-classes' : '/lop-hoc'}
+          filtered={filtered}
+        />
+      </div>
+      {!tutor && (
+        <section className="bg-surface px-4 py-14 text-center" aria-labelledby="class-cta-title">
+          <div className="mx-auto max-w-4xl">
+            <h2 id="class-cta-title" className="text-3xl font-semibold text-primary">
+              {parent ? 'Bạn cần tìm gia sư?' : 'Bạn là gia sư?'}
+            </h2>
+            <p className="mx-auto mt-4 max-w-2xl text-lg text-muted">
+              {parent
+                ? 'Gửi yêu cầu học tập để kiểm duyệt viên hỗ trợ chọn gia sư.'
+                : 'Tạo hồ sơ để xem lớp mới và ứng tuyển khi đáp ứng điều kiện.'}
+            </p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              {!preview && (
+                <ButtonLink
+                  to={
+                    parent
+                      ? '/parent/request'
+                      : tutorAccount
+                        ? '/tutor/new-classes'
+                        : '/sign-up?role=tutor'
+                  }
+                  variant="accent"
+                >
+                  {parent ? 'Gửi yêu cầu' : tutorAccount ? 'Xem lớp mới' : 'Đăng ký làm gia sư'}
+                </ButtonLink>
+              )}
+              <ButtonLink to="/lien-he" variant="secondary">
+                Liên hệ tư vấn
+              </ButtonLink>
+            </div>
+          </div>
+        </section>
+      )}
     </section>
   );
 }
@@ -258,23 +353,26 @@ export function TutorMatchedClassBrowsePage() {
   const query = useMatchedClasses(page);
 
   return (
-    <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader
+    <section className="min-w-0">
+      <ClassHero
         title="Lớp phù hợp"
         description="Lớp được lọc từ sở thích môn, lớp và khu vực bạn đã lưu trong hồ sơ."
+        embedded
         actions={
-          <ButtonLink to="/tutor/profile" variant="secondary">
+          <ButtonLink to="/tutor/profile" variant="accent">
             Cập nhật sở thích
           </ButtonLink>
         }
       />
-      <ClassResults
-        query={query}
-        params={params}
-        setParams={setParams}
-        detailBase="/tutor/new-classes"
-        filtered={false}
-      />
+      <div className="px-4 py-12">
+        <ClassResults
+          query={query}
+          params={params}
+          setParams={setParams}
+          detailBase="/tutor/new-classes"
+          filtered={false}
+        />
+      </div>
     </section>
   );
 }

@@ -1,4 +1,4 @@
-# PLAN — Tutor Matching Platform trên Cloudflare
+# PLAN — Gia Sư Đỗ Hằng trên Cloudflare
 
 > Version: 0.2 — 2026-10-11
 > Trạng thái: **đã ánh xạ code export `./figma` / chờ đối chiếu frame Figma Make**
@@ -10,7 +10,7 @@
 ## 0. Phạm vi xác minh và giả định
 
 ### Đã biết
-- Tên dự án theo URL là **Tutor Matching Platform**.
+- Tên hiển thị công khai trong code export `figma/src/app/pages/public/PublicLayout.tsx` là **Gia Sư Đỗ Hằng**, khẩu hiệu **Uy tín - Chất lượng**. `Tutor Matching Platform` là slug của URL Figma và tên kỹ thuật cũ, không phải tên hiển thị cho người dùng.
 - Người dùng xác nhận Figma Make ở trên là nguồn thiết kế cho toàn bộ project.
 - Mục tiêu là build hệ thống từ bản thiết kế Figma, triển khai trên Cloudflare Workers bằng Wrangler và D1.
 - Link Figma Make chưa truy xuất được trong phiên nghiên cứu này: **không thể xác nhận số màn hình, màu sắc, typography, component, nội dung hay nghiệp vụ cụ thể**.
