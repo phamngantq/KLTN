@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import type { RegisterInput } from '../../../shared/schemas/auth';
 import { homePathFor, safeNextPath, useRegister, useSession } from '../../app/auth';
+import { FeatureUnavailablePage } from '../../app/FeatureUnavailablePage';
+import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
 import { TextField } from '../../components/ui/Field';
@@ -20,6 +22,17 @@ export function SignUpPage() {
     displayName: '',
     role: params.get('role') === 'tutor' ? 'tutor' : 'parent',
   });
+
+  if (isReadOnlyPreview()) {
+    return (
+      <FeatureUnavailablePage
+        title="Đăng ký chưa mở"
+        message="Bản xem trước chỉ đọc không nhận đăng ký hoặc dữ liệu cá nhân."
+        availableTo="/"
+        availableLabel="Về trang chủ"
+      />
+    );
+  }
 
   if (isLoading) return <PageLoading />;
   if (user && !register.isPending) return <Navigate to={next ?? homePathFor(user.role)} replace />;

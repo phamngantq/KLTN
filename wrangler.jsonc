@@ -24,6 +24,28 @@
     },
   ],
   "env": {
+    // Isolated, public read-only demo. It never points at the historic staging D1.
+    "preview": {
+      "name": "tutor-matching-staging-v2",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": { "APP_ENV": "preview" },
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "1301", "simple": { "limit": 10, "period": 60 } },
+        {
+          "name": "BOOKING_LIMITER",
+          "namespace_id": "1302",
+          "simple": { "limit": 20, "period": 60 },
+        },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "tutor-matching-staging-v2",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
     // Remote staging. The D1 database is resolved by name; its id is intentionally not committed.
     // Build with `npm run build:staging` (sets CLOUDFLARE_ENV); see docs/DEPLOYMENT.md.
     "staging": {

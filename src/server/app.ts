@@ -40,6 +40,21 @@ export function createApp() {
   );
   api.get('/health', (c) => ok<HealthStatus>(c, { status: 'ok' }));
 
+  // A public preview may display real read-only projections, but must never
+  // accept accounts, contact details, bookings, or any other mutation.
+  api.use('*', async (c, next) => {
+    if (c.env.APP_ENV === 'preview' && !['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) {
+      c.header('Cache-Control', 'no-store');
+      return fail(
+        c,
+        503,
+        'PREVIEW_READ_ONLY',
+        'Bản xem trước chỉ cho phép xem. Chức năng gửi và lưu dữ liệu chưa mở.',
+      );
+    }
+    await next();
+  });
+
   api.use(
     '*',
     bodyLimit({

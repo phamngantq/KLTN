@@ -5,6 +5,7 @@ import { Button, ButtonLink } from '../components/ui/Button';
 import { Alert } from '../components/ui/Feedback';
 import { ROLE_LABELS } from '../lib/format';
 import { useLogout, useSession, type PublicUser } from './auth';
+import { isReadOnlyPreview } from './preview';
 
 interface NavItem {
   to: string;
@@ -59,6 +60,7 @@ const currentNavClass = ({ isActive }: { isActive: boolean }) =>
 
 export function RootLayout() {
   const { user, isLoading } = useSession();
+  const preview = isReadOnlyPreview();
   const logout = useLogout();
   const location = useLocation();
   const navigate = useNavigate();
@@ -107,7 +109,7 @@ export function RootLayout() {
           </nav>
           {!isLoading && (
             <div className="hidden shrink-0 items-center gap-1 lg:flex">
-              {user ? (
+              {user && !preview ? (
                 <>
                   <Link
                     to="/account"
@@ -119,7 +121,7 @@ export function RootLayout() {
                     Đăng xuất
                   </Button>
                 </>
-              ) : (
+              ) : !preview ? (
                 <>
                   <ButtonLink to="/sign-in" variant="secondary" size="sm">
                     Đăng nhập
@@ -128,7 +130,7 @@ export function RootLayout() {
                     Đăng ký
                   </ButtonLink>
                 </>
-              )}
+              ) : null}
             </div>
           )}
           <button
@@ -161,7 +163,7 @@ export function RootLayout() {
                   </NavLink>
                 </li>
               ))}
-              {user && (
+              {user && !preview && (
                 <li>
                   <NavLink
                     to={ROLE_PORTAL[user.role].to}
@@ -172,25 +174,26 @@ export function RootLayout() {
                   </NavLink>
                 </li>
               )}
-              {navItemsFor(user).map((item) => (
-                <li key={item.to}>
-                  <NavLink
-                    to={item.to}
-                    className={primaryNavClass}
-                    onClick={() => setMobileMenuOpen(false)}
-                  >
-                    {item.label}
-                  </NavLink>
-                </li>
-              ))}
+              {!preview &&
+                navItemsFor(user).map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      className={primaryNavClass}
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      {item.label}
+                    </NavLink>
+                  </li>
+                ))}
             </ul>
             {!isLoading && (
               <div className="mx-auto flex max-w-[var(--container-max)] flex-wrap gap-2 border-t border-white/20 pt-3">
-                {user ? (
+                {user && !preview ? (
                   <Button variant="accent" size="sm" loading={logout.isPending} onClick={logOut}>
                     Đăng xuất
                   </Button>
-                ) : (
+                ) : !preview ? (
                   <>
                     <ButtonLink
                       to="/sign-in"
@@ -209,12 +212,21 @@ export function RootLayout() {
                       Đăng ký
                     </ButtonLink>
                   </>
-                )}
+                ) : null}
               </div>
             )}
           </nav>
         )}
       </header>
+      {preview && (
+        <div
+          role="status"
+          className="border-b border-border bg-info-surface px-4 py-3 text-center text-sm font-medium text-primary"
+        >
+          Bản xem trước chỉ đọc với dữ liệu minh họa. Chưa nhận đăng ký, yêu cầu tìm gia sư hoặc đặt
+          lịch.
+        </div>
+      )}
       {logout.isError && (
         <div className="mx-auto w-full max-w-[var(--container-max)] px-4 py-3">
           <Alert
@@ -233,23 +245,26 @@ export function RootLayout() {
       <nav aria-label="Khu vực tài khoản và chức năng" className="border-b border-border bg-bg">
         <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center gap-2 px-4">
           <ul className="flex min-w-0 gap-1 overflow-x-auto">
-            {user && (
+            {user && !preview && (
               <li className="shrink-0">
                 <NavLink to={ROLE_PORTAL[user.role].to} className={currentNavClass}>
                   {ROLE_PORTAL[user.role].label}
                 </NavLink>
               </li>
             )}
-            <li className="flex shrink-0 items-center px-2 text-xs font-semibold text-muted">
-              Đang hoạt động
-            </li>
-            {navItemsFor(user).map((item) => (
-              <li key={item.to} className="shrink-0">
-                <NavLink to={item.to} className={currentNavClass}>
-                  {item.label}
-                </NavLink>
+            {!preview && (
+              <li className="flex shrink-0 items-center px-2 text-xs font-semibold text-muted">
+                Đang hoạt động
               </li>
-            ))}
+            )}
+            {!preview &&
+              navItemsFor(user).map((item) => (
+                <li key={item.to} className="shrink-0">
+                  <NavLink to={item.to} className={currentNavClass}>
+                    {item.label}
+                  </NavLink>
+                </li>
+              ))}
           </ul>
         </div>
       </nav>

@@ -1,5 +1,6 @@
 import type { FormEvent } from 'react';
 import { useSearchParams } from 'react-router';
+import { isReadOnlyPreview } from '../../app/preview';
 import { SORT_LABELS, TUTOR_SORTS } from '../../../shared/schemas/discovery';
 import { TutorCard } from '../../components/domain/TutorCard';
 import { Button } from '../../components/ui/Button';
@@ -10,8 +11,12 @@ import { filtersFromParams, useTutorSearch } from '../../features/discovery/api'
 import { useSubjects } from '../../features/tutor-profile/api';
 
 export function TutorsPage() {
+  const preview = isReadOnlyPreview();
   const [params, setParams] = useSearchParams();
-  const filters = filtersFromParams(params);
+  const fromUrl = filtersFromParams(params);
+  const filters = preview
+    ? { ...fromUrl, minRate: undefined, maxRate: undefined, sort: 'newest' as const }
+    : fromUrl;
   const search = useTutorSearch(filters);
   const subjects = useSubjects();
   const hasFilters = Boolean(filters.subject || filters.mode || filters.minRate || filters.maxRate);
@@ -20,7 +25,9 @@ export function TutorsPage() {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const next = new URLSearchParams();
-    for (const key of ['subject', 'mode', 'minRate', 'maxRate', 'sort']) {
+    for (const key of preview
+      ? ['subject', 'mode']
+      : ['subject', 'mode', 'minRate', 'maxRate', 'sort']) {
       const value = String(data.get(key) ?? '').trim();
       if (value) next.set(key, value);
     }
@@ -39,7 +46,14 @@ export function TutorsPage() {
 
   return (
     <section className="flex flex-col gap-6">
-      <PageHeader title="Tìm gia sư" description="Chỉ hiển thị gia sư đã được duyệt." />
+      <PageHeader
+        title="Tìm gia sư"
+        description={
+          preview
+            ? 'Hồ sơ minh họa để xem giao diện; chưa nhận yêu cầu hoặc đặt lịch.'
+            : 'Chỉ hiển thị gia sư đã được duyệt.'
+        }
+      />
 
       {/* Uncontrolled inputs keyed by the URL so back/forward and reload restore them. */}
       <form
@@ -47,7 +61,7 @@ export function TutorsPage() {
         onSubmit={applyFilters}
         role="search"
         aria-label="Bộ lọc gia sư"
-        className="grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2 lg:grid-cols-6 lg:items-end"
+        className={`grid grid-cols-1 gap-3 rounded-lg border border-border bg-surface p-4 sm:grid-cols-2 lg:items-end ${preview ? 'lg:grid-cols-3' : 'lg:grid-cols-6'}`}
       >
         <SelectField
           label="Môn học"
@@ -67,31 +81,37 @@ export function TutorsPage() {
           <option value="online">Trực tuyến</option>
           <option value="offline">Trực tiếp</option>
         </SelectField>
-        <TextField
-          label="Giá từ (₫/giờ)"
-          name="minRate"
-          type="number"
-          min={0}
-          step={1000}
-          inputMode="numeric"
-          defaultValue={filters.minRate ?? ''}
-        />
-        <TextField
-          label="Đến (₫/giờ)"
-          name="maxRate"
-          type="number"
-          min={0}
-          step={1000}
-          inputMode="numeric"
-          defaultValue={filters.maxRate ?? ''}
-        />
-        <SelectField label="Sắp xếp" name="sort" defaultValue={filters.sort ?? 'rate_asc'}>
-          {TUTOR_SORTS.map((sort) => (
-            <option key={sort} value={sort}>
-              {SORT_LABELS[sort]}
-            </option>
-          ))}
-        </SelectField>
+        {!preview && (
+          <TextField
+            label="Giá từ (₫/giờ)"
+            name="minRate"
+            type="number"
+            min={0}
+            step={1000}
+            inputMode="numeric"
+            defaultValue={filters.minRate ?? ''}
+          />
+        )}
+        {!preview && (
+          <TextField
+            label="Đến (₫/giờ)"
+            name="maxRate"
+            type="number"
+            min={0}
+            step={1000}
+            inputMode="numeric"
+            defaultValue={filters.maxRate ?? ''}
+          />
+        )}
+        {!preview && (
+          <SelectField label="Sắp xếp" name="sort" defaultValue={filters.sort ?? 'rate_asc'}>
+            {TUTOR_SORTS.map((sort) => (
+              <option key={sort} value={sort}>
+                {SORT_LABELS[sort]}
+              </option>
+            ))}
+          </SelectField>
+        )}
         <div className="flex gap-2">
           <Button type="submit" className="flex-1">
             Lọc
@@ -134,7 +154,9 @@ export function TutorsPage() {
             description={
               hasFilters
                 ? 'Thử nới rộng khoảng giá hoặc chọn môn khác.'
-                : 'Hiện chưa có gia sư nào được duyệt.'
+                : preview
+                  ? 'Chưa có hồ sơ minh họa.'
+                  : 'Hiện chưa có gia sư nào được duyệt.'
             }
             action={
               hasFilters ? (

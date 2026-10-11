@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
 import type { Booking } from '../../../shared/schemas/bookings';
+import { isReadOnlyPreview } from '../../app/preview';
 import { BookingCreatedNotice, BookingRequest } from '../../components/domain/BookingRequest';
 import { SlotPicker, type SelectedSlot } from '../../components/domain/SlotPicker';
 import { teachingModes, TutorAvatar } from '../../components/domain/TutorCard';
@@ -12,6 +13,7 @@ import { isApiError } from '../../lib/api-client';
 import { formatVnd } from '../../lib/format';
 
 export function TutorDetailPage() {
+  const preview = isReadOnlyPreview();
   const { slug = '' } = useParams();
   const tutor = useTutor(slug);
   const [selected, setSelected] = useState<SelectedSlot | null>(null);
@@ -53,8 +55,14 @@ export function TutorDetailPage() {
           <h1 className="text-[length:var(--text-heading)] font-bold">{data.displayName}</h1>
           <p className="text-muted">{teachingModes(data)}</p>
           <p className="text-lg font-semibold">
-            {formatVnd(data.hourlyRateMinor)}
-            <span className="text-sm font-normal text-muted"> /giờ</span>
+            {preview ? (
+              'Hồ sơ minh họa · Học phí chưa công bố'
+            ) : (
+              <>
+                {formatVnd(data.hourlyRateMinor)}
+                <span className="text-sm font-normal text-muted"> /giờ</span>
+              </>
+            )}
           </p>
         </div>
       </header>
@@ -76,35 +84,43 @@ export function TutorDetailPage() {
         </h2>
         <p className="max-w-prose whitespace-pre-line text-fg">{data.bio}</p>
       </section>
-      <SlotPicker
-        tutorId={data.id}
-        selected={selected}
-        onSelect={(slot) => {
-          setBooked(null);
-          setSlotLost(false);
-          setSelected(slot);
-        }}
-      />
-      {booked && <BookingCreatedNotice booking={booked.booking} timezone={booked.timezone} />}
-      {slotLost && (
-        <Alert tone="danger" title="Chưa đặt được lịch">
-          Khung giờ bạn chọn vừa được người khác đặt hoặc không còn trống. Lịch trống đã được tải
-          lại — vui lòng chọn giờ khác.
+      {preview ? (
+        <Alert tone="info" title="Bản xem trước chỉ đọc">
+          Đây là hồ sơ minh họa. Chức năng chọn giờ và đặt lịch chưa mở.
         </Alert>
-      )}
-      {selected && (
-        <BookingRequest
-          tutor={data}
-          selected={selected}
-          onBooked={(booking) => {
-            setBooked({ booking, timezone: selected.timezone });
-            setSelected(null);
-          }}
-          onSlotLost={() => {
-            setSelected(null);
-            setSlotLost(true);
-          }}
-        />
+      ) : (
+        <>
+          <SlotPicker
+            tutorId={data.id}
+            selected={selected}
+            onSelect={(slot) => {
+              setBooked(null);
+              setSlotLost(false);
+              setSelected(slot);
+            }}
+          />
+          {booked && <BookingCreatedNotice booking={booked.booking} timezone={booked.timezone} />}
+          {slotLost && (
+            <Alert tone="danger" title="Chưa đặt được lịch">
+              Khung giờ bạn chọn vừa được người khác đặt hoặc không còn trống. Lịch trống đã được
+              tải lại — vui lòng chọn giờ khác.
+            </Alert>
+          )}
+          {selected && (
+            <BookingRequest
+              tutor={data}
+              selected={selected}
+              onBooked={(booking) => {
+                setBooked({ booking, timezone: selected.timezone });
+                setSelected(null);
+              }}
+              onSlotLost={() => {
+                setSelected(null);
+                setSlotLost(true);
+              }}
+            />
+          )}
+        </>
       )}
     </article>
   );

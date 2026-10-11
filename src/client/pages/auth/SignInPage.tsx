@@ -1,6 +1,8 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router';
 import { homePathFor, safeNextPath, useLogin, useSession } from '../../app/auth';
+import { FeatureUnavailablePage } from '../../app/FeatureUnavailablePage';
+import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
 import { TextField } from '../../components/ui/Field';
@@ -15,6 +17,17 @@ export function SignInPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  if (isReadOnlyPreview()) {
+    return (
+      <FeatureUnavailablePage
+        title="Đăng nhập chưa mở"
+        message="Bản xem trước chỉ đọc không nhận đăng nhập hoặc dữ liệu tài khoản."
+        availableTo="/"
+        availableLabel="Về trang chủ"
+      />
+    );
+  }
 
   if (isLoading) return <PageLoading />;
   if (user && !login.isPending) return <Navigate to={next ?? homePathFor(user.role)} replace />;

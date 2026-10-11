@@ -3,7 +3,9 @@
 Cloudflare-native modular monolith: React + Vite SPA và Hono API chạy trong **một** Cloudflare Worker, dữ liệu trên Cloudflare D1.
 Đặc tả bắt buộc: [PLAN.md](PLAN.md), [DESIGN_RULES.md](DESIGN_RULES.md), [AGENTS.md](AGENTS.md); thứ tự công việc: [TASKS.md](TASKS.md).
 
-> Nguồn thiết kế cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1), với code export người dùng đặt tại `./figma`. Theo [DEC-007](TASK_DECISIONS.md), export này thay thế mục tiêu sản phẩm cũ. App trong `src/` vẫn là MVP đặt lịch TASK-01–18; chưa triển khai hệ thống yêu cầu tìm gia sư/nhận lớp theo export. Xem [PLAN.md §13](PLAN.md), [FIGMA_INVENTORY.md](FIGMA_INVENTORY.md) và [FIGMA_GAP_LOG.md](FIGMA_GAP_LOG.md) để triển khai tiếp.
+> Nguồn thiết kế cho toàn bộ project: [Tutor Matching Platform trên Figma Make](https://www.figma.com/make/nhljatxXx9lap98Zx7s4AU/Tutor-Matching-Platform?p=f&t=F5iHIZDcvYVKK1to-0&fullscreen=1), với code export người dùng đặt tại `./figma`. Theo [DEC-007](TASK_DECISIONS.md), export này thay thế mục tiêu sản phẩm cũ. App trong `src/` đã có hồ sơ và yêu cầu tìm gia sư của phụ huynh (TASK-19–23), cùng lịch đặt cũ cần bảo toàn; luồng ứng tuyển/gán lớp và các phần còn lại ở TASK-24–30 chưa hoàn tất. Xem [PLAN.md §13](PLAN.md), [FIGMA_INVENTORY.md](FIGMA_INVENTORY.md) và [FIGMA_GAP_LOG.md](FIGMA_GAP_LOG.md) để triển khai tiếp.
+
+Để xem giao diện và API đọc với dữ liệu tổng hợp trên Cloudflare, dùng [staging v2 chỉ đọc](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) ([runbook](docs/PREVIEW_STAGING.md)). Đây chưa phải luồng ghép lớp hoàn chỉnh.
 
 `./figma` là nguồn tham chiếu **chỉ có trên máy** và được Git bỏ qua vì export chứa ảnh chụp và thông tin cá nhân mẫu chưa được rà quyền công bố. Mã được chọn lọc và kiểm thử sẽ được tích hợp vào `src/` trước khi push/deploy (DEC-008).
 

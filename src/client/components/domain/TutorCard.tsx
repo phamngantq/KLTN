@@ -1,5 +1,6 @@
 import { Link } from 'react-router';
 import type { PublicTutor } from '../../../shared/schemas/discovery';
+import { isReadOnlyPreview } from '../../app/preview';
 import { formatVnd, initials } from '../../lib/format';
 import { Badge } from '../ui/Feedback';
 
@@ -25,6 +26,7 @@ export function TutorAvatar({ name, size = 'md' }: { name: string; size?: 'md' |
 
 /** Shows only real profile data — no fabricated ratings, reviews or "online now" signals. */
 export function TutorCard({ tutor }: { tutor: PublicTutor }) {
+  const preview = isReadOnlyPreview();
   return (
     <article className="flex h-full flex-col gap-3 rounded-lg border border-border bg-bg p-4 shadow-card">
       <div className="flex items-center gap-3">
@@ -50,8 +52,14 @@ export function TutorCard({ tutor }: { tutor: PublicTutor }) {
       </ul>
       <p className="line-clamp-3 text-sm text-muted">{tutor.bio}</p>
       <p className="mt-auto font-semibold text-fg">
-        {formatVnd(tutor.hourlyRateMinor)}
-        <span className="text-sm font-normal text-muted"> /giờ</span>
+        {preview ? (
+          'Hồ sơ minh họa · Học phí chưa công bố'
+        ) : (
+          <>
+            {formatVnd(tutor.hourlyRateMinor)}
+            <span className="text-sm font-normal text-muted"> /giờ</span>
+          </>
+        )}
       </p>
     </article>
   );

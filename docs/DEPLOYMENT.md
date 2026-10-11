@@ -1,6 +1,8 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái sản phẩm:** Các lần deploy staging ghi bên dưới là MVP đặt lịch TASK-01–18. Mục tiêu `./figma` theo DEC-007 chưa được tích hợp/deploy; không dùng smoke test của MVP cũ làm bằng chứng hoàn thành sản phẩm mới.
+> **Trạng thái sản phẩm:** Các lần deploy staging cũ ghi bên dưới là MVP đặt lịch TASK-01–18. Mục tiêu `./figma` theo DEC-007 mới tích hợp một phần tới TASK-23; staging v2 chỉ là preview chỉ đọc. Không dùng smoke test của MVP cũ hay preview làm bằng chứng hoàn thành sản phẩm mới.
+
+**Staging v2 riêng:** Theo DEC-011, tài khoản hiện tại có môi trường `preview` chỉ đọc với dữ liệu mẫu tổng hợp. Xem [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Môi trường này không thay staging cũ hay vượt qua các cổng phát hành mục tiêu mới tại §10.
 
 Một Worker phục vụ cả API (`/api/v1/*`) và SPA (Workers Static Assets). Mỗi môi trường có Worker, D1 và namespace rate-limit **riêng**. Không commit `database_id`/`account_id` (Wrangler tìm D1 theo `database_name`; `npm run secret-scan` chặn việc commit ID).
 

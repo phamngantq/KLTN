@@ -2,6 +2,8 @@
 
 > Các mục A–D kế thừa quy trình MVP đặt lịch TASK-01–18. Mục tiêu `./figma` theo DEC-007 phải qua thêm toàn bộ mục **E** trước khi phát hành staging hoặc production. Staging đang chạy chưa phải bản sản phẩm mới.
 
+Bản `preview` riêng có dữ liệu tổng hợp và API chỉ đọc theo [PREVIEW_STAGING.md](PREVIEW_STAGING.md); đây không phải lần phát hành staging/production của sản phẩm mới và không đánh dấu mục E hoàn thành.
+
 Điền cho mỗi lần phát hành. Mục có ⛔ là **cổng dừng**: chưa đạt thì không deploy.
 
 **Phiên bản / commit:** `____________` **Môi trường:** staging / production **Người phát hành:** ________ **Ngày:** ________
