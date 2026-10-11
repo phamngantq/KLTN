@@ -18,4 +18,20 @@
       "migrations_dir": "migrations",
     },
   ],
+  "env": {
+    // Remote staging. The D1 database is resolved by name; its id is intentionally not committed.
+    // Build with CLOUDFLARE_ENV=staging (see docs/DEPLOYMENT.md).
+    "staging": {
+      "name": "tutor-matching-staging",
+      "workers_dev": true,
+      "vars": { "APP_ENV": "staging" },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "tutor-matching-staging",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+  },
 }
