@@ -16,7 +16,14 @@
     "deploy": "npm run build && wrangler deploy",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "secret-scan": "node scripts/secret-scan.mjs",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "build:staging": "node scripts/build-env.mjs staging",
+    "build:production": "node scripts/build-env.mjs production",
+    "db:migrate:staging": "wrangler d1 migrations apply DB --env staging --remote",
+    "db:migrate:production": "wrangler d1 migrations apply DB --env production --remote",
+    "deploy:staging": "npm run build:staging && wrangler deploy",
+    "deploy:production": "npm run build:production && wrangler deploy",
+    "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.1",

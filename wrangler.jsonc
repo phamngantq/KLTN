@@ -25,17 +25,17 @@
   ],
   "env": {
     // Remote staging. The D1 database is resolved by name; its id is intentionally not committed.
-    // Build with CLOUDFLARE_ENV=staging (see docs/DEPLOYMENT.md).
+    // Build with `npm run build:staging` (sets CLOUDFLARE_ENV); see docs/DEPLOYMENT.md.
     "staging": {
       "name": "tutor-matching-staging",
       "workers_dev": true,
       "vars": { "APP_ENV": "staging" },
-      // Workers Rate Limiting (per-location, best effort). namespace_id is an app-chosen label, not a secret.
+      // Separate rate-limit namespaces per environment so counters are never shared.
       "ratelimits": [
-        { "name": "AUTH_LIMITER", "namespace_id": "1001", "simple": { "limit": 10, "period": 60 } },
+        { "name": "AUTH_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } },
         {
           "name": "BOOKING_LIMITER",
-          "namespace_id": "1002",
+          "namespace_id": "1102",
           "simple": { "limit": 20, "period": 60 },
         },
       ],
@@ -43,6 +43,28 @@
         {
           "binding": "DB",
           "database_name": "tutor-matching-staging",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    // Production. NOT created yet: follow docs/DEPLOYMENT.md (create D1, review, migrate, deploy).
+    // Separate D1 database and rate-limit namespaces; no ids committed.
+    "production": {
+      "name": "tutor-matching",
+      "workers_dev": true,
+      "vars": { "APP_ENV": "production" },
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "1201", "simple": { "limit": 10, "period": 60 } },
+        {
+          "name": "BOOKING_LIMITER",
+          "namespace_id": "1202",
+          "simple": { "limit": 20, "period": 60 },
+        },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "tutor-matching-prod",
           "migrations_dir": "migrations",
         },
       ],

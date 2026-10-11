@@ -178,7 +178,7 @@
 **Acceptance tests:** E2E tests run locally; CI checks lint/typecheck/tests/build; isolated D1 fixtures; no production credentials in CI; mobile viewport smoke.  
 **Commit:** `test(e2e): verify core tutor matching journeys`.
 
-### [ ] TASK-18 — Release readiness and deployment runbook (NO DEPLOY)
+### [x] TASK-18 — Release readiness and deployment runbook (NO DEPLOY)
 **Dependency:** TASK-17.  
 **Scope:** Prepare dev/staging/prod release artifacts, NOT production operations.  
 **Deliverables:** `docs/DEPLOYMENT.md`, `docs/ROLLBACK.md`, `docs/OPERATIONS.md`, `docs/RELEASE_CHECKLIST.md`, safe `wrangler` config review, build smoke tests.  
