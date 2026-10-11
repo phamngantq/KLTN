@@ -24,7 +24,8 @@
     },
   ],
   "env": {
-    // Isolated, public read-only demo. It never points at the historic staging D1.
+    // Historical read-only preview configuration. Deprecated: do not deploy this env.
+    // staging_v2 below reuses its Worker/D1 for the writable Figma replacement release.
     "preview": {
       "name": "tutor-matching-staging-v2",
       "workers_dev": true,
@@ -35,6 +36,29 @@
         {
           "name": "BOOKING_LIMITER",
           "namespace_id": "1302",
+          "simple": { "limit": 20, "period": 60 },
+        },
+      ],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "tutor-matching-staging-v2",
+          "migrations_dir": "migrations",
+        },
+      ],
+    },
+    // Writable V2 staging cutover. Reuses the existing V2 Worker/D1, never the historic staging D1.
+    // Review the remote D1 inventory and migration state before deploying this environment.
+    "staging_v2": {
+      "name": "tutor-matching-staging-v2",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": { "APP_ENV": "staging" },
+      "ratelimits": [
+        { "name": "AUTH_LIMITER", "namespace_id": "1401", "simple": { "limit": 10, "period": 60 } },
+        {
+          "name": "BOOKING_LIMITER",
+          "namespace_id": "1402",
           "simple": { "limit": 20, "period": 60 },
         },
       ],

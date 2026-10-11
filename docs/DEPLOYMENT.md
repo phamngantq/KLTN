@@ -1,13 +1,14 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái:** Các lần deploy staging trong §9 thuộc MVP đặt lịch TASK-01–18. Worker `preview` đang chạy là bản xem trước chỉ đọc theo [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Mã cho sản phẩm thay thế từ `./figma` đang được hoàn thiện và kiểm thử tại repository; tài liệu này **không xác nhận** đã deploy mã đó lên staging hoặc production.
+> **Trạng thái trước lần phát hành V2:** Các lần deploy staging trong §9 thuộc MVP đặt lịch TASK-01–18. Worker V2 đang chạy bản `preview` chỉ đọc theo [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Cấu hình `staging_v2` chuẩn bị chuyển cùng Worker/D1 đó sang sản phẩm thay thế từ `./figma`; tài liệu này **không xác nhận** mã mới đã được deploy lên staging hoặc production.
 
-Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Mỗi môi trường dùng D1 và rate limiter riêng. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
+Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 
 | Môi trường | Worker / D1 | Trạng thái đã xác minh |
 |---|---|---|
 | Local | `npm run dev` / Miniflare `.wrangler/state` | Dùng để kiểm thử migration và hành trình mới |
-| Preview | `tutor-matching-staging-v2` / D1 riêng cùng tên | Đã deploy bản chỉ đọc; không phải staging chức năng mới |
+| Preview lịch sử | `tutor-matching-staging-v2` / D1 riêng cùng tên | Đã deploy bản chỉ đọc; không deploy lại bằng cấu hình `preview` |
+| Staging V2 dự kiến | Cùng Worker/D1 V2, `env.staging_v2` | Đang chuẩn bị cutover sang `APP_ENV=staging`; chưa xác nhận deploy |
 | Staging cũ | `tutor-matching-staging` / D1 cùng tên | Lịch sử MVP đã deploy; tài khoản Wrangler ở lần kiểm tra cuối không nhìn thấy cả Worker/D1 |
 | Production | `tutor-matching` / `tutor-matching-prod` | Chưa tạo; cần quyết định phát hành riêng |
 
@@ -33,12 +34,12 @@ npm run format:check
 npm run lint
 npm run typecheck
 npx vitest run
-npm run build:staging
+npm run build:staging:v2
 npm run e2e
 git diff --check
 ```
 
-`package.json` khai báo `test: vitest`; dùng `npx vitest run` để chạy một lần vì `npm run test -- --run` không tương thích với npm hiện dùng. Harness `scripts/e2e-serve.mjs` tạo D1 local cô lập tại `.wrangler/e2e`, chạy migration, seed một admin kiểm thử, build Worker và phục vụ bằng Wrangler dev. Playwright **không** dùng Vite preview hay D1 remote. Nếu E2E không khởi chạy được trong sandbox, ghi lệnh và lỗi thực tế rồi chạy lại trong môi trường có Playwright/Wrangler dev; không coi unit test hoặc build là E2E PASS. E2E ghi lại `dist`; chạy lại `npm run build:staging` trước deploy và kiểm tra tên Worker, D1, `APP_ENV=staging` trong build output.
+`package.json` khai báo `test: vitest`; dùng `npx vitest run` để chạy một lần vì `npm run test -- --run` không tương thích với npm hiện dùng. Harness `scripts/e2e-serve.mjs` tạo D1 local cô lập tại `.wrangler/e2e`, chạy migration, seed một admin kiểm thử, build Worker và phục vụ bằng Wrangler dev. Playwright **không** dùng Vite preview hay D1 remote. Nếu E2E không khởi chạy được trong sandbox, ghi lệnh và lỗi thực tế rồi chạy lại trong môi trường có Playwright/Wrangler dev; không coi unit test hoặc build là E2E PASS. E2E ghi lại `dist`; chạy lại `npm run build:staging:v2` trước deploy và kiểm tra tên Worker/D1 `tutor-matching-staging-v2`, `APP_ENV=staging` trong build output.
 
 ## 3. Review migration 0007–0015
 
@@ -84,12 +85,12 @@ Ghi bookmark ngoài Git cùng commit, môi trường, thời điểm và số l�
 Các lệnh dưới đây là bước thực thi có ghi từ xa, chỉ chạy trong phiên phát hành được cho phép và sau checklist:
 
 ```bash
-npm run db:migrate:staging
-npm run build:staging
-npm run deploy:staging
+npm run db:migrate:staging:v2
+npm run build:staging:v2
+npm run deploy:staging:v2
 ```
 
-Với production, thay `staging` bằng `production` sau khi staging mới đã qua kiểm thử và được duyệt. Kiểm tra output Wrangler có đúng tên Worker, binding `DB`, `AUTH_LIMITER`, `BOOKING_LIMITER`, `APP_ENV`; không dùng `npm run deploy` mặc định vì build đó dùng development. Nếu tạo subdomain mới, DNS/TLS có thể cần thời gian; xác minh lại URL trước khi đánh giá smoke.
+Các lệnh trên chỉ dành cho V2 sau khi inventory, bookmark/backup và gates hoàn tất. Với production, dùng cấu hình/lệnh `production` riêng sau khi staging mới đã qua kiểm thử và được duyệt. Kiểm tra output Wrangler có đúng tên Worker, binding `DB`, `AUTH_LIMITER`, `BOOKING_LIMITER`, `APP_ENV`; không dùng `npm run deploy` mặc định vì build đó dùng development. Nếu tạo subdomain mới, DNS/TLS có thể cần thời gian; xác minh lại URL trước khi đánh giá smoke.
 
 ## 6. Xác minh sản phẩm mới sau deploy
 
