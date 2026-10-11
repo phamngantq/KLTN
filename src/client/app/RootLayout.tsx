@@ -7,6 +7,7 @@ import { Alert } from '../components/ui/Feedback';
 import { ROLE_LABELS } from '../lib/format';
 import { useLogout, useSession } from './auth';
 import { isReadOnlyPreview } from './preview';
+import { RoleNavigation } from './RoleShell';
 
 interface NavItem {
   to: string;
@@ -59,6 +60,14 @@ export function RootLayout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const isAuthPage = ['/sign-in', '/sign-up', '/forgot-password'].includes(location.pathname);
   const isRoleRoute = /^\/(parent|tutor|admin)(\/|$)/.test(location.pathname);
+  const roleArea =
+    !preview && user?.role === 'student' && /^\/parent(\/|$)/.test(location.pathname)
+      ? 'parent'
+      : !preview && user?.role === 'tutor' && /^\/tutor(\/|$)/.test(location.pathname)
+        ? 'tutor'
+        : !preview && user?.role === 'admin' && /^\/admin(\/|$)/.test(location.pathname)
+          ? 'moderator'
+          : null;
   const fullBleed =
     isAuthPage ||
     isRoleRoute ||
@@ -84,7 +93,7 @@ export function RootLayout() {
         <header className="sticky top-0 z-40 bg-primary text-on-primary shadow-lg print:hidden">
           <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center gap-3 px-4 py-4">
             <Link
-              to="/"
+              to={roleArea && user ? ROLE_PORTAL[user.role].to : '/'}
               aria-label="Gia Sư Đỗ Hằng — Trang chủ"
               onClick={() => setMobileMenuOpen(false)}
               className="mr-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -186,7 +195,38 @@ export function RootLayout() {
             </button>
           </div>
 
-          {mobileMenuOpen && (
+          {roleArea && (
+            <div className="relative hidden border-t border-white/20 xl:block">
+              <RoleNavigation area={roleArea} />
+            </div>
+          )}
+
+          {mobileMenuOpen && roleArea && (
+            <div className="max-h-[calc(100dvh-5rem)] overflow-y-auto border-t border-white/20 pb-4 xl:hidden">
+              <RoleNavigation
+                id="mobile-navigation"
+                area={roleArea}
+                mobile
+                onNavigate={() => setMobileMenuOpen(false)}
+              />
+              {!isLoading && user && (
+                <div className="mx-auto flex w-full max-w-[var(--container-max)] flex-col gap-1 border-t border-white/20 px-4 pt-3">
+                  <Link
+                    to="/account"
+                    className="inline-flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-on-primary hover:bg-white/10"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Tài khoản
+                  </Link>
+                  <Button variant="accent" size="sm" loading={logout.isPending} onClick={logOut}>
+                    Đăng xuất
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {mobileMenuOpen && !roleArea && (
             <nav
               id="mobile-navigation"
               aria-label="Điều hướng di động"

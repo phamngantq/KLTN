@@ -109,6 +109,7 @@ describe('parent requests', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Lớp học/ }), 'Lớp 5');
     await user.type(screen.getByLabelText('Mô tả nhu cầu'), 'Cần gia sư hỗ trợ Toán.');
     await user.type(screen.getByLabelText('Số điện thoại liên hệ'), '0912345678');
+    await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
     await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
 
@@ -149,6 +150,7 @@ describe('parent requests', () => {
     await user.selectOptions(screen.getByRole('combobox', { name: /Lớp học/ }), 'Lớp 5');
     await user.type(screen.getByLabelText('Mô tả nhu cầu'), 'Cần gia sư hỗ trợ Toán.');
     await user.type(screen.getByLabelText('Số điện thoại liên hệ'), '0912345678');
+    await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
     await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
 
@@ -159,7 +161,7 @@ describe('parent requests', () => {
     expect(calls.some((call) => call.path === '/parent/requests/req-1')).toBe(true);
   });
 
-  it('validates weekly local slots before writing and sends the corrected recurring time', async () => {
+  it('maps the export-style weekly grid to the existing recurring schedule API', async () => {
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       if (req.path === '/subjects') return { data: subjects };
@@ -174,15 +176,16 @@ describe('parent requests', () => {
     await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' });
     await user.selectOptions(screen.getByRole('combobox', { name: /Môn học/ }), 'math');
     await user.selectOptions(screen.getByRole('combobox', { name: /Lớp học/ }), 'Lớp 5');
-    await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
     await user.click(screen.getByRole('button', { name: 'Lưu bản nháp' }));
     expect(await screen.findByText('Cần ít nhất một khung giờ.')).toBeTruthy();
     expect(calls.some((call) => call.path === '/parent/requests' && call.method === 'POST')).toBe(
       false,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Thêm khung giờ' }));
-    await user.selectOptions(screen.getByRole('combobox', { name: 'Ngày khung giờ 1' }), '3');
+    const slot = screen.getByRole('button', { name: 'Thứ Ba, 17:30–19:00' });
+    slot.focus();
+    await user.keyboard('{Enter}');
+    expect(slot.getAttribute('aria-pressed')).toBe('true');
     await user.click(screen.getByRole('button', { name: 'Lưu bản nháp' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
     const create = calls.find((call) => call.path === '/parent/requests' && call.method === 'POST');
@@ -190,8 +193,58 @@ describe('parent requests', () => {
       schedule: {
         timezone: 'Asia/Ho_Chi_Minh',
         discussLater: false,
+        windows: [{ weekday: 2, startLocal: '17:30', endLocal: '19:00' }],
+      },
+    });
+  });
+
+  it('keeps the API limit when selecting whole rows in the weekly grid', async () => {
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/subjects') return { data: subjects };
+      return undefined;
+    });
+    renderRoute('/parent/request');
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' });
+    await user.click(screen.getByRole('button', { name: 'Chọn khung 09:00–10:30 cả tuần' }));
+    await user.click(screen.getByRole('button', { name: 'Chọn khung 10:30–12:00 cả tuần' }));
+    expect(screen.getByText(/Đã chọn 14 khung giờ/)).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Chọn khung 13:30–15:00 cả tuần' }));
+    expect(screen.getByRole('alert').textContent).toContain('tối đa 14 khung giờ');
+    expect(
+      screen.getByRole('button', { name: 'Thứ Hai, 13:30–15:00' }).getAttribute('aria-pressed'),
+    ).toBe('false');
+    expect(calls.some((call) => call.path === '/parent/requests' && call.method === 'POST')).toBe(
+      false,
+    );
+  });
+
+  it('preserves previously saved times that are outside the Figma grid', async () => {
+    const custom = {
+      ...ownRequest,
+      schedule: {
+        timezone: 'Asia/Ho_Chi_Minh',
+        discussLater: false,
         windows: [{ weekday: 3, startLocal: '18:00', endLocal: '19:00' }],
       },
+    } satisfies OwnParentRequest;
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/subjects') return { data: subjects };
+      if (req.path === '/parent/requests/req-1' && req.method === 'GET') return { data: custom };
+      if (req.path === '/parent/requests/req-1' && req.method === 'PATCH')
+        return { data: { ...custom, version: 2 } };
+      return undefined;
+    });
+    renderRoute('/parent/requests/req-1/edit');
+    const user = userEvent.setup();
+    expect(await screen.findByText('Khung giờ khác đã lưu')).toBeTruthy();
+    expect((screen.getByLabelText('Bắt đầu khung giờ 1') as HTMLInputElement).value).toBe('18:00');
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+    await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true));
+    expect(calls.find((call) => call.method === 'PATCH')?.body).toMatchObject({
+      schedule: { windows: [{ weekday: 3, startLocal: '18:00', endLocal: '19:00' }] },
     });
   });
 

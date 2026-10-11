@@ -174,14 +174,14 @@ const parentRoutes: RouteObject[] = [
       return <ParentRequestFormPage />;
     }),
   },
-  { path: 'dashboard', element: <Navigate to="/parent" replace /> },
   {
-    path: 'trang-chu',
+    path: 'dashboard',
     ...page(async () => {
       const { ParentDashboardPage } = await import('../pages/dashboards/RoleDashboards');
       return <ParentDashboardPage />;
     }),
   },
+  { path: 'trang-chu', element: <HomePage /> },
   { path: 'gioi-thieu', element: <Navigate to="/gioi-thieu" replace /> },
   { path: 'dich-vu', element: <Navigate to="/dich-vu" replace /> },
   { path: 'bang-gia', element: <Navigate to="/bang-gia" replace /> },
@@ -347,8 +347,8 @@ const moderatorRoutes: RouteObject[] = [
   {
     index: true,
     ...page(async () => {
-      const { AdminReportsOverviewPage } = await import('../pages/admin/AdminReportsPage');
-      return <AdminReportsOverviewPage />;
+      const { AdminDashboardPage } = await import('../pages/admin/AdminDashboardPage');
+      return <AdminDashboardPage />;
     }),
   },
   { path: 'tutor-approval', element: <Navigate to="/admin/tutors" replace /> },

@@ -177,78 +177,99 @@ function MenuIcon({ icon: Icon }: { icon: LucideIcon }) {
   return <Icon aria-hidden="true" size={16} strokeWidth={2} />;
 }
 
-/** Role navigation only; API role and ownership checks remain on the Worker. */
-export function RoleShell({ area }: { area: Area }) {
+/** Navigation shared by the header's desktop row and its mobile drawer. */
+export function RoleNavigation({
+  area,
+  mobile = false,
+  id,
+  onNavigate,
+}: {
+  area: Area;
+  mobile?: boolean;
+  id?: string;
+  onNavigate?: () => void;
+}) {
   const config = AREAS[area];
   const { pathname } = useLocation();
 
   return (
-    <div className="w-full min-w-0 print:block">
-      <div className="relative z-30 border-t border-white/20 bg-primary text-on-primary print:hidden">
-        <nav
-          aria-label={`Điều hướng ${config.label}`}
-          className="mx-auto w-full max-w-[var(--container-max)] px-4 py-2"
-        >
-          <ul className="flex flex-wrap items-center gap-1">
-            {config.entries.map((entry) => {
-              if (!isGroup(entry)) {
-                return (
-                  <li key={entry.to}>
-                    <NavLink
-                      to={entry.to}
-                      end={entry.to === '/parent' || entry.to === '/tutor' || entry.to === '/admin'}
-                      className={linkClass}
-                    >
-                      <MenuIcon icon={entry.icon} />
-                      {entry.label}
-                    </NavLink>
-                  </li>
-                );
-              }
+    <nav
+      id={id}
+      aria-label={`Điều hướng ${mobile ? 'di động ' : ''}${config.label}`}
+      className="mx-auto w-full max-w-[var(--container-max)] px-4 py-2"
+    >
+      <ul className={mobile ? 'grid gap-1' : 'flex flex-wrap items-center gap-1'}>
+        {config.entries.map((entry) => {
+          if (!isGroup(entry)) {
+            return (
+              <li key={entry.to} className={mobile ? 'w-full' : undefined}>
+                <NavLink
+                  to={entry.to}
+                  end={entry.to === '/parent' || entry.to === '/tutor' || entry.to === '/admin'}
+                  className={(state) => `${linkClass(state)} ${mobile ? 'w-full' : ''}`}
+                  onClick={onNavigate}
+                >
+                  <MenuIcon icon={entry.icon} />
+                  {entry.label}
+                </NavLink>
+              </li>
+            );
+          }
 
-              const isActive = entry.items.some((item) => isCurrentPath(pathname, item.to));
-              return (
-                <li key={entry.label} className="relative min-w-0 max-md:w-full">
-                  <details
-                    key={pathname}
-                    className="group"
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') {
-                        event.currentTarget.open = false;
-                        event.currentTarget.querySelector('summary')?.focus();
-                      }
-                    }}
-                  >
-                    <summary
-                      className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden ${
-                        isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
-                      }`}
-                    >
-                      <MenuIcon icon={entry.icon} />
-                      <span>{entry.label}</span>
-                      <ChevronDown
-                        aria-hidden="true"
-                        size={14}
-                        className="ml-auto transition-transform group-open:rotate-180 md:ml-0"
-                      />
-                    </summary>
-                    <ul className="z-40 mt-1 min-w-56 rounded-md border border-border bg-bg p-1 text-primary shadow-card 2xl:absolute 2xl:top-full 2xl:left-0 2xl:max-h-[min(70dvh,32rem)] 2xl:overflow-y-auto">
-                      {entry.items.map((item) => (
-                        <li key={item.to}>
-                          <NavLink to={item.to} className={submenuLinkClass}>
-                            <MenuIcon icon={item.icon} />
-                            {item.label}
-                          </NavLink>
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-      </div>
+          const isActive = entry.items.some((item) => isCurrentPath(pathname, item.to));
+          return (
+            <li
+              key={entry.label}
+              className={mobile ? 'relative min-w-0 w-full' : 'relative min-w-0'}
+            >
+              <details
+                key={pathname}
+                className="group"
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    event.currentTarget.open = false;
+                    event.currentTarget.querySelector('summary')?.focus();
+                  }
+                }}
+              >
+                <summary
+                  className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden ${
+                    isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
+                  }`}
+                >
+                  <MenuIcon icon={entry.icon} />
+                  <span>{entry.label}</span>
+                  <ChevronDown
+                    aria-hidden="true"
+                    size={14}
+                    className="ml-auto transition-transform group-open:rotate-180 md:ml-0"
+                  />
+                </summary>
+                <ul
+                  className={`z-40 mt-1 min-w-56 rounded-md border border-border bg-bg p-1 text-primary shadow-card ${mobile ? '' : '2xl:absolute 2xl:top-full 2xl:left-0 2xl:max-h-[min(70dvh,32rem)] 2xl:overflow-y-auto'}`}
+                >
+                  {entry.items.map((item) => (
+                    <li key={item.to}>
+                      <NavLink to={item.to} className={submenuLinkClass} onClick={onNavigate}>
+                        <MenuIcon icon={item.icon} />
+                        {item.label}
+                      </NavLink>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
+  );
+}
+
+/** Role content wrapper; API role and ownership checks remain on the Worker. */
+export function RoleShell({ area }: { area: Area }) {
+  return (
+    <div data-role-area={area} className="w-full min-w-0 print:block">
       <div className="mx-auto w-full max-w-[var(--container-max)] min-w-0 px-4 py-6 print:max-w-none print:px-0 print:py-0">
         <Outlet />
       </div>

@@ -7,11 +7,16 @@ import {
   ClipboardList,
   FileText,
   GraduationCap,
+  Lightbulb,
+  MapPin,
   Search,
   UserRound,
 } from 'lucide-react';
 import { Link } from 'react-router';
+import type { TutorAssignment } from '../../../shared/schemas/admin-assignments';
+import type { Page } from '../../../shared/schemas/discovery';
 import type { ParentDashboard, TutorDashboard } from '../../../shared/schemas/reports';
+import { useSession } from '../../app/auth';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
@@ -200,9 +205,17 @@ export function ParentDashboardPage() {
 }
 
 export function TutorDashboardPage() {
+  const { user } = useSession();
   const report = useQuery({
-    queryKey: ['tutor-dashboard'],
+    queryKey: ['tutor-dashboard', 'metrics', user?.id],
     queryFn: ({ signal }) => api.get<TutorDashboard>('/tutor/dashboard', { signal }),
+    enabled: user?.role === 'tutor',
+  });
+  const recentClasses = useQuery({
+    queryKey: ['tutor-dashboard', 'recent-assignments', user?.id],
+    queryFn: ({ signal }) =>
+      api.get<Page<TutorAssignment>>('/tutor/assignments?page=1&pageSize=2', { signal }),
+    enabled: user?.role === 'tutor',
   });
 
   return (
@@ -276,6 +289,104 @@ export function TutorDashboardPage() {
             to="/tutor/blog"
             icon={BookOpen}
           />
+        </div>
+      </section>
+      <section
+        aria-labelledby="tutor-recent-title"
+        className="rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="tutor-recent-title" className="text-2xl font-semibold text-primary">
+            Lớp học gần đây
+          </h2>
+          <Link
+            to="/tutor/classes"
+            className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Xem tất cả lớp của tôi
+          </Link>
+        </div>
+        {recentClasses.isPending ? (
+          <div className="mt-4">
+            <PageLoading label="Đang tải lớp gần đây…" />
+          </div>
+        ) : recentClasses.isError ? (
+          <div className="mt-4">
+            <Alert
+              tone="danger"
+              title="Không tải được lớp gần đây"
+              action={
+                <Button variant="secondary" onClick={() => void recentClasses.refetch()}>
+                  Thử lại
+                </Button>
+              }
+            >
+              {recentClasses.error.message}
+            </Alert>
+          </div>
+        ) : recentClasses.data.items.length === 0 ? (
+          <p className="mt-4 text-sm text-muted">
+            Chưa có lớp được gán. Lớp sẽ xuất hiện ở đây sau khi kiểm duyệt viên chọn bạn.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-3">
+            {recentClasses.data.items.map((item) => (
+              <li
+                key={item.id}
+                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border p-4"
+              >
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-primary">
+                    {item.subjectName} - {item.grade}
+                  </h3>
+                  <p className="mt-1 text-sm text-muted">Mã lớp: {item.classCode}</p>
+                  <p className="mt-1 inline-flex flex-wrap items-center gap-1 text-sm text-muted">
+                    <MapPin aria-hidden="true" className="size-4 shrink-0 text-primary" />
+                    {item.mode === 'online'
+                      ? 'Trực tuyến'
+                      : `Trực tiếp · ${item.publicArea ?? 'Khu vực chưa công bố'}`}
+                  </p>
+                </div>
+                <Link
+                  to="/tutor/classes"
+                  className="inline-flex min-h-11 items-center rounded-md border border-primary px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                >
+                  Xem lớp
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      <section
+        aria-labelledby="tutor-tips-title"
+        className="rounded-xl border border-accent bg-bg p-5 shadow-card sm:p-6"
+      >
+        <h2
+          id="tutor-tips-title"
+          className="flex items-center gap-2 text-xl font-semibold text-primary"
+        >
+          <Lightbulb aria-hidden="true" className="size-5 text-primary" />
+          Mẹo tăng cơ hội nhận lớp
+        </h2>
+        <ul className="mt-4 list-inside list-disc space-y-2 text-sm text-fg">
+          <li>Cập nhật hồ sơ gia sư để kiểm duyệt viên xem xét.</li>
+          <li>Đọc, vượt bài kiểm tra và xác nhận điều khoản trước khi ứng tuyển.</li>
+          <li>Xem lớp mới và theo dõi trạng thái đơn nhận lớp của bạn.</li>
+        </ul>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            to="/tutor/how-to-accept"
+            className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Xem hướng dẫn nhận lớp
+          </Link>
+          <Link
+            to="/tutor/terms"
+            className="inline-flex min-h-11 items-center rounded-md border border-primary px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            Điều khoản trách nhiệm
+          </Link>
         </div>
       </section>
     </section>

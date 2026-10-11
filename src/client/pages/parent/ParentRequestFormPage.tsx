@@ -10,6 +10,10 @@ import {
   type OwnParentRequest,
 } from '../../../shared/schemas/requests';
 import { DEFAULT_TIMEZONE } from '../../../shared/schemas/availability';
+import {
+  isRequestGridWindow,
+  RequestScheduleGrid,
+} from '../../components/domain/RequestScheduleGrid';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, EmptyState, PageHeader } from '../../components/ui/Feedback';
 import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
@@ -49,7 +53,7 @@ function toForm(request?: OwnParentRequest): FormState {
         ? ''
         : String(request.expectedBudgetMinor),
     description: request?.description ?? '',
-    discussLater: request?.schedule.discussLater ?? true,
+    discussLater: request?.schedule.discussLater ?? false,
     windows: request?.schedule.windows ?? [],
     contactPhone: request?.contactPhone ?? '',
     contactAddress: request?.contactAddress ?? '',
@@ -154,6 +158,9 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
   const [createdDraft, setCreatedDraft] = useState<OwnParentRequest | null>(null);
   const createKey = useRef(crypto.randomUUID());
   const busy = create.isPending || update.isPending || submit.isPending;
+  const customWindows = form.windows
+    .map((window, index) => ({ window, index }))
+    .filter(({ window }) => !isRequestGridWindow(window));
   const errors = {
     ...fieldErrors(create.error ?? update.error),
     ...localErrors,
@@ -463,9 +470,17 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                 />
                 Trao đổi thời gian sau
               </label>
+              <RequestScheduleGrid
+                value={form.windows}
+                onChange={(windows) => edit('windows', windows)}
+                disabled={form.discussLater}
+              />
               {!form.discussLater && (
                 <>
-                  {form.windows.map((window, index) => (
+                  {customWindows.length > 0 && (
+                    <p className="text-sm font-medium text-primary">Khung giờ khác đã lưu</p>
+                  )}
+                  {customWindows.map(({ window, index }) => (
                     <div
                       key={index}
                       className="grid min-w-0 gap-3 rounded-lg border border-border bg-bg p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end"
@@ -516,7 +531,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                     disabled={form.windows.length >= 14}
                     onClick={addWindow}
                   >
-                    Thêm khung giờ
+                    Thêm giờ khác
                   </Button>
                 </>
               )}

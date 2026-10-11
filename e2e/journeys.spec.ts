@@ -178,6 +178,10 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await parent.getByLabel('Môn học').selectOption('subj_math');
     await parent.getByLabel('Lớp học').selectOption('Lớp 10');
     await parent.getByLabel('Mô tả nhu cầu').fill('Cần gia sư Toán trực tuyến buổi tối.');
+    await parent.getByRole('button', { name: 'Thứ Hai, 17:30–19:00' }).click();
+    await parent.setViewportSize({ width: 320, height: 900 });
+    await expectNoHorizontalOverflow(parent);
+    await parent.setViewportSize({ width: 1280, height: 900 });
     await parent.getByLabel('Số điện thoại liên hệ').fill(phone);
     await parent.getByLabel('Địa chỉ liên hệ cụ thể').fill(address);
     const send = parent.getByRole('button', { name: 'Gửi yêu cầu' });

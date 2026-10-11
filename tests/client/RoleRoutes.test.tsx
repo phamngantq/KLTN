@@ -72,6 +72,12 @@ describe('Figma role route matrix', () => {
     }
   });
 
+  it('shows the exported home screen at the parent home route', async () => {
+    mockApi((req) => (req.path === '/me' ? sessionOf({ role: 'student' }) : undefined));
+    renderRoute('/parent/trang-chu');
+    expect(await screen.findByRole('heading', { name: 'Gia Sư Đỗ Hằng', level: 1 })).toBeTruthy();
+  });
+
   it('keeps parent pages behind the trusted student session role', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
