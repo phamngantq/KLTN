@@ -1,5 +1,7 @@
 # Operations
 
+> Runbook hiện mô tả Worker/D1 của MVP đặt lịch TASK-01–18. Khi triển khai mục tiêu `./figma`, bổ sung chỉ số request/lớp/ứng tuyển/gán lớp và truy vấn toàn vẹn theo TASK-20–30; không coi số liệu booking là trạng thái vận hành của sản phẩm mới.
+
 ## Health & giám sát
 
 - Health: `GET /api/v1/health` → `{"data":{"status":"ok"}}` (không lộ cấu hình/secret).

@@ -1,5 +1,7 @@
 # Rollback runbook
 
+> Các lệnh và kiểm tra DB dưới đây áp dụng cho bản MVP đặt lịch đang chạy. Trước khi phát hành mục tiêu `./figma`, TASK-30 phải cập nhật rollback và kiểm tra toàn vẹn cho schema request/lớp/ứng tuyển, giữ migration tương thích ngược theo DEC-007.
+
 Quyết định rollback khi sau deploy: smoke test fail, tỉ lệ 5xx tăng rõ rệt (`wrangler tail`/Observability), lỗi đặt lịch/đăng nhập, hoặc lỗi dữ liệu. Ưu tiên **rollback code trước**, chỉ khôi phục DB khi dữ liệu bị hỏng.
 
 ## 1. Rollback code Worker (nhanh, không đụng dữ liệu)

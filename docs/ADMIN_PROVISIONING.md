@@ -1,5 +1,7 @@
 # Cấp quyền quản trị (admin) — thao tác operator có kiểm soát
 
+> Quy trình này dành cho schema `student` của MVP hiện tại. TASK-22 cần cập nhật bước đăng ký sang role `parent` sau khi chốt migration; tuyệt đối không dùng lựa chọn `admin` trong form đăng ký của code export `./figma` làm quyền thật.
+
 Không có API, seed hay form nào tạo admin. Đăng ký công khai chỉ tạo `student` hoặc `tutor` (xem [ADR_AUTH.md](ADR_AUTH.md)).
 
 ## Quy trình

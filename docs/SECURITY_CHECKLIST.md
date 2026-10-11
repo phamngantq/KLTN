@@ -1,5 +1,7 @@
 # Security checklist (TASK-16)
 
+> Các dấu `[x]` xác nhận bảo mật của MVP đặt lịch TASK-01–18, không xác nhận API/role/request/lớp theo `./figma`. TASK-20–30 phải bổ sung ma trận quyền, PII và tests cho sản phẩm thay thế trước release (DEC-007).
+
 Trạng thái: rà soát 2026-10-11. Mỗi mục liên kết tới bằng chứng (code hoặc test) — không đánh dấu nếu chưa có test.
 
 ## 1. Xác thực & phiên — [ADR_AUTH.md](ADR_AUTH.md)

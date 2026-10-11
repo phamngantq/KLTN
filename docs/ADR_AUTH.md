@@ -1,5 +1,7 @@
 # ADR: Authentication, sessions, RBAC và CSRF (MVP)
 
+> Quyết định này ghi nhận auth của MVP hiện tại. Mục tiêu `./figma` cần role `parent`; TASK-20/22 phải chốt migration từ `student` và mở rộng RBAC. Vẫn giữ xác thực, session và CSRF phía server; không sử dụng `AuthContext.tsx` mock của export làm nguồn quyền.
+
 - Trạng thái: Accepted — 2026-10-11 (TASK-03)
 - Phạm vi: `POST /api/v1/auth/register`, `/auth/login`, `/auth/logout`, `GET /api/v1/me`
 
