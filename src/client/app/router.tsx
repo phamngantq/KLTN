@@ -193,6 +193,36 @@ const parentRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'lop-tim-hoc-vien',
+    ...page(async () => {
+      const { TutorOfferBrowsePage } = await import('../pages/classes/TutorOfferBrowsePage');
+      return <TutorOfferBrowsePage />;
+    }),
+  },
+  {
+    path: 'lop-tim-hoc-vien/:id',
+    ...page(async () => {
+      const { TutorOfferPublicDetailPage } = await import('../pages/classes/TutorOfferBrowsePage');
+      return <TutorOfferPublicDetailPage />;
+    }),
+  },
+  {
+    path: 'tutor-offer-joins',
+    ...page(async () => {
+      const { ParentTutorOfferJoinsPage } =
+        await import('../pages/parent/ParentTutorOfferJoinsPage');
+      return <ParentTutorOfferJoinsPage />;
+    }),
+  },
+  {
+    path: 'tutor-offer-joins/:id',
+    ...page(async () => {
+      const { ParentTutorOfferJoinDetailPage } =
+        await import('../pages/parent/ParentTutorOfferJoinDetailPage');
+      return <ParentTutorOfferJoinDetailPage />;
+    }),
+  },
+  {
     path: 'khieu-nai',
     ...page(async () => {
       const { ComplaintsPage } = await import('../pages/shared/ComplaintsPage');
@@ -228,6 +258,34 @@ const tutorRoutes: RouteObject[] = [
   { path: 'pricing', element: <Navigate to="/bang-gia" replace /> },
   { path: 'blog', element: <Navigate to="/blog/gia-su" replace /> },
   { path: 'contact', element: <Navigate to="/lien-he" replace /> },
+  {
+    path: 'offers',
+    ...page(async () => {
+      const { TutorOffersPage } = await import('../pages/tutor/TutorOffersPage');
+      return <TutorOffersPage />;
+    }),
+  },
+  {
+    path: 'offers/new',
+    ...page(async () => {
+      const { TutorOfferFormPage } = await import('../pages/tutor/TutorOfferFormPage');
+      return <TutorOfferFormPage />;
+    }),
+  },
+  {
+    path: 'offers/:id/edit',
+    ...page(async () => {
+      const { TutorOfferFormPage } = await import('../pages/tutor/TutorOfferFormPage');
+      return <TutorOfferFormPage />;
+    }),
+  },
+  {
+    path: 'offers/:id',
+    ...page(async () => {
+      const { TutorOfferDetailPage } = await import('../pages/tutor/TutorOffersPage');
+      return <TutorOfferDetailPage />;
+    }),
+  },
   {
     path: 'new-classes',
     ...page(async () => {
@@ -354,6 +412,20 @@ const moderatorRoutes: RouteObject[] = [
   { path: 'tutor-approval', element: <Navigate to="/admin/tutors" replace /> },
   { path: 'content', element: <Navigate to="/admin/content/blog" replace /> },
   { path: 'statistics', element: <Navigate to="/admin/reports" replace /> },
+  {
+    path: 'tutor-offers',
+    ...page(async () => {
+      const { AdminTutorOffersPage } = await import('../pages/admin/AdminTutorOffersPage');
+      return <AdminTutorOffersPage />;
+    }),
+  },
+  {
+    path: 'tutor-offer-joins',
+    ...page(async () => {
+      const { AdminTutorOfferJoinsPage } = await import('../pages/admin/AdminTutorOfferJoinsPage');
+      return <AdminTutorOfferJoinsPage />;
+    }),
+  },
   {
     path: 'users',
     ...page(async () => {
@@ -572,6 +644,21 @@ export const routes: RouteObject[] = [
         ...page(async () => {
           const { PublicClassBrowsePage } = await import('../pages/classes/ClassBrowsePage');
           return <PublicClassBrowsePage />;
+        }),
+      },
+      {
+        path: 'lop-tim-hoc-vien',
+        ...page(async () => {
+          const { TutorOfferBrowsePage } = await import('../pages/classes/TutorOfferBrowsePage');
+          return <TutorOfferBrowsePage />;
+        }),
+      },
+      {
+        path: 'lop-tim-hoc-vien/:id',
+        ...page(async () => {
+          const { TutorOfferPublicDetailPage } =
+            await import('../pages/classes/TutorOfferBrowsePage');
+          return <TutorOfferPublicDetailPage />;
         }),
       },
       {

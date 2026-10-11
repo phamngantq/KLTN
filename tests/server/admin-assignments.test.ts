@@ -23,6 +23,7 @@ import type {
   ClassContractRecord,
 } from '../../src/shared/schemas/terms-contracts';
 import { api, createPublicTutor, errorCode, jsonInit, register, type Session } from './helpers';
+import { markLegacySubmittedRequest } from './legacy-request-fixture';
 import {
   passAndAcknowledgeTutorTerms,
   publishTutorContract,
@@ -61,12 +62,7 @@ async function createSubmittedRequest(parent: Session): Promise<OwnParentRequest
   );
   expect(create.status).toBe(201);
   const draft = (await create.json<ApiSuccess<OwnParentRequest>>()).data;
-  const submit = await api(
-    `/parent/requests/${draft.id}/submit`,
-    jsonInit('POST', { version: draft.version, consentToShareContact: true }, parent),
-  );
-  expect(submit.status).toBe(200);
-  return (await submit.json<ApiSuccess<OwnParentRequest>>()).data;
+  return markLegacySubmittedRequest(parent, draft);
 }
 
 async function createOpenClass(moderator: Session, request: OwnParentRequest): Promise<AdminClass> {

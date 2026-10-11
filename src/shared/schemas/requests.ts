@@ -143,6 +143,9 @@ export interface ParentRequestSummary {
 
 /** Returned only from an owner-authenticated detail/create/update endpoint. */
 export interface OwnParentRequest extends ParentRequestSummary {
+  /** Parent-only reference while its published class remains open. */
+  publishedClassId: string | null;
+  publishedClassCode: string | null;
   /** Agreed VND per session for the current assignment; null before assignment or after revocation. */
   agreedTuitionPerSessionMinor: number | null;
   cancellationReason?: string | null;

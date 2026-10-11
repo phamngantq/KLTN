@@ -39,6 +39,12 @@ describe('moderator dashboard', () => {
       if (req.path === '/admin/applications?status=submitted&pageSize=1') {
         return { data: { items: [], total: 4, page: 1, pageSize: 1 } };
       }
+      if (req.path === '/admin/tutor-offers?status=pending&page=1&pageSize=1') {
+        return { data: { items: [], total: 3, page: 1, pageSize: 1 } };
+      }
+      if (req.path === '/admin/tutor-offer-joins?status=submitted&page=1&pageSize=1') {
+        return { data: { items: [], total: 2, page: 1, pageSize: 1 } };
+      }
       return undefined;
     });
 
@@ -54,6 +60,10 @@ describe('moderator dashboard', () => {
     );
     expect(screen.getByText('Yêu cầu nhận lớp').closest('a')?.textContent).toContain('4');
     expect(screen.getByText('Lớp mới').closest('a')?.textContent).toContain('8');
+    expect(screen.getByText('Lớp chờ duyệt hợp đồng').closest('a')?.textContent).toContain('3');
+    expect(screen.getByText('Yêu cầu tham gia lớp chờ duyệt').closest('a')?.textContent).toContain(
+      '2',
+    );
     expect(screen.getByText(/2 lớp đang tuyển được công bố trong kỳ/)).toBeTruthy();
     expect(screen.getByText(/4 đơn đang chờ kiểm duyệt viên xử lý/)).toBeTruthy();
     expect(screen.getByText('Doanh thu tháng này').closest('a')?.textContent).toContain(
@@ -90,6 +100,12 @@ describe('moderator dashboard', () => {
       if (req.path === '/admin/applications?status=submitted&pageSize=1') {
         return { data: { items: [], total: 0, page: 1, pageSize: 1 } };
       }
+      if (
+        req.path === '/admin/tutor-offers?status=pending&page=1&pageSize=1' ||
+        req.path === '/admin/tutor-offer-joins?status=submitted&page=1&pageSize=1'
+      ) {
+        return { data: { items: [], total: 0, page: 1, pageSize: 1 } };
+      }
       return undefined;
     });
 
@@ -100,7 +116,7 @@ describe('moderator dashboard', () => {
     expect(screen.getByRole('link', { name: 'Xem báo cáo chi tiết' }).getAttribute('href')).toBe(
       '/admin/reports',
     );
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(5);
   });
 
   it('reports API failures instead of displaying placeholder KPIs', async () => {
@@ -110,6 +126,12 @@ describe('moderator dashboard', () => {
         return { status: 403, error: { code: 'FORBIDDEN', message: 'Không có quyền.' } };
       }
       if (req.path === '/admin/applications?status=submitted&pageSize=1') {
+        return { data: { items: [], total: 0, page: 1, pageSize: 1 } };
+      }
+      if (
+        req.path === '/admin/tutor-offers?status=pending&page=1&pageSize=1' ||
+        req.path === '/admin/tutor-offer-joins?status=submitted&page=1&pageSize=1'
+      ) {
         return { data: { items: [], total: 0, page: 1, pageSize: 1 } };
       }
       return undefined;

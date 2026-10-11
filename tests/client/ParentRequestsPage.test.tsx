@@ -22,6 +22,8 @@ const ownRequest: OwnParentRequest = {
   area: null,
   expectedBudgetMinor: null,
   agreedTuitionPerSessionMinor: null,
+  publishedClassId: null,
+  publishedClassCode: null,
   description: 'Cần gia sư hỗ trợ Toán.',
   status: 'draft',
   version: 1,
@@ -65,7 +67,13 @@ describe('parent requests', () => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       if (req.path === '/parent/requests/req-1' && req.method === 'GET') return { data: current };
       if (req.path === '/parent/requests/req-1/submit' && req.method === 'POST') {
-        current = { ...current, status: 'submitted', version: 2 };
+        current = {
+          ...current,
+          status: 'sourcing',
+          version: 2,
+          publishedClassId: 'class-1',
+          publishedClassCode: 'LH-0001',
+        };
         return { data: current };
       }
       return undefined;
@@ -79,7 +87,12 @@ describe('parent requests', () => {
     expect(calls.some((call) => call.path.endsWith('/submit'))).toBe(false);
     await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
     await user.click(send);
-    expect(await screen.findByText(/Đã gửi yêu cầu\. Kiểm duyệt viên/)).toBeTruthy();
+    expect(
+      await screen.findByText(/Yêu cầu đã được công bố trong danh sách lớp tìm gia sư/),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Xem lớp LH-0001' }).getAttribute('href')).toBe(
+      '/lop-hoc/class-1',
+    );
     const submitted = calls.find((call) => call.path.endsWith('/submit'));
     expect(submitted?.body).toEqual({ version: 1, consentToShareContact: true });
     expect(submitted?.headers.get('X-CSRF-Token')).toBe('csrf-test-token');
@@ -93,7 +106,13 @@ describe('parent requests', () => {
       if (req.path === '/parent/requests' && req.method === 'POST')
         return { status: 201, data: current };
       if (req.path === '/parent/requests/req-1/submit' && req.method === 'POST') {
-        current = { ...current, status: 'submitted', version: 2 };
+        current = {
+          ...current,
+          status: 'sourcing',
+          version: 2,
+          publishedClassId: 'class-1',
+          publishedClassCode: 'LH-0001',
+        };
         return { data: current };
       }
       if (req.path === '/parent/requests/req-1' && req.method === 'GET') return { data: current };
@@ -115,7 +134,7 @@ describe('parent requests', () => {
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
-    expect(await screen.findByText(/Đã gửi/)).toBeTruthy();
+    expect(await screen.findByText(/Đang tìm gia sư/)).toBeTruthy();
     const created = calls.find(
       (call) => call.path === '/parent/requests' && call.method === 'POST',
     );

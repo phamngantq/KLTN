@@ -21,6 +21,8 @@ import {
   parentRequests,
   requestScheduleWindows,
   tutorProfiles,
+  tutorOfferJoinRequests,
+  tutorStudentOffers,
   tutorApplications,
   users,
 } from '../../db/schema';
@@ -83,6 +85,19 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
     .select({ id: classAssignments.id })
     .from(classAssignments)
     .where(inArray(classAssignments.classId, affectedClassIds));
+  const affectedTutorOfferIds = db
+    .select({ id: tutorStudentOffers.id })
+    .from(tutorStudentOffers)
+    .where(eq(tutorStudentOffers.tutorUserId, userId));
+  const affectedTutorOfferJoinIds = db
+    .select({ id: tutorOfferJoinRequests.id })
+    .from(tutorOfferJoinRequests)
+    .where(
+      or(
+        eq(tutorOfferJoinRequests.parentUserId, userId),
+        inArray(tutorOfferJoinRequests.offerId, affectedTutorOfferIds),
+      ),
+    );
   const affectedComplaintIds = db
     .select({ id: complaints.id })
     .from(complaints)
@@ -113,6 +128,41 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
     db.delete(availabilityRules).where(eq(availabilityRules.tutorId, userId)),
     db.delete(availabilityExceptions).where(eq(availabilityExceptions.tutorId, userId)),
     db.delete(tutorProfiles).where(eq(tutorProfiles.userId, userId)),
+    db
+      .update(tutorStudentOffers)
+      .set({
+        area: sql`CASE WHEN ${tutorStudentOffers.mode} = 'offline' THEN 'Đã ẩn khu vực' ELSE NULL END`,
+        rejectionReason: sql`CASE WHEN ${tutorStudentOffers.rejectionReason} IS NULL THEN NULL ELSE ${redactedReason} END`,
+        contactPhone: null,
+        version: sql`${tutorStudentOffers.version} + 1`,
+        mutationId: crypto.randomUUID(),
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(tutorStudentOffers.tutorUserId, userId),
+          inArray(tutorStudentOffers.status, ['draft', 'rejected', 'closed']),
+        ),
+      ),
+    db
+      .update(tutorOfferJoinRequests)
+      .set({
+        studentGrade: 'Đã ẩn',
+        learningNeeds: 'Nhu cầu học tập đã được xóa',
+        teachingArea: null,
+        contactPhone: null,
+        rejectionReason: sql`CASE WHEN ${tutorOfferJoinRequests.rejectionReason} IS NULL THEN NULL ELSE ${redactedReason} END`,
+        terminalReason: sql`CASE WHEN ${tutorOfferJoinRequests.terminalReason} IS NULL THEN NULL ELSE ${redactedReason} END`,
+        version: sql`${tutorOfferJoinRequests.version} + 1`,
+        mutationId: crypto.randomUUID(),
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(tutorOfferJoinRequests.parentUserId, userId),
+          inArray(tutorOfferJoinRequests.status, ['withdrawn', 'rejected', 'completed', 'revoked']),
+        ),
+      ),
     db
       .update(complaints)
       .set({
@@ -170,6 +220,14 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
             inArray(auditLogs.targetId, affectedAssignmentIds),
           ),
           and(eq(auditLogs.targetType, 'booking'), inArray(auditLogs.targetId, ownBookingIds)),
+          and(
+            eq(auditLogs.targetType, 'tutor_student_offer'),
+            inArray(auditLogs.targetId, affectedTutorOfferIds),
+          ),
+          and(
+            eq(auditLogs.targetType, 'tutor_offer_join_request'),
+            inArray(auditLogs.targetId, affectedTutorOfferJoinIds),
+          ),
         ),
       ),
     db.delete(idempotencyKeys).where(eq(idempotencyKeys.actorId, userId)),

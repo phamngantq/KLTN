@@ -38,6 +38,17 @@ import {
   tutorTermsContractRoutes,
 } from './modules/terms-contracts/routes';
 import { subjectRoutes, tutorProfileRoutes } from './modules/tutors/routes';
+import {
+  adminTutorOfferRoutes,
+  publicTutorOfferRoutes,
+  tutorOfferRoutes,
+} from './modules/tutor-offers/routes';
+import {
+  adminTutorOfferJoinRoutes,
+  parentTutorOfferJoinRoutes,
+  publicTutorOfferJoinRoutes,
+  tutorOfferJoinRoutes,
+} from './modules/tutor-offer-joins/routes';
 import { adminComplaintRoutes, complaintRoutes } from './modules/support/complaints-routes';
 import type { AppEnv } from './types';
 
@@ -98,6 +109,7 @@ export function createApp() {
   api.route('/me', meRoutes);
   api.route('/parent/profile', parentProfileRoutes);
   api.route('/parent/requests', parentRequestRoutes);
+  api.route('/parent/tutor-offer-joins', parentTutorOfferJoinRoutes);
   api.route('/parent/dashboard', parentDashboardRoutes);
   api.route('/account', accountDeletionRoutes);
   api.route('/tutor/availability', tutorAvailabilityRoutes);
@@ -107,6 +119,10 @@ export function createApp() {
   api.route('/tutor/dashboard', tutorDashboardRoutes);
   api.route('/subjects', subjectRoutes);
   api.route('/tutor/profile', tutorProfileRoutes);
+  api.route('/tutor/offers', tutorOfferRoutes);
+  api.route('/tutor/offers', tutorOfferJoinRoutes);
+  api.route('/tutor-offers', publicTutorOfferRoutes);
+  api.route('/tutor-offers', publicTutorOfferJoinRoutes);
   api.route('/tutors', discoveryRoutes);
   api.route('/bookings', bookingRoutes);
   api.route('/classes', classRoutes);
@@ -123,6 +139,8 @@ export function createApp() {
   api.route('/admin/content', adminContentRoutes);
   api.route('/admin/reports', adminReportRoutes);
   api.route('/admin/complaints', adminComplaintRoutes);
+  api.route('/admin/tutor-offers', adminTutorOfferRoutes);
+  api.route('/admin/tutor-offer-joins', adminTutorOfferJoinRoutes);
 
   app.route('/api/v1', api);
 

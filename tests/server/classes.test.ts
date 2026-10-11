@@ -10,6 +10,7 @@ import type {
 import type { Page } from '../../src/shared/schemas/discovery';
 import type { OwnParentRequest } from '../../src/shared/schemas/requests';
 import { api, createPublicTutor, jsonInit, register, type Session } from './helpers';
+import { markLegacySubmittedRequest } from './legacy-request-fixture';
 import { passAndAcknowledgeTutorTerms, publishTutorTermsQuiz } from './terms-fixture';
 
 const REQUEST = {
@@ -54,12 +55,7 @@ async function createSubmittedRequest(parent: Session): Promise<OwnParentRequest
   );
   expect(created.status).toBe(201);
   const draft = (await created.json<ApiSuccess<OwnParentRequest>>()).data;
-  const submitted = await api(
-    `/parent/requests/${draft.id}/submit`,
-    jsonInit('POST', { version: draft.version, consentToShareContact: true }, parent),
-  );
-  expect(submitted.status).toBe(200);
-  return (await submitted.json<ApiSuccess<OwnParentRequest>>()).data;
+  return markLegacySubmittedRequest(parent, draft);
 }
 
 async function createClass(
@@ -116,7 +112,7 @@ async function setupOpenClass() {
 }
 
 describe('published classes and tutor applications', () => {
-  it('enforces moderator sourcing, consent, unique source and atomic publication', async () => {
+  it('preserves moderator publication for legacy submitted requests', async () => {
     const parent = await register('parent');
     const admin = await moderator();
     const tutor = await register('tutor');
@@ -131,11 +127,7 @@ describe('published classes and tutor applications', () => {
     expect((await createClass(admin, { ...draftRequest, id: crypto.randomUUID() })).status).toBe(
       404,
     );
-    const submittedResponse = await api(
-      `/parent/requests/${draftRequest.id}/submit`,
-      jsonInit('POST', { version: draftRequest.version, consentToShareContact: true }, parent),
-    );
-    const submitted = (await submittedResponse.json<ApiSuccess<OwnParentRequest>>()).data;
+    const submitted = await markLegacySubmittedRequest(parent, draftRequest);
     const classResponse = await createClass(admin, submitted);
     expect(classResponse.status).toBe(201);
     const cls = (await classResponse.json<ApiSuccess<AdminClass>>()).data;

@@ -19,6 +19,8 @@ import {
   PRICING_LEVELS,
   PRICING_MODES,
 } from '../../shared/schemas/pricing';
+import { TUTOR_OFFER_STATUSES } from '../../shared/schemas/tutor-offers';
+import { TUTOR_OFFER_JOIN_STATUSES } from '../../shared/schemas/tutor-offer-joins';
 import {
   type AnySQLiteColumn,
   index,
@@ -162,6 +164,116 @@ export const classListings = sqliteTable(
       desc(t.publishedAt),
       t.id,
     ),
+  ],
+);
+
+/** Tutor-origin offers seek students and never carry parent request contact details. */
+export const tutorStudentOffers = sqliteTable(
+  'tutor_student_offers',
+  {
+    id: text('id').primaryKey(),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    subjectId: text('subject_id')
+      .notNull()
+      .references(() => subjects.id, { onDelete: 'restrict' }),
+    grade: text('grade').notNull(),
+    mode: text('mode', { enum: ['online', 'offline'] }).notNull(),
+    area: text('area'),
+    proposedTuitionPerSessionMinor: integer('proposed_tuition_per_session_minor').notNull(),
+    status: text('status', { enum: TUTOR_OFFER_STATUSES }).notNull().default('draft'),
+    version: integer('version').notNull().default(1),
+    contractRevisionId: text('contract_revision_id').references(() => contentRevisions.id, {
+      onDelete: 'restrict',
+    }),
+    acknowledgedAt: text('acknowledged_at'),
+    reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'restrict' }),
+    reviewedAt: text('reviewed_at'),
+    rejectionReason: text('rejection_reason'),
+    publishedAt: text('published_at'),
+    contactPhone: text('contact_phone'),
+    contactShareConsentAt: text('contact_share_consent_at'),
+    contactShareConsentVersion: text('contact_share_consent_version'),
+    mutationId: text('mutation_id').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    index('tutor_student_offers_owner_idx').on(t.tutorUserId, desc(t.updatedAt), t.id),
+    index('tutor_student_offers_review_idx').on(t.status, desc(t.updatedAt), t.id),
+    index('tutor_student_offers_public_idx').on(
+      t.status,
+      t.subjectId,
+      t.grade,
+      t.mode,
+      desc(t.publishedAt),
+      t.id,
+    ),
+  ],
+);
+
+export const tutorOfferContractAcks = sqliteTable(
+  'tutor_offer_contract_acks',
+  {
+    id: text('id').primaryKey(),
+    offerId: text('offer_id')
+      .notNull()
+      .references(() => tutorStudentOffers.id, { onDelete: 'restrict' }),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    offerVersion: integer('offer_version').notNull(),
+    contractRevisionId: text('contract_revision_id')
+      .notNull()
+      .references(() => contentRevisions.id, { onDelete: 'restrict' }),
+    acknowledgedAt: text('acknowledged_at').notNull(),
+    contactShareConsentAt: text('contact_share_consent_at'),
+    contactShareConsentVersion: text('contact_share_consent_version'),
+  },
+  (t) => [index('tutor_offer_contract_acks_offer_idx').on(t.offerId, desc(t.acknowledgedAt))],
+);
+
+/** Parent requests to join a tutor-origin offer. Phone never enters public projections. */
+export const tutorOfferJoinRequests = sqliteTable(
+  'tutor_offer_join_requests',
+  {
+    id: text('id').primaryKey(),
+    offerId: text('offer_id')
+      .notNull()
+      .references(() => tutorStudentOffers.id, { onDelete: 'restrict' }),
+    parentUserId: text('parent_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    offerVersion: integer('offer_version').notNull(),
+    studentGrade: text('student_grade').notNull(),
+    learningNeeds: text('learning_needs').notNull(),
+    teachingArea: text('teaching_area'),
+    detailsConsentVersion: text('details_consent_version').notNull(),
+    detailsConsentedAt: text('details_consented_at').notNull(),
+    contactConsentVersion: text('contact_consent_version').notNull(),
+    contactConsentedAt: text('contact_consented_at').notNull(),
+    contactPhone: text('contact_phone'),
+    status: text('status', { enum: TUTOR_OFFER_JOIN_STATUSES }).notNull().default('submitted'),
+    version: integer('version').notNull().default(1),
+    reviewedBy: text('reviewed_by').references(() => users.id, { onDelete: 'restrict' }),
+    reviewedAt: text('reviewed_at'),
+    rejectionReason: text('rejection_reason'),
+    agreedTuitionPerSessionMinor: integer('agreed_tuition_per_session_minor'),
+    partiesAgreedAt: text('parties_agreed_at'),
+    terminatedBy: text('terminated_by').references(() => users.id, { onDelete: 'restrict' }),
+    terminatedAt: text('terminated_at'),
+    terminalReason: text('terminal_reason'),
+    withdrawnAt: text('withdrawn_at'),
+    mutationId: text('mutation_id').notNull(),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('tutor_offer_join_requests_live_unique')
+      .on(t.offerId, t.parentUserId)
+      .where(sql`${t.status} IN ('submitted', 'approved')`),
+    index('tutor_offer_join_requests_parent_idx').on(t.parentUserId, desc(t.createdAt), t.id),
+    index('tutor_offer_join_requests_offer_idx').on(t.offerId, desc(t.createdAt), t.id),
+    index('tutor_offer_join_requests_review_idx').on(t.status, desc(t.createdAt), t.id),
   ],
 );
 

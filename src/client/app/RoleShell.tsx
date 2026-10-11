@@ -40,7 +40,9 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
       { to: '/parent/trang-chu', label: 'Trang chủ', icon: Home },
       { to: '/parent', label: 'Thuê gia sư', icon: ClipboardList },
       { to: '/parent/profile', label: 'Hồ sơ', icon: UserRound },
-      { to: '/parent/lop-hoc', label: 'Lớp học', icon: GraduationCap },
+      { to: '/parent/lop-hoc', label: 'Lớp tìm gia sư', icon: GraduationCap },
+      { to: '/parent/lop-tim-hoc-vien', label: 'Lớp tìm học viên', icon: Users },
+      { to: '/parent/tutor-offer-joins', label: 'Yêu cầu tham gia lớp', icon: ClipboardList },
       { to: '/parent/bang-gia', label: 'Bảng giá', icon: Wallet },
       {
         label: 'Thông tin',
@@ -70,6 +72,7 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
         icon: GraduationCap,
         items: [
           { to: '/tutor/new-classes', label: 'Danh sách lớp mới', icon: GraduationCap },
+          { to: '/tutor/offers', label: 'Đăng lớp tìm học viên', icon: BookOpen },
           { to: '/tutor/matched-classes', label: 'Lớp phù hợp', icon: Users },
           { to: '/tutor/class-requests', label: 'Đơn nhận lớp', icon: ClipboardList },
           { to: '/tutor/classes', label: 'Lớp của tôi', icon: BookOpen },
@@ -109,6 +112,8 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
         icon: ClipboardList,
         items: [
           { to: '/admin/requests', label: 'Yêu cầu tìm gia sư', icon: ClipboardList },
+          { to: '/admin/tutor-offers', label: 'Duyệt lớp tìm học viên', icon: BookOpen },
+          { to: '/admin/tutor-offer-joins', label: 'Yêu cầu tham gia lớp', icon: ClipboardList },
           { to: '/admin/applications', label: 'Đơn nhận lớp', icon: FileText },
           { to: '/admin/classes', label: 'Lớp học', icon: GraduationCap },
           { to: '/admin/contracts', label: 'Hợp đồng lớp', icon: FileText },

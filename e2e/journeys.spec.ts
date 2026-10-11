@@ -13,7 +13,8 @@ type Items<T> = { items: T[]; total: number };
 type Versioned = { id: string; version: number };
 type ContentDraft = { id: string; editVersion: number };
 type Request = Versioned & { status: string };
-type Class = Versioned & { code: string; sourceRequestId: string; status: string };
+type OwnRequest = Request & { publishedClassId: string | null; publishedClassCode: string | null };
+type Class = Versioned & { code: string; status: string };
 type Assignment = { id: string; classId: string };
 
 async function getData<T>(page: Page, path: string): Promise<T> {
@@ -189,27 +190,25 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/).check();
     await send.click();
     await expect(parent).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
-    await expect(parent.getByText('Đã gửi', { exact: true })).toBeVisible();
-    const requests = await getData<Items<Request>>(parent, '/parent/requests?status=submitted');
+    await expect(parent.getByText('Lớp đang tìm gia sư')).toBeVisible();
+    const requests = await getData<Items<Request>>(parent, '/parent/requests?status=sourcing');
     expect(requests.total).toBe(1);
     const request = requests.items[0]!;
     expect(request).toBeDefined();
     expect(JSON.stringify(requests)).not.toContain(phone);
+    const confirmed = await getData<OwnRequest>(parent, `/parent/requests/${request.id}`);
+    expect(confirmed).toMatchObject({
+      status: 'sourcing',
+      publishedClassId: expect.any(String),
+      publishedClassCode: expect.stringMatching(/^LH-[A-F0-9]{12}$/),
+    });
+    const publicClasses = await getData<Items<Class>>(guest, '/classes?subjectId=subj_math');
+    const cls = publicClasses.items.find((item) => item.id === confirmed.publishedClassId);
+    expect(cls).toMatchObject({ code: confirmed.publishedClassCode, status: 'open' });
 
     await admin.goto(`/admin/requests?selected=${request.id}`);
     expect((await parent.context().request.get('/api/v1/admin/requests')).status()).toBe(403);
     await expect(admin.getByRole('region', { name: 'Chi tiết yêu cầu' })).toContainText(phone);
-    await admin.getByRole('button', { name: 'Tạo lớp từ yêu cầu' }).click();
-    await admin.getByRole('dialog').getByRole('button', { name: 'Tạo lớp' }).click();
-    await expect(admin.getByText(/Đã tạo bản nháp lớp/)).toBeVisible();
-    const drafts = await getData<Items<Class>>(admin, '/admin/classes?status=draft');
-    const cls = drafts.items.find((item) => item.sourceRequestId === request.id);
-    expect(cls).toBeDefined();
-    await admin.goto('/admin/classes?status=draft');
-    const classCard = admin.getByRole('article').filter({ hasText: cls!.code });
-    await classCard.getByRole('button', { name: 'Xuất bản lớp' }).click();
-    await admin.getByRole('dialog').getByRole('button', { name: 'Xuất bản' }).click();
-    await expect(admin.getByText(`Đã xuất bản lớp ${cls!.code}.`)).toBeVisible();
 
     await guest.goto(`/lop-hoc/${cls!.id}`);
     await expect(guest.getByText(new RegExp(`Mã lớp:? ${cls!.code}`))).toBeVisible();
@@ -349,5 +348,252 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await Promise.all(
       [parent, tutor, admin, outsider, guest].map((page) => page.context().close()),
     );
+  }
+});
+
+test('tutor contract → public offer → parent join → private contact → completion', async ({
+  browser,
+}) => {
+  test.setTimeout(240_000);
+  const tutor = await newPage(browser);
+  const admin = await newPage(browser);
+  const guest = await newPage(browser);
+  const parent = await newPage(browser);
+  const tutorName = `Gia sư mở lớp E2E ${Date.now()}`;
+  const tutorEmail = uniqueEmail('offer-tutor');
+  const privateArea = 'Long Biên, Hà Nội';
+  const privatePhone = '0900000099';
+  const parentPhone = '0900000098';
+  const learningNeeds = 'Học sinh cần luyện tập phương trình bậc hai trong E2E.';
+  const teachingArea = 'Cầu Giấy, Hà Nội';
+
+  try {
+    await signUp(tutor, 'tutor', tutorName, tutorEmail);
+    await tutor.goto('/tutor/profile');
+    await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán đăng lớp tìm học viên trong E2E.');
+    await tutor.getByLabel('Toán').check();
+    await tutor.getByLabel(/Học phí/).fill('200000');
+    await tutor.getByLabel('Trực tiếp').check();
+    await tutor.getByRole('button', { name: 'Lưu hồ sơ' }).click();
+    await expect(tutor.getByText('Đã lưu.')).toBeVisible();
+    await tutor.getByRole('button', { name: 'Gửi duyệt' }).click();
+    await expect(tutor.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
+
+    await signIn(admin, E2E_ADMIN.email, E2E_ADMIN.password);
+    await admin.goto('/admin/tutors');
+    const tutorCard = admin.getByRole('article').filter({ hasText: tutorName });
+    await tutorCard.getByRole('button', { name: 'Duyệt & công khai' }).click();
+    await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt & công khai' }).click();
+    await expect(admin.getByText(`Duyệt & công khai: ${tutorName}.`)).toBeVisible();
+
+    await tutor.goto('/tutor/offers/new');
+    await tutor.getByLabel('Môn học').selectOption('subj_math');
+    await tutor.getByLabel('Lớp học').selectOption('Lớp 10');
+    await tutor.getByLabel('Hình thức dạy').selectOption('offline');
+    await tutor.getByLabel('Khu vực chung').fill(privateArea);
+    await tutor.getByLabel('Học phí đề xuất (VNĐ/buổi)').fill('220000');
+    await tutor.getByLabel('Số điện thoại liên hệ').fill(privatePhone);
+    await tutor.getByRole('button', { name: 'Lưu bản nháp' }).click();
+    await expect(tutor).toHaveURL(/\/tutor\/offers\/[0-9a-f-]+$/);
+    const offerId = tutor.url().split('/').at(-1)!;
+    await expect(tutor.getByText('Bản nháp')).toBeVisible();
+    expect((await guest.context().request.get(`/api/v1/tutor-offers/${offerId}`)).status()).toBe(
+      404,
+    );
+
+    const contractId = await publishContent(
+      admin,
+      'contract',
+      'tutor-student-offer-contract',
+      'Hợp đồng đăng lớp E2E',
+    );
+    await tutor.reload();
+    await expect(tutor.getByText('Hợp đồng đăng lớp E2E · phiên bản 1')).toBeVisible();
+    await tutor.getByLabel(/Tôi đã đọc và đồng ý hợp đồng phiên bản/).check();
+    await tutor.getByLabel(/Tôi đồng ý cho phụ huynh có yêu cầu/).check();
+    await tutor.getByRole('button', { name: 'Xác nhận hợp đồng và gửi duyệt' }).click();
+    await expect(tutor.getByText('Đã gửi lớp và hợp đồng để kiểm duyệt.')).toBeVisible();
+    const submitted = await getData<{
+      status: string;
+      version: number;
+      contractRevisionId: string;
+      acknowledgedAt: string;
+    }>(tutor, `/tutor/offers/${offerId}`);
+    expect(submitted).toMatchObject({
+      status: 'pending',
+      version: 2,
+      contractRevisionId: contractId,
+    });
+    expect(submitted.acknowledgedAt).toBeTruthy();
+    expect((await guest.context().request.get(`/api/v1/tutor-offers/${offerId}`)).status()).toBe(
+      404,
+    );
+
+    await admin.goto('/admin/tutor-offers?status=pending');
+    await expect(admin.getByRole('heading', { name: 'Duyệt lớp tìm học viên' })).toBeVisible();
+    await admin.getByRole('button', { name: 'Xem hợp đồng và duyệt' }).click();
+    await expect(admin.getByRole('dialog')).toContainText('Hợp đồng đăng lớp E2E');
+    await admin.getByRole('dialog').getByRole('button', { name: 'Duyệt và công bố' }).click();
+    await expect(admin.getByText('Đã duyệt hợp đồng và công bố lớp tìm học viên.')).toBeVisible();
+
+    const publicOffer = await getData<{
+      id: string;
+      tutorDisplayName: string;
+      subjectName: string;
+      area: string | null;
+      proposedTuitionPerSessionMinor: number;
+    }>(guest, `/tutor-offers/${offerId}`);
+    expect(publicOffer).toMatchObject({
+      id: offerId,
+      tutorDisplayName: tutorName,
+      subjectName: 'Toán',
+      area: null,
+      proposedTuitionPerSessionMinor: 220_000,
+    });
+    expect(JSON.stringify(publicOffer)).not.toContain(tutorEmail);
+    expect(JSON.stringify(publicOffer)).not.toContain(privatePhone);
+    expect(JSON.stringify(publicOffer)).not.toContain(privateArea);
+    const listings = await getData<Items<{ id: string }>>(guest, '/tutor-offers');
+    expect(listings.items.some((item) => item.id === offerId)).toBe(true);
+    await guest.goto('/lop-tim-hoc-vien');
+    await expect(guest.getByRole('heading', { name: 'Lớp tìm học viên' })).toBeVisible();
+    await expect(guest.getByText(`Gia sư ${tutorName}`)).toBeVisible();
+    await guest.goto(`/lop-tim-hoc-vien/${offerId}`);
+    await expect(guest.getByRole('heading', { name: 'Toán · Lớp 10' })).toBeVisible();
+    await expect(guest.getByText('Đang tìm học viên')).toBeVisible();
+    const body = await guest.locator('body').innerText();
+    expect(body).not.toContain(tutorEmail);
+    expect(body).not.toContain(privatePhone);
+    expect(body).not.toContain(privateArea);
+
+    await signUp(
+      parent,
+      'student',
+      `Phụ huynh tham gia E2E ${Date.now()}`,
+      uniqueEmail('offer-parent'),
+    );
+    await parent.goto(`/parent/lop-tim-hoc-vien/${offerId}`);
+    await parent.getByRole('textbox', { name: 'Nhu cầu học tập' }).fill(learningNeeds);
+    await parent.getByLabel('Khu vực học chung').fill(teachingArea);
+    await parent.getByLabel('Số điện thoại liên hệ riêng').fill(parentPhone);
+    await parent.getByLabel(/Tôi đồng ý chia sẻ lớp học, nhu cầu học tập/).check();
+    await parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại của tôi với gia sư đăng lớp/).check();
+    await parent.getByRole('button', { name: 'Gửi yêu cầu tham gia lớp' }).click();
+    await expect(parent.getByText('Đã gửi yêu cầu tham gia lớp')).toBeVisible();
+    const parentJoins = await getData<Items<Versioned & { status: string }>>(
+      parent,
+      '/parent/tutor-offer-joins',
+    );
+    const join = parentJoins.items.find((item) => item.status === 'submitted');
+    expect(join).toBeDefined();
+    const joinId = join!.id;
+    const tutorJoins = await getData<
+      Items<{ id: string; learningNeeds: string; teachingArea: string }>
+    >(tutor, `/tutor/offers/${offerId}/join-requests`);
+    expect(tutorJoins.items).toContainEqual(
+      expect.objectContaining({ id: joinId, learningNeeds, teachingArea }),
+    );
+    expect(JSON.stringify(tutorJoins)).not.toContain(parentPhone);
+    expect(
+      (
+        await parent.context().request.get(`/api/v1/parent/tutor-offer-joins/${joinId}/contact`)
+      ).status(),
+    ).toBe(409);
+    expect(
+      (
+        await tutor
+          .context()
+          .request.get(`/api/v1/tutor/offers/${offerId}/join-requests/${joinId}/contact`)
+      ).status(),
+    ).toBe(404);
+    await tutor.goto(`/tutor/offers/${offerId}`);
+    await expect(tutor.getByText(learningNeeds)).toBeVisible();
+    await expect(tutor.getByText(`Khu vực chung: ${teachingArea}`)).toBeVisible();
+    expect(await tutor.locator('body').innerText()).not.toContain(parentPhone);
+
+    await admin.goto('/admin/tutor-offer-joins?status=submitted');
+    await expect(
+      admin.getByRole('heading', { name: 'Yêu cầu tham gia lớp tìm học viên' }),
+    ).toBeVisible();
+    await admin
+      .getByRole('article')
+      .filter({ hasText: learningNeeds })
+      .getByRole('button', { name: 'Duyệt yêu cầu' })
+      .click();
+    const joinReview = admin.getByRole('dialog');
+    await expect(joinReview).toContainText(parentPhone);
+    await expect(joinReview).toContainText(privatePhone);
+    await joinReview.getByLabel('Học phí đã chốt (VNĐ/buổi)').fill('210000');
+    await joinReview.getByLabel(/Tôi xác nhận phụ huynh và gia sư đã thống nhất/).check();
+    await joinReview.getByRole('button', { name: 'Duyệt yêu cầu' }).click();
+    await expect(admin.getByText(/Đã duyệt yêu cầu với học phí đã chốt/)).toBeVisible();
+    const approvedJoin = await getData<
+      Versioned & { status: string; agreedTuitionPerSessionMinor: number }
+    >(admin, `/admin/tutor-offer-joins/${joinId}`);
+    expect(approvedJoin).toMatchObject({
+      status: 'approved',
+      agreedTuitionPerSessionMinor: 210_000,
+    });
+    expect(
+      await getData<{ phone: string }>(parent, `/parent/tutor-offer-joins/${joinId}/contact`),
+    ).toEqual({ phone: privatePhone });
+    expect(
+      await getData<{ phone: string }>(
+        tutor,
+        `/tutor/offers/${offerId}/join-requests/${joinId}/contact`,
+      ),
+    ).toEqual({ phone: parentPhone });
+    await parent.goto(`/parent/tutor-offer-joins/${joinId}`);
+    await expect(parent.getByText(/210\.000\s*₫\/buổi/)).toBeVisible();
+    await parent.getByRole('button', { name: 'Xem số điện thoại gia sư' }).click();
+    await expect(parent.getByRole('link', { name: privatePhone })).toBeVisible();
+    await tutor.reload();
+    await tutor.getByRole('button', { name: 'Xem số điện thoại phụ huynh' }).click();
+    await expect(tutor.getByRole('link', { name: parentPhone })).toBeVisible();
+
+    await admin.goto('/admin/tutor-offer-joins?status=approved');
+    await admin
+      .getByRole('article')
+      .filter({ hasText: learningNeeds })
+      .getByRole('button', { name: 'Hoàn tất lớp' })
+      .click();
+    await admin.getByRole('dialog').getByLabel('Lý do hoàn tất').fill('Buổi học E2E đã hoàn tất.');
+    await admin.getByRole('dialog').getByRole('button', { name: 'Xác nhận hoàn tất' }).click();
+    await expect(admin.getByText('Đã ghi nhận hoàn tất lớp.')).toBeVisible();
+    const completedJoin = await getData<Versioned & { status: string }>(
+      admin,
+      `/admin/tutor-offer-joins/${joinId}`,
+    );
+    expect(completedJoin.status).toBe('completed');
+    expect(
+      (
+        await parent.context().request.get(`/api/v1/parent/tutor-offer-joins/${joinId}/contact`)
+      ).status(),
+    ).toBe(409);
+    expect(
+      (
+        await tutor
+          .context()
+          .request.get(`/api/v1/tutor/offers/${offerId}/join-requests/${joinId}/contact`)
+      ).status(),
+    ).toBe(404);
+    await parent.reload();
+    await expect(parent.getByText('Đã hoàn tất', { exact: true }).first()).toBeVisible();
+    await expect(parent.getByRole('button', { name: 'Xem số điện thoại gia sư' })).toHaveCount(0);
+    for (const width of [320, 768] as const) {
+      for (const [page, route] of [
+        [guest, `/lop-tim-hoc-vien/${offerId}`],
+        [parent, `/parent/tutor-offer-joins/${joinId}`],
+        [tutor, `/tutor/offers/${offerId}`],
+        [admin, '/admin/tutor-offer-joins?status=completed'],
+      ] as const) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(route);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        await expectNoHorizontalOverflow(page);
+      }
+    }
+  } finally {
+    await Promise.all([tutor, admin, guest, parent].map((page) => page.context().close()));
   }
 });

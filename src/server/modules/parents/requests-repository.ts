@@ -147,6 +147,11 @@ export async function findOwnRequest(
     .innerJoin(classCancellations, eq(classCancellations.classId, classListings.id))
     .where(eq(classListings.sourceRequestId, id))
     .get();
+  const publishedClass = await db
+    .select({ id: classListings.id, code: classListings.code })
+    .from(classListings)
+    .where(and(eq(classListings.sourceRequestId, id), eq(classListings.status, 'open')))
+    .get();
   const currentTuition = await db
     .select({ agreedTuitionPerSessionMinor: classAssignments.agreedTuitionPerSessionMinor })
     .from(classListings)
@@ -163,6 +168,8 @@ export async function findOwnRequest(
     row;
   return {
     ...summary(publicRow, windows),
+    publishedClassId: publishedClass?.id ?? null,
+    publishedClassCode: publishedClass?.code ?? null,
     agreedTuitionPerSessionMinor: currentTuition?.agreedTuitionPerSessionMinor ?? null,
     contactPhone,
     contactAddress,
@@ -288,22 +295,26 @@ export async function updateOwnRequest(
   return result.length === 1;
 }
 
-/** Transition is guarded by owner, current state and version; audit only follows the winning update. */
-export async function submitOwnRequest(
+/** Consent, publication and sourcing are one D1 transaction; public area is deliberately omitted. */
+export async function submitAndPublishOwnRequest(
   db: Db,
   parentId: string,
   id: string,
   version: number,
+  source: Pick<OwnParentRequest, 'subjectId' | 'grade' | 'mode' | 'expectedBudgetMinor'>,
+  publishedClass: { id: string; code: string },
   now: string,
   consentVersion: string,
 ): Promise<boolean> {
-  const mutationId = crypto.randomUUID();
+  const submittedMutationId = crypto.randomUUID();
+  const classMutationId = crypto.randomUUID();
+  const sourcingMutationId = crypto.randomUUID();
   const updated = db
     .update(parentRequests)
     .set({
       status: 'submitted',
       version: sql`${parentRequests.version} + 1`,
-      mutationId,
+      mutationId: submittedMutationId,
       updatedAt: now,
     })
     .where(
@@ -329,18 +340,88 @@ export async function submitOwnRequest(
   const privateUpdate = db
     .update(parentRequestPrivate)
     .set({ contactConsentAt: now, contactConsentVersion: consentVersion })
-    .where(and(eq(parentRequestPrivate.requestId, id), wasCommitted(db, id, mutationId)));
-  const metadata = JSON.stringify({
+    .where(and(eq(parentRequestPrivate.requestId, id), wasCommitted(db, id, submittedMutationId)));
+  // The existing class source trigger aborts the entire batch if submit or
+  // consent did not win, and also checks every snapshot field against D1.
+  const classInsert = db.insert(classListings).values({
+    id: publishedClass.id,
+    code: publishedClass.code,
+    sourceRequestId: id,
+    sourceRequestVersion: version + 1,
+    parentUserId: parentId,
+    subjectId: source.subjectId,
+    grade: source.grade,
+    mode: source.mode,
+    publicArea: null,
+    expectedBudgetMinor: source.expectedBudgetMinor,
+    status: 'open',
+    version: 1,
+    mutationId: classMutationId,
+    publishedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  });
+  const sourcing = db
+    .update(parentRequests)
+    .set({
+      status: 'sourcing',
+      version: sql`${parentRequests.version} + 1`,
+      mutationId: sourcingMutationId,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(parentRequests.id, id),
+        eq(parentRequests.parentUserId, parentId),
+        eq(parentRequests.status, 'submitted'),
+        eq(parentRequests.version, version + 1),
+        sql`EXISTS (SELECT 1 FROM class_listings WHERE id = ${publishedClass.id} AND mutation_id = ${classMutationId} AND status = 'open')`,
+      ),
+    )
+    .returning({ id: parentRequests.id });
+  const submittedMetadata = JSON.stringify({
     from: 'draft',
     to: 'submitted',
     version: version + 1,
     contactConsentVersion: consentVersion,
   });
-  const audit = db.insert(auditLogs).select(
+  const submittedAudit = db.insert(auditLogs).select(
     sql`SELECT ${crypto.randomUUID()}, ${parentId}, 'parent_request.submitted', 'parent_request',
-        ${id}, ${metadata}, ${now} WHERE EXISTS
-        (SELECT 1 FROM parent_requests WHERE id = ${id} AND mutation_id = ${mutationId})`,
+        ${id}, ${submittedMetadata}, ${now} WHERE EXISTS
+        (SELECT 1 FROM class_listings WHERE id = ${publishedClass.id} AND mutation_id = ${classMutationId})`,
   );
-  const [result] = await db.batch([updated, privateUpdate, audit]);
-  return result.length === 1;
+  const createdAudit = db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    actorId: parentId,
+    action: 'class.created',
+    targetType: 'class_listing',
+    targetId: publishedClass.id,
+    metadata: JSON.stringify({ from: null, to: 'open', sourceRequestId: id }),
+    createdAt: now,
+  });
+  const publishedAudit = db.insert(auditLogs).values({
+    id: crypto.randomUUID(),
+    actorId: parentId,
+    action: 'class.published',
+    targetType: 'class_listing',
+    targetId: publishedClass.id,
+    metadata: JSON.stringify({ to: 'open', sourceRequestId: id, version: 1 }),
+    createdAt: now,
+  });
+  const sourcingAudit = db.insert(auditLogs).select(
+    sql`SELECT ${crypto.randomUUID()}, ${parentId}, 'parent_request.sourcing', 'parent_request',
+      ${id}, ${JSON.stringify({ from: 'submitted', to: 'sourcing', classId: publishedClass.id })}, ${now}
+      WHERE EXISTS (SELECT 1 FROM parent_requests WHERE id = ${id} AND mutation_id = ${sourcingMutationId})`,
+  );
+  const [submitResult, , , sourcingResult] = await db.batch([
+    updated,
+    privateUpdate,
+    classInsert,
+    sourcing,
+    submittedAudit,
+    createdAudit,
+    publishedAudit,
+    sourcingAudit,
+  ]);
+  return submitResult.length === 1 && sourcingResult.length === 1;
 }

@@ -278,7 +278,7 @@ describe('parent find-tutor requests', () => {
     expect(audits?.n).toBe(1);
   });
 
-  it('requires explicit contact sharing consent and records only version/actor/timestamp', async () => {
+  it('publishes a safe public class with the request and consent in one confirmation', async () => {
     const parent = await register('parent');
     const other = await register('parent');
     const tutor = await register('tutor');
@@ -299,14 +299,32 @@ describe('parent find-tutor requests', () => {
     expect(submittedRes.status).toBe(200);
     const submitted = await data(submittedRes);
     expect(submitted).toMatchObject({
-      status: 'submitted',
-      version: 2,
+      status: 'sourcing',
+      version: 3,
+      publishedClassId: expect.any(String),
+      publishedClassCode: expect.stringMatching(/^LH-[A-F0-9]{12}$/),
       contactPhone: VALID.contactPhone,
       contactAddress: VALID.contactAddress,
       contactConsentVersion: CONTACT_SHARING_CONSENT_VERSION,
       contactConsentAt: expect.any(String),
     });
     expect(Date.parse(submitted.contactConsentAt!)).not.toBeNaN();
+    const publicResponse = await api(`/classes/${submitted.publishedClassId}`);
+    expect(publicResponse.status).toBe(200);
+    const publicClass = (await publicResponse.json<ApiSuccess<Record<string, unknown>>>()).data;
+    expect(publicClass).toMatchObject({
+      id: submitted.publishedClassId,
+      code: submitted.publishedClassCode,
+      status: 'open',
+      publicArea: null,
+      expectedBudgetMinor: VALID.expectedBudgetMinor,
+    });
+    for (const privateValue of [VALID.contactPhone, VALID.contactAddress, VALID.description]) {
+      expect(JSON.stringify(publicClass)).not.toContain(privateValue);
+    }
+    const listed = await api('/classes?subjectId=subj_math');
+    const listPage = (await listed.json<ApiSuccess<Page<{ id: string }>>>()).data;
+    expect(listPage.items.some((item) => item.id === submitted.publishedClassId)).toBe(true);
     const staleSubmit = await api(
       `${PATH}/${draft.id}/submit`,
       jsonInit('POST', { version: 1, consentToShareContact: true }, parent),
@@ -316,7 +334,7 @@ describe('parent find-tutor requests', () => {
       `${PATH}/${draft.id}`,
       jsonInit('PATCH', { ...VALID, version: submitted.version, contactPhone: null }, parent),
     );
-    expect(removeContact.status).toBe(422);
+    expect(removeContact.status).toBe(409);
     expect((await api(`${PATH}/${draft.id}`, { headers: { Cookie: tutor.cookie } })).status).toBe(
       403,
     );
@@ -332,6 +350,24 @@ describe('parent find-tutor requests', () => {
     expect(audit?.created_at).toBe(submitted.contactConsentAt);
     expect(audit?.metadata).not.toContain(VALID.contactPhone);
     expect(audit?.metadata).not.toContain(VALID.contactAddress);
+    const classRow = await env.DB.prepare(
+      'SELECT source_request_id, source_request_version, parent_user_id, public_area, status FROM class_listings WHERE id = ?',
+    )
+      .bind(submitted.publishedClassId)
+      .first<{
+        source_request_id: string;
+        source_request_version: number;
+        parent_user_id: string;
+        public_area: string | null;
+        status: string;
+      }>();
+    expect(classRow).toMatchObject({
+      source_request_id: draft.id,
+      source_request_version: 2,
+      parent_user_id: parent.userId,
+      public_area: null,
+      status: 'open',
+    });
   });
 
   it('requires a contact number before submit and keeps consent unset on failure', async () => {
@@ -351,6 +387,12 @@ describe('parent find-tutor requests', () => {
     expect(after.status).toBe('draft');
     expect(after.contactConsentAt).toBeNull();
     expect(after.contactAddress).toBeNull();
+    const unpublished = await env.DB.prepare(
+      'SELECT count(*) AS n FROM class_listings WHERE source_request_id = ?',
+    )
+      .bind(draft.id)
+      .first<{ n: number }>();
+    expect(unpublished?.n).toBe(0);
     const filled = await data(
       await api(
         `${PATH}/${draft.id}`,
@@ -363,8 +405,85 @@ describe('parent find-tutor requests', () => {
         jsonInit('POST', { version: filled.version, consentToShareContact: true }, parent),
       ),
     );
-    expect(submitted.status).toBe('submitted');
+    expect(submitted.status).toBe('sourcing');
     expect(submitted.contactAddress).toBeNull();
+  });
+
+  it('keeps one published class and one sourcing request under concurrent confirmation', async () => {
+    const parent = await register('parent');
+    const draft = await data(await create(parent));
+    const body = { version: draft.version, consentToShareContact: true };
+    const responses = await Promise.all([
+      api(`${PATH}/${draft.id}/submit`, jsonInit('POST', body, parent)),
+      api(`${PATH}/${draft.id}/submit`, jsonInit('POST', body, parent)),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 409]);
+    const row = await env.DB.prepare(
+      `SELECT r.status AS request_status, r.version AS request_version,
+       count(c.id) AS class_count, min(c.status) AS class_status
+       FROM parent_requests r LEFT JOIN class_listings c ON c.source_request_id = r.id
+       WHERE r.id = ? GROUP BY r.id`,
+    )
+      .bind(draft.id)
+      .first<{
+        request_status: string;
+        request_version: number;
+        class_count: number;
+        class_status: string;
+      }>();
+    expect(row).toMatchObject({
+      request_status: 'sourcing',
+      request_version: draft.version + 2,
+      class_count: 1,
+      class_status: 'open',
+    });
+    const audits = await env.DB.prepare(
+      `SELECT action, count(*) AS n FROM audit_logs
+       WHERE target_id = ? AND action IN ('parent_request.submitted', 'parent_request.sourcing')
+       GROUP BY action`,
+    )
+      .bind(draft.id)
+      .all<{ action: string; n: number }>();
+    expect(audits.results).toEqual(
+      expect.arrayContaining([
+        { action: 'parent_request.submitted', n: 1 },
+        { action: 'parent_request.sourcing', n: 1 },
+      ]),
+    );
+  });
+
+  it('never leaves an open class when confirmation races a draft edit', async () => {
+    const parent = await register('parent');
+    const draft = await data(await create(parent));
+    const [submit, edit] = await Promise.all([
+      api(
+        `${PATH}/${draft.id}/submit`,
+        jsonInit('POST', { version: draft.version, consentToShareContact: true }, parent),
+      ),
+      api(
+        `${PATH}/${draft.id}`,
+        jsonInit('PATCH', { ...VALID, version: draft.version, grade: 'Lớp 11' }, parent),
+      ),
+    ]);
+    expect([submit.status, edit.status].sort()).toEqual([200, 409]);
+    const state = await env.DB.prepare(
+      `SELECT r.status, r.version, count(c.id) AS class_count,
+       min(c.status) AS class_status
+       FROM parent_requests r LEFT JOIN class_listings c ON c.source_request_id = r.id
+       WHERE r.id = ? GROUP BY r.id`,
+    )
+      .bind(draft.id)
+      .first<{
+        status: string;
+        version: number;
+        class_count: number;
+        class_status: string | null;
+      }>();
+    expect(state).toMatchObject(
+      submit.status === 200
+        ? { status: 'sourcing', version: 3, class_count: 1, class_status: 'open' }
+        : { status: 'draft', version: 2, class_count: 0, class_status: null },
+    );
   });
 
   it('enforces the open-request quota atomically in D1', async () => {

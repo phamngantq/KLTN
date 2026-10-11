@@ -153,6 +153,8 @@ describe('agreed tuition UI', () => {
       area: null,
       expectedBudgetMinor: 200_000,
       agreedTuitionPerSessionMinor: 230_000,
+      publishedClassId: null,
+      publishedClassCode: null,
       description: '',
       status: 'assigned',
       version: 4,

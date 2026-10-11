@@ -20,7 +20,8 @@ const PUBLIC_NAV: NavItem[] = [
   { to: '/', label: 'Trang chủ' },
   { to: '/gioi-thieu', label: 'Giới thiệu' },
   { to: '/bang-gia', label: 'Bảng giá' },
-  { to: '/lop-hoc', label: 'Lớp học' },
+  { to: '/lop-hoc', label: 'Lớp tìm gia sư' },
+  { to: '/lop-tim-hoc-vien', label: 'Lớp tìm học viên' },
   { to: '/lien-he', label: 'Liên hệ' },
 ];
 

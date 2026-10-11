@@ -52,26 +52,12 @@ async function submittedRequest(parent: Session): Promise<OwnParentRequest> {
 }
 
 async function openClass(admin: Session, request: OwnParentRequest): Promise<AdminClass> {
-  const created = await api(
-    '/admin/classes',
-    jsonInit(
-      'POST',
-      {
-        sourceRequestId: request.id,
-        requestVersion: request.version,
-        publicArea: 'Hà Nội',
-      },
-      admin,
-    ),
-  );
-  expect(created.status).toBe(201);
-  const draft = (await created.json<ApiSuccess<AdminClass>>()).data;
-  const published = await api(
-    `/admin/classes/${draft.id}/publish`,
-    jsonInit('POST', { version: draft.version }, admin),
-  );
-  expect(published.status).toBe(200);
-  return (await published.json<ApiSuccess<AdminClass>>()).data;
+  expect(request.publishedClassId).toBeTruthy();
+  const response = await api(`/admin/classes/${request.publishedClassId}`, {
+    headers: { Cookie: admin.cookie },
+  });
+  expect(response.status).toBe(200);
+  return (await response.json<ApiSuccess<AdminClass>>()).data;
 }
 
 function period(day: string) {
@@ -162,7 +148,8 @@ describe('verified reports and role dashboards', () => {
     const other = await api('/parent/dashboard', { headers: { Cookie: otherParent.cookie } });
     const ownTutor = await api('/tutor/dashboard', { headers: { Cookie: tutor.cookie } });
     expect((await own.json<ApiSuccess<ParentDashboard>>()).data).toMatchObject({
-      submittedRequests: 1,
+      submittedRequests: 0,
+      sourcingRequests: 1,
       cancelledRequests: 0,
     });
     expect((await other.json<ApiSuccess<ParentDashboard>>()).data).toMatchObject({

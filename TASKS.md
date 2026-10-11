@@ -351,3 +351,14 @@ Nguồn cho các task: `PLAN.md` §13, `DESIGN_RULES.md`, `FIGMA_INVENTORY.md`, 
 **Acceptance tests:** secret-scan/format/lint/typecheck/unit/integration/build/E2E/local migration PASS; mobile/keyboard và dữ liệu ba vai trò đồng nhất; không claim pixel fidelity khi chưa xem frame Figma gốc.
 
 **Commit:** `test(e2e): verify figma product journeys`.
+
+### [x] TASK-31 — Tách lớp tìm gia sư và lớp tìm học viên
+**Dependency:** TASK-30.
+
+**Scope:** Theo DEC-020, phụ huynh xác nhận phiếu tìm gia sư thì lớp `open` hiện ngay trong danh sách tìm gia sư. Gia sư có hồ sơ được duyệt đăng lớp tìm học viên riêng, xác nhận hợp đồng đã công bố và chờ kiểm duyệt viên duyệt trước khi hiển thị cho phụ huynh. Phụ huynh gửi yêu cầu tham gia lớp gia sư trong hệ thống; kiểm duyệt viên xử lý yêu cầu đó.
+
+**Deliverables:** Transaction D1 tạo lớp từ phiếu phụ huynh; schema/migration và API theo role cho lớp gia sư đăng và yêu cầu tham gia; form/danh sách/chi tiết cho tutor, parent/public và trang kiểm duyệt; tài liệu nghiệp vụ; unit/integration/E2E tests.
+
+**Acceptance tests:** Parent submit có consent tạo đúng một lớp `open`, request `sourcing`, class hiển thị ngay và không lộ contact/địa chỉ/khu vực tự do; submit trùng và tranh chấp edit/submit không tạo lớp mồ côi. Tutor chưa đủ quyền hoặc chưa xác nhận hợp đồng không được đăng; chỉ lớp được moderator duyệt mới hiện public. Yêu cầu tham gia chỉ gửi cho lớp `published`, chống trùng, rút được; tutor chỉ thấy dữ liệu học tập/khu vực chung trước khi moderator chấp nhận, không thấy contact. Hai số điện thoại riêng và consent được kiểm tra; moderator chấp nhận với học phí đã chốt theo buổi/phiên bản/audit thì chỉ hai participant xem điện thoại của nhau qua API kiểm tra quyền từng lần. Từ chối, hoàn tất, rút chấp nhận có lý do; hai action cuối cắt quyền contact và giải phóng nghĩa vụ xóa tài khoản, giữ lịch sử giá. Trạng thái/RBAC/ownership/xóa tài khoản được kiểm soát. D1 migration/FK, lint/typecheck/test/build/E2E và kiểm tra responsive quan trọng PASS. Không ghi nhận thanh toán từ thao tác chọn hoặc chốt học phí.
+
+**Commit:** `feat(classes): add parent publication and tutor student offers`.

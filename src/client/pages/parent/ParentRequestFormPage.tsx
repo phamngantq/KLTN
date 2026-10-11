@@ -238,7 +238,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
       }
       setCreatedDraft(created);
       const confirmed = await submit.mutateAsync({ id: created.id, version: created.version });
-      if (confirmed.status === 'submitted')
+      if (confirmed.status === 'sourcing' || confirmed.status === 'submitted')
         navigate(`/parent/requests/${encodeURIComponent(confirmed.id)}`);
     } catch {
       // A lost submit response may mean the server accepted the request. Recheck before offering retry.
@@ -253,7 +253,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
       );
       setCreatedDraft(current);
       if (current.version !== draft.version) setConsent(false);
-      if (current.status === 'submitted')
+      if (current.status === 'sourcing' || current.status === 'submitted')
         navigate(`/parent/requests/${encodeURIComponent(current.id)}`);
     } catch {
       // The detail link remains available if the status check cannot be completed.
@@ -267,7 +267,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
         id: createdDraft.id,
         version: createdDraft.version,
       });
-      if (confirmed.status === 'submitted')
+      if (confirmed.status === 'sourcing' || confirmed.status === 'submitted')
         navigate(`/parent/requests/${encodeURIComponent(confirmed.id)}`);
     } catch {
       await reconcileCreatedDraft(createdDraft);
@@ -574,6 +574,11 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                   <ShieldCheck aria-hidden="true" className="size-4" />
                   Đồng ý trước khi gửi
                 </h3>
+                <p className="text-sm text-muted">
+                  Khi bạn gửi yêu cầu, môn học, lớp học, hình thức, khu vực chung, mức chi dự kiến,
+                  mô tả và lịch mong muốn sẽ hiển thị trong danh sách lớp tìm gia sư. Số điện thoại
+                  và địa chỉ cụ thể không được công khai.
+                </p>
                 <label className="flex min-h-11 items-start gap-3">
                   <input
                     type="checkbox"

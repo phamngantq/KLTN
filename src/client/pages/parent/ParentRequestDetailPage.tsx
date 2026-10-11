@@ -104,6 +104,22 @@ export function ParentRequestDetailPage() {
           Lý do: {request.cancellationReason}
         </Alert>
       )}
+      {request.publishedClassId && request.status === 'sourcing' && (
+        <Alert
+          tone="success"
+          title="Lớp đang tìm gia sư"
+          action={
+            <ButtonLink
+              to={`/lop-hoc/${encodeURIComponent(request.publishedClassId)}`}
+              variant="secondary"
+            >
+              Xem lớp {request.publishedClassCode ?? ''}
+            </ButtonLink>
+          }
+        >
+          Yêu cầu đã được công bố trong danh sách lớp tìm gia sư.
+        </Alert>
+      )}
 
       <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,0.38fr)]">
         <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg shadow-card">
@@ -230,6 +246,10 @@ export function ParentRequestDetailPage() {
           <p className="text-sm text-muted">
             Cần số điện thoại, mô tả nhu cầu và lịch mong muốn hợp lệ trước khi gửi.
           </p>
+          <p className="text-sm text-muted">
+            Khi gửi, thông tin lớp học và khu vực chung sẽ được công bố để tìm gia sư. Số điện thoại
+            và địa chỉ cụ thể không được công khai.
+          </p>
           <label className="flex min-h-11 items-start gap-3 rounded-lg border border-border bg-surface p-3">
             <input
               type="checkbox"
@@ -255,9 +275,6 @@ export function ParentRequestDetailPage() {
             Gửi yêu cầu
           </Button>
         </div>
-      )}
-      {submit.isSuccess && request.status === 'submitted' && (
-        <Alert tone="success">Đã gửi yêu cầu. Kiểm duyệt viên sẽ xem xét thông tin của bạn.</Alert>
       )}
     </section>
   );

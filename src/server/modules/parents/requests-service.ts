@@ -32,6 +32,10 @@ function serverCode(): string {
   return `YC-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`;
 }
 
+function classCode(): string {
+  return `LH-${crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`;
+}
+
 export async function createDraft(
   db: Db,
   parentId: string,
@@ -117,17 +121,26 @@ export async function submitOwn(
   if (current.description.trim().length === 0) {
     throw new AppError(422, 'DESCRIPTION_REQUIRED', 'Cần mô tả yêu cầu trước khi gửi.');
   }
-  if (
-    !(await repo.submitOwnRequest(
-      db,
-      parentId,
-      id,
-      version,
-      now.toISOString(),
-      CONTACT_SHARING_CONSENT_VERSION,
-    ))
-  ) {
-    throw stale();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const published = await repo.submitAndPublishOwnRequest(
+        db,
+        parentId,
+        id,
+        version,
+        current,
+        { id: crypto.randomUUID(), code: classCode() },
+        now.toISOString(),
+        CONTACT_SHARING_CONSENT_VERSION,
+      );
+      if (!published) throw stale();
+      return getOwn(db, parentId, id);
+    } catch (error) {
+      if (isUniqueViolation(error, 'class_listings.code')) continue;
+      if (isUniqueViolation(error, 'class_listings.source_request_id')) throw stale();
+      if (rootErrorMessage(error).includes('CLASS_SOURCE_INVALID')) throw stale();
+      throw error;
+    }
   }
-  return getOwn(db, parentId, id);
+  throw new AppError(409, 'CLASS_CODE_CONFLICT', 'Không thể cấp mã lớp. Vui lòng thử lại.');
 }

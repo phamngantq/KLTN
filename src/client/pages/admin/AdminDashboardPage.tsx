@@ -3,6 +3,7 @@ import type { LucideIcon } from 'lucide-react';
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   ClipboardList,
   GraduationCap,
   Search,
@@ -13,6 +14,8 @@ import type { AdminApplication } from '../../../shared/schemas/admin-application
 import { DEFAULT_TIMEZONE } from '../../../shared/schemas/availability';
 import type { Page } from '../../../shared/schemas/discovery';
 import type { AdminReportOverview } from '../../../shared/schemas/reports';
+import type { AdminTutorOfferJoin } from '../../../shared/schemas/tutor-offer-joins';
+import type { TutorOffer } from '../../../shared/schemas/tutor-offers';
 import { addDays, todayIn } from '../../../shared/time';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, PageHeader } from '../../components/ui/Feedback';
@@ -91,9 +94,13 @@ function DataBar({
 function DashboardData({
   overview,
   pendingApplications,
+  pendingTutorOffers,
+  submittedOfferJoins,
 }: {
   overview: AdminReportOverview;
   pendingApplications: number;
+  pendingTutorOffers: number;
+  submittedOfferJoins: number;
 }) {
   const conversion = overview.conversion;
   const funnel = [
@@ -161,6 +168,30 @@ function DashboardData({
           iconClass="bg-accent text-on-accent"
         />
       </div>
+
+      <section aria-labelledby="dashboard-tutor-offer-queues-title" className="space-y-4">
+        <h2 id="dashboard-tutor-offer-queues-title" className="text-xl font-semibold text-primary">
+          Hàng chờ lớp tìm học viên
+        </h2>
+        <div className="grid gap-4 md:grid-cols-2">
+          <MetricCard
+            title="Lớp chờ duyệt hợp đồng"
+            value={pendingTutorOffers}
+            description="Gia sư đã gửi · toàn thời gian"
+            to="/admin/tutor-offers?status=pending"
+            icon={BookOpen}
+            iconClass="bg-info-surface text-primary"
+          />
+          <MetricCard
+            title="Yêu cầu tham gia lớp chờ duyệt"
+            value={submittedOfferJoins}
+            description="Phụ huynh đã gửi · toàn thời gian"
+            to="/admin/tutor-offer-joins?status=submitted"
+            icon={ClipboardList}
+            iconClass="bg-warning-surface text-warning"
+          />
+        </div>
+      </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section
@@ -283,6 +314,19 @@ export function AdminDashboardPage() {
         signal,
       }),
   });
+  const tutorOffers = useQuery({
+    queryKey: ['admin-dashboard-tutor-offers'],
+    queryFn: ({ signal }) =>
+      api.get<Page<TutorOffer>>('/admin/tutor-offers?status=pending&page=1&pageSize=1', { signal }),
+  });
+  const offerJoins = useQuery({
+    queryKey: ['admin-dashboard-tutor-offer-joins'],
+    queryFn: ({ signal }) =>
+      api.get<Page<AdminTutorOfferJoin>>(
+        '/admin/tutor-offer-joins?status=submitted&page=1&pageSize=1',
+        { signal },
+      ),
+  });
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
@@ -294,9 +338,12 @@ export function AdminDashboardPage() {
       <p className="text-sm text-muted">
         Kỳ báo cáo: {range.from} đến {range.to} · Múi giờ {range.timeZone}
       </p>
-      {overview.isPending || applications.isPending ? (
+      {overview.isPending ||
+      applications.isPending ||
+      tutorOffers.isPending ||
+      offerJoins.isPending ? (
         <PageLoading label="Đang tải dashboard…" />
-      ) : overview.isError || applications.isError ? (
+      ) : overview.isError || applications.isError || tutorOffers.isError || offerJoins.isError ? (
         <Alert
           tone="danger"
           title="Không tải được dashboard"
@@ -306,16 +353,26 @@ export function AdminDashboardPage() {
               onClick={() => {
                 void overview.refetch();
                 void applications.refetch();
+                void tutorOffers.refetch();
+                void offerJoins.refetch();
               }}
             >
               Thử lại
             </Button>
           }
         >
-          {overview.error?.message ?? applications.error?.message}
+          {overview.error?.message ??
+            applications.error?.message ??
+            tutorOffers.error?.message ??
+            offerJoins.error?.message}
         </Alert>
       ) : (
-        <DashboardData overview={overview.data} pendingApplications={applications.data.total} />
+        <DashboardData
+          overview={overview.data}
+          pendingApplications={applications.data.total}
+          pendingTutorOffers={tutorOffers.data.total}
+          submittedOfferJoins={offerJoins.data.total}
+        />
       )}
     </section>
   );

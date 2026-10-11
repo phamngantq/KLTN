@@ -79,18 +79,18 @@ describe('moderator find-tutor requests', () => {
     expect((await adminGet('?status=draft', moderator)).status).toBe(422);
   });
 
-  it('lists submitted requests without contact and gives only the moderator a private detail', async () => {
+  it('lists confirmed sourcing requests without contact and gives only the moderator a private detail', async () => {
     const moderator = await makeModerator();
     const parent = await register('parent');
     const otherParent = await register('parent');
     const submitted = await submitRequest(parent, await createRequest(parent));
 
-    const response = await adminGet('?status=submitted&pageSize=48', moderator);
+    const response = await adminGet('?status=sourcing&pageSize=48', moderator);
     expect(response.status).toBe(200);
     const page = (await response.json<ApiSuccess<Page<AdminRequestSummary>>>()).data;
     const item = page.items.find(({ id }) => id === submitted.id);
     expect(item).toMatchObject({
-      status: 'submitted',
+      status: 'sourcing',
       schedule: INPUT.schedule,
       expectedBudgetMinor: INPUT.expectedBudgetMinor,
     });
@@ -104,7 +104,7 @@ describe('moderator find-tutor requests', () => {
     expect(detail).toMatchObject({
       id: submitted.id,
       parentUserId: parent.userId,
-      status: 'submitted',
+      status: 'sourcing',
       contactPhone: CONTACT_PHONE,
       contactAddress: CONTACT_ADDRESS,
       contactConsentVersion: submitted.contactConsentVersion,
@@ -124,8 +124,8 @@ describe('moderator find-tutor requests', () => {
     await submitRequest(parent, await createRequest(parent));
     await submitRequest(parent, await createRequest(parent));
 
-    const first = await adminGet('?status=submitted&page=1&pageSize=1', moderator);
-    const second = await adminGet('?status=submitted&page=2&pageSize=1', moderator);
+    const first = await adminGet('?status=sourcing&page=1&pageSize=1', moderator);
+    const second = await adminGet('?status=sourcing&page=2&pageSize=1', moderator);
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     const a = (await first.json<ApiSuccess<Page<AdminRequestSummary>>>()).data;

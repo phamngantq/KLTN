@@ -45,24 +45,14 @@ async function openClass(parent: Session, admin: Session) {
   );
   expect(submittedResponse.status).toBe(200);
   const submitted = (await submittedResponse.json<ApiSuccess<OwnParentRequest>>()).data;
-  const classResponse = await api(
-    '/admin/classes',
-    jsonInit(
-      'POST',
-      { sourceRequestId: submitted.id, requestVersion: submitted.version, publicArea: 'Cầu Giấy' },
-      admin,
-    ),
-  );
-  expect(classResponse.status).toBe(201);
-  const classDraft = (await classResponse.json<ApiSuccess<AdminClass>>()).data;
-  const publishedResponse = await api(
-    `/admin/classes/${classDraft.id}/publish`,
-    jsonInit('POST', { version: classDraft.version }, admin),
-  );
-  expect(publishedResponse.status).toBe(200);
+  expect(submitted).toMatchObject({ status: 'sourcing', publishedClassId: expect.any(String) });
+  const classResponse = await api(`/admin/classes/${submitted.publishedClassId}`, {
+    headers: { Cookie: admin.cookie },
+  });
+  expect(classResponse.status).toBe(200);
   return {
     request: submitted,
-    cls: (await publishedResponse.json<ApiSuccess<AdminClass>>()).data,
+    cls: (await classResponse.json<ApiSuccess<AdminClass>>()).data,
   };
 }
 

@@ -1,6 +1,6 @@
 # Contract miền sản phẩm `./figma` — bản đề xuất
 
-**Trạng thái:** Contract TASK-20, ngày 2026-10-11, được cập nhật theo DEC-009–015 và DEC-019; từng mutation phải tuân theo policy đã chốt và kiểm tra server. Đã chốt actor/role, parent miễn phí, ba phương án phí gia sư do moderator công bố, quiz và xác nhận điều khoản trước ứng tuyển, gán lớp active ngay với học phí đã chốt do kiểm duyệt viên ghi, rút gán mở lại lớp và cắt quyền contact, hoàn tất/hủy lớp `open` có lý do, consent/retention và xóa tài khoản khi không còn cam kết. Mức phí nhận lớp cụ thể, nội dung điều khoản/quiz, thu/hoàn tiền, hủy lớp `draft` và thời điểm cutover production vẫn cần chính sách hoặc nội dung được duyệt. Tài liệu mô tả contract nghiệp vụ; schema/API thực tế được triển khai theo task. [PLAN.md §13](../PLAN.md) nêu mục tiêu; [FIGMA_GAP_LOG.md](../FIGMA_GAP_LOG.md) ghi bằng chứng và điểm mâu thuẫn từ code export. Các trang export chỉ cung cấp luồng UI/mẫu dữ liệu, không cung cấp backend hoặc nguồn quyền đáng tin cậy.
+**Trạng thái:** Contract TASK-20, ngày 2026-10-11, được cập nhật theo DEC-009–015 và DEC-019–020; từng mutation phải tuân theo policy đã chốt và kiểm tra server. Đã chốt actor/role, parent miễn phí, ba phương án phí gia sư do moderator công bố, quiz và xác nhận điều khoản trước ứng tuyển, gán lớp active ngay với học phí đã chốt do kiểm duyệt viên ghi, rút gán mở lại lớp và cắt quyền contact, hoàn tất/hủy lớp `open` có lý do, consent/retention và xóa tài khoản khi không còn cam kết. Mức phí nhận lớp cụ thể, nội dung điều khoản/quiz, thu/hoàn tiền, hủy lớp `draft` và thời điểm cutover production vẫn cần chính sách hoặc nội dung được duyệt. Tài liệu mô tả contract nghiệp vụ; schema/API thực tế được triển khai theo task. [PLAN.md §13](../PLAN.md) nêu mục tiêu; [FIGMA_GAP_LOG.md](../FIGMA_GAP_LOG.md) ghi bằng chứng và điểm mâu thuẫn từ code export. Các trang export chỉ cung cấp luồng UI/mẫu dữ liệu, không cung cấp backend hoặc nguồn quyền đáng tin cậy.
 
 ## 1. Ranh giới và bất biến
 
@@ -19,7 +19,9 @@
 | `parent_requests` | `id`, `parent_user_id`, `subject_id`, lớp/khối, hình thức, khu vực công khai mức rộng, mức chi **dự kiến**, mô tả, `status`, `version`, timestamps | Một yêu cầu do parent từ session hoặc moderator có audit tạo. Không tự suy ra giá/fee đã chốt từ mức chi dự kiến. |
 | `parent_request_private` | `request_id`, điện thoại/địa chỉ liên hệ tối thiểu, version/thời điểm consent | Tách khỏi truy vấn public. Parent phải xác nhận consent trước submit; đúng tutor được gán xem điện thoại/địa chỉ ngay khi `assign_tutor` commit. Giữ contact đến khi xóa tài khoản theo DEC-010; xóa contact mà bảo toàn lịch sử không còn PII. Không lưu CCCD, bằng cấp hoặc file đính kèm. |
 | `request_schedule_windows` | `request_id`, `weekday`, `start_local`, `end_local`, `timezone`; hoặc cờ `discuss_later` | Kiểm tra giờ hợp lệ, không chồng lấn và số lượng tối đa. Không nhận chuỗi lịch tự do làm nguồn tính toán. |
-| `class_listings` | `id`, `source_request_id` bắt buộc/UNIQUE, `parent_user_id`, subject/grade/mode, vùng công khai, `status`, `version`, timestamps | Moderator tạo từ yêu cầu đã submit và consent, rồi xuất bản. Mỗi request sinh tối đa một lớp; bản public không chứa PII. |
+| `class_listings` | `id`, `source_request_id` bắt buộc/UNIQUE, `parent_user_id`, subject/grade/mode, vùng công khai, `status`, `version`, timestamps | Parent xác nhận yêu cầu có consent thì cùng giao dịch tạo lớp `open` trong danh sách tìm gia sư. Moderator vẫn xử lý lớp và yêu cầu cũ theo quyền. Mỗi request sinh tối đa một lớp; bản public không chứa PII hoặc khu vực nhập tự do chưa kiểm duyệt. |
+| `tutor_student_offers` và xác nhận hợp đồng đăng lớp | Tutor owner, môn/khối/hình thức/khu vực chung, học phí đề xuất, số điện thoại/consent riêng, trạng thái/version, bản hợp đồng đã xác nhận và quyết định kiểm duyệt | Là nguồn riêng cho danh sách **lớp tìm học viên**. Gia sư có hồ sơ được duyệt tạo bản nháp; chỉ được gửi duyệt sau khi xác nhận phiên bản hợp đồng và consent chia sẻ điện thoại sau khi moderator chấp nhận yêu cầu tham gia. Chỉ kiểm duyệt viên được duyệt công khai; bản public không chứa contact hoặc dữ liệu riêng. Không ghép với `class_listings` hay `class_contract_records` của lớp phụ huynh. |
+| `tutor_offer_join_requests` | Offer đã công bố, parent owner, lớp/khối học viên, nội dung nhu cầu, khu vực dạy mức rộng, số điện thoại/consent riêng, trạng thái/version, học phí đã chốt theo buổi, quyết định kiểm duyệt | Phụ huynh gửi yêu cầu tham gia từ tài khoản mình; tutor chủ lớp thấy nội dung học tập và trạng thái nhưng không thấy liên hệ trước khi moderator chấp nhận. Một yêu cầu còn hiệu lực cho mỗi parent/offer; rút/từ chối/chấp nhận/hoàn tất/rút chấp nhận có audit. Moderator bắt buộc ghi mức học phí đã chốt khi chấp nhận; chỉ participant đúng quyền xem số điện thoại hai chiều khi `approved`. Không suy học phí đã chốt từ giá đề xuất hoặc từ việc nộp. |
 | `tutor_applications` | `id`, `class_id`, `tutor_user_id`, `fee_option_version_id`, `status`, `version`, timestamps | Tutor được duyệt nộp/thu hồi và chọn một phương án phí **đã công bố, còn hiệu lực**. Server xác minh option từ D1; một tutor không có hai đơn còn hiệu lực trên cùng lớp. |
 | `fee_option_versions` | `id`, `option_key`, `version`, phạm vi lớp được phép, nội dung/công thức phí được duyệt, `status`, hiệu lực, timestamps | Moderator nhập giá trị và công bố đủ ba loại phiên bản bất biến: tỷ lệ buổi đầu, số buổi học kèm đặt cọc, tỷ lệ học phí tháng. Ứng tuyển trỏ tới đúng version đã chọn; sửa phí tạo version mới, không tự đổi ứng tuyển cũ. Không seed mức phí mẫu hoặc suy ra công thức thu/hoàn tiền. |
 | `class_assignments` | `id`, `class_id`, `tutor_user_id`, `application_id` FK, `status`, `version`, học phí đã chốt theo buổi, người/thời điểm ghi, timestamps | Moderator chọn từ ứng tuyển đã có fee option hợp lệ, nhập mức học phí đã được các bên đồng ý. Assignment và lớp `active` ngay trong cùng transaction; không có bước tutor `accept_offer`. Tối đa một assignment active/lớp. Mỗi lần gán giữ mức riêng, kể cả sau khi rút gán. |
@@ -43,9 +45,9 @@ Thao tác moderator “đề xuất/gán gia sư” là **một transaction** l�
 
 | Actor | Action | From → to | Điều kiện |
 |---|---|---|---|
-| Parent owner | `submit` | `draft → submitted` | DTO hợp lệ; lịch hoặc `discuss_later`; quota. Nếu không cần nháp, có thể tạo thẳng `submitted`. |
+| Parent owner | `submit` | `draft → sourcing` | DTO hợp lệ, consent, lịch hoặc `discuss_later`, quota; trong một D1 transaction đi qua `submitted` để tạo lớp `open`, rồi chuyển yêu cầu sang `sourcing` và audit. Thành công trả lớp đã công bố; lỗi phải giữ nguyên nháp. |
 | Parent owner | `edit` | `draft/submitted → giữ nguyên` | Chưa có lớp published hoặc assignment; tăng version và audit. |
-| Moderator | `start_sourcing` | `submitted → sourcing` | Đã thẩm tra; tạo/publish lớp phải đồng bộ với request. |
+| Moderator | `start_sourcing` | `submitted → sourcing` | Chỉ phục vụ yêu cầu legacy đã gửi trước luồng tự công bố; tạo/publish lớp phải đồng bộ với request. |
 | Moderator | `assign_tutor` | `sourcing → assigned` | Cùng transaction với lớp `open → active`, ứng tuyển `submitted → selected` và assignment `— → active`. Parent không phải xác nhận lần hai để lớp active. |
 | Moderator | `revoke_assignment` | `assigned → sourcing` | Cùng transaction thu hồi assignment, mở lại lớp và audit lý do; tutor cũ mất quyền contact ngay. |
 | Moderator | `close_fulfilled` | `assigned → fulfilled` | Moderator hoàn tất lớp với lý do, cùng transaction chuyển lớp `active → completed` và audit. Không suy ra số buổi học hoặc khoản đã thu. |
@@ -55,12 +57,32 @@ Thao tác moderator “đề xuất/gán gia sư” là **một transaction** l�
 
 | Actor | Action | From → to | Điều kiện |
 |---|---|---|---|
-| Moderator | `create` | `— → draft` | Có yêu cầu nguồn `submitted` và consent hợp lệ; parent owner từ yêu cầu. |
-| Moderator | `publish` | `draft → open` | Public DTO không PII; request nguồn ở trạng thái phù hợp. |
+| Parent owner | `submit_request` | `— → open` | Cùng transaction xác nhận yêu cầu có consent và chuyển request sang `sourcing`; public DTO không PII. |
+| Moderator | `create` | `— → draft` | Luồng legacy: có yêu cầu nguồn `submitted` và consent hợp lệ; parent owner từ yêu cầu. |
+| Moderator | `publish` | `draft → open` | Luồng legacy: public DTO không PII; request nguồn ở trạng thái phù hợp. |
 | Moderator | `assign_tutor` | `open → active` | Chọn tutor hợp lệ, nhập học phí đã chốt theo buổi và xác nhận đã được các bên đồng ý; insert một assignment active cùng giá trị này rồi cập nhật request/application/audit atomically. Không tạo `offered` hay chờ tutor bấm nhận. |
 | Moderator | `revoke_assignment` | `active → open` | Có lý do; thu hồi assignment active, chuyển request `assigned → sourcing`, cắt contact của tutor cũ và giữ lịch sử application/fee/contract. |
 | Moderator | `complete` | `active → completed` | Có lý do từ moderator; chuyển request `assigned → fulfilled` atomically. Không phát sinh `paid`, số buổi học hay thông báo giả. |
 | Moderator | `cancel` | `open → cancelled` | Chưa có assignment active, request `sourcing`, có lý do; cùng transaction đóng request, từ chối ứng tuyển đang `submitted` và audit. `active` phải rút gán trước; `draft` không dùng action này. |
+
+### Lớp tìm học viên do gia sư đăng
+
+| Actor | Action | From → to | Điều kiện |
+|---|---|---|---|
+| Tutor owner | `create/edit` | `— → draft` / `draft → draft` | Hồ sơ tutor đã duyệt; server xác thực môn, khối, hình thức, khu vực chung, học phí đề xuất và giới hạn độ dài. Owner và version được kiểm tra ở mỗi lần ghi. |
+| Tutor owner | `submit` | `draft → pending` | Đã xác nhận phiên bản hợp đồng đăng lớp đang được công bố cho tutor và consent chia sẻ số điện thoại chỉ sau khi moderator chấp nhận yêu cầu tham gia; lưu snapshot ID/version/thời điểm. Không phát hành lớp chỉ từ một checkbox ở client. |
+| Moderator | `approve` | `pending → published` | Xác nhận bằng mutation có version và audit; chỉ sau commit lớp mới xuất hiện trong danh sách tìm học viên cho phụ huynh. |
+| Moderator | `reject` | `pending → rejected` | Ghi lý do, version và audit; không xuất bản dữ liệu. |
+
+Đây là luồng đăng lớp của gia sư, độc lập với ứng tuyển vào lớp phụ huynh và hợp đồng phát hành sau khi gán gia sư. Phụ huynh gửi yêu cầu tham gia chỉ với offer `published`; trạng thái ban đầu là `submitted`, chưa phải nhận lớp. Tutor chỉ thấy lớp/khối, nhu cầu, trạng thái và vùng dạy chung trước khi chấp nhận; địa chỉ, số điện thoại, email và dữ liệu cá nhân riêng không có trong DTO đó. Moderator chấp nhận với version/CAS, bắt buộc nhập học phí đã chốt theo buổi và xác nhận các bên đồng ý; sau commit đúng hai participant được đọc điện thoại của nhau qua endpoint private có audit. Moderator từ chối, hoàn tất hoặc rút chấp nhận có lý do/version/audit. Hoàn tất/rút chấp nhận cắt quyền contact ngay, giữ học phí/lịch sử. Cả hai phiếu thu số điện thoại riêng và consent theo phiên bản trước khi được chấp nhận. Không suy đã thanh toán từ giá đề xuất, học phí đã chốt hoặc hợp đồng.
+
+| Actor | Join action | From → to | Điều kiện |
+|---|---|---|---|
+| Parent owner | `submit` | `— → submitted` | Offer `published`; khối lớp, nhu cầu, khu vực chung, điện thoại và hai consent riêng hợp lệ; không có join còn hiệu lực cùng offer. |
+| Parent owner | `withdraw` | `submitted → withdrawn` | Owner và version đúng; không rút join đã được duyệt. |
+| Moderator | `approve` | `submitted → approved` | Version đúng, hai consent liên hệ hợp lệ, học phí đã chốt theo buổi được ghi và xác nhận các bên đã thống nhất; mở quyền contact ở cùng commit. |
+| Moderator | `reject` | `submitted → rejected` | Có lý do và audit; không mở contact. |
+| Moderator | `complete/revoke` | `approved → completed/revoked` | Có lý do/version/audit; cắt contact ngay, giữ snapshot học phí và lịch sử. |
 
 ### Application và assignment
 
@@ -85,8 +107,15 @@ Tất cả đường dẫn dưới `/api/v1`. Mỗi endpoint mutation dùng JSON
 | `POST /auth/register`, `GET /me` | Register parent/tutor theo policy | Self | Self | Không self-register | Server map product `parent/tutor/moderator` ↔ DB `student/tutor/admin`; `/me` trả `productRole` suy ra từ session cùng `role` lưu trữ để tương thích các route booking cũ. Client không được gửi một trong hai làm nguồn quyền. |
 | `GET/PATCH /parent/profile` | — | Chính mình | — | Xem qua moderator API | Không gửi hồ sơ người khác. |
 | `POST /parent/requests`, `GET /parent/requests` | — | Tạo/list của mình | — | List qua moderator API | Owner từ session; id/code server tạo; idempotency cho create. |
-| `GET/PATCH /parent/requests/:id`, `POST .../:action` | — | Own, action được phép | — | Moderator action riêng | Private student/contact chỉ ở DTO owner/moderator. |
+| `GET/PATCH /parent/requests/:id`, `POST .../:action` | — | Own, action được phép | — | Moderator action riêng | `submit` công bố lớp `open` và trả request `sourcing` trong một giao dịch; private student/contact chỉ ở DTO owner/moderator. |
 | `GET /classes`, `GET /classes/:id` | Chỉ lớp `open` | Public projection | Public projection | Full qua moderator API | Không địa chỉ/điện thoại/tên học sinh; không mock matchScore/rating. |
+| `GET /tutor-offers`, `GET /tutor-offers/:id` | Chỉ lớp gia sư đăng `published` | Public projection | Public projection | Public projection | Danh sách tìm học viên riêng; không contact hay `area` nhập tự do. |
+| `GET/POST/PATCH /tutor/offers`, `GET /tutor/offers/contract`, `POST /tutor/offers/:id/{submit,close}` | — | — | Own, approved | — | Tạo/sửa nháp, xác nhận phiên bản hợp đồng, gửi duyệt, đóng lớp theo trạng thái/version; không self-publish. |
+| `GET /admin/tutor-offers`, `POST /admin/tutor-offers/:id/{approve,reject}` | — | — | — | Moderator | Chỉ duyệt bản `pending`, từ chối có lý do; version/CAS và audit, không nhận status tự do. |
+| `POST /tutor-offers/:id/join-requests`, `GET /parent/tutor-offer-joins`, `POST /parent/tutor-offer-joins/:id/withdraw` | — | Own | — | Xem qua moderator API | Parent gửi/xem/rút yêu cầu tham gia; owner từ session, offer phải `published`; điện thoại và hai consent là private; duplicate/version trả 409. |
+| `GET /parent/tutor-offer-joins/:id/contact`, `GET /tutor/offers/:id/join-requests/:joinId/contact` | — | Own join `approved` | Own offer/join `approved` | — | Chỉ trả số điện thoại đối tác khi join còn `approved` và consent hợp lệ, kiểm tra quyền và audit mỗi lần đọc; sau hoàn tất/rút chấp nhận trả lỗi. |
+| `GET /tutor/offers/:id/join-requests` | — | — | Own offer | Full qua moderator API | Tutor chỉ thấy dữ liệu học tập, trạng thái và vùng chung trước khi moderator chấp nhận; không contact/địa chỉ/email riêng trong danh sách. |
+| `GET /admin/tutor-offer-joins`, `POST /admin/tutor-offer-joins/:id/{approve,reject,complete,revoke}` | — | — | — | Moderator | `approve` cần học phí đã chốt và xác nhận các bên đồng ý; từ chối/hoàn tất/rút chấp nhận cần lý do; version/CAS, audit, chỉ `approved` cấp quyền contact. |
 | `GET /fee-options` | — | — | Phiên bản published/effective/allowed cho lớp | Full qua moderator API | Form ứng tuyển chỉ khả dụng khi đủ ba loại option được moderator công bố với giá trị thật; không có trạng thái thanh toán. |
 | `POST /classes/:id/applications`, `GET /tutor/applications`, `POST /tutor/applications/:id/withdraw` | — | — | Own, approved | Xem qua moderator API | Tutor ID từ session; server kiểm tra kết quả quiz, xác nhận phiên bản điều khoản, đủ ba loại option và option được chọn còn hiệu lực/phù hợp lớp; duplicate/race `409`. |
 | `GET /tutor/assignments`, `GET /tutor/assignments/:id/contact` | — | — | Own, active assignment | Xem qua moderator API | Không có accept/decline gate. Endpoint contact kiểm tra assignment active ở mỗi lần đọc, trả điện thoại/địa chỉ parent/student tối thiểu ngay sau `assign_tutor` commit, audit truy cập nhạy cảm. |

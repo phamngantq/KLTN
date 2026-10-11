@@ -74,12 +74,16 @@ export function useUpdateParentRequest() {
 
 export function useSubmitParentRequest() {
   const cache = useRequestCache();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, version }: { id: string; version: number }) =>
       api.post<OwnParentRequest>(`/parent/requests/${encodeURIComponent(id)}/submit`, {
         version,
         consentToShareContact: true,
       }),
-    onSuccess: cache,
+    onSuccess: (request) => {
+      cache(request);
+      void queryClient.invalidateQueries({ queryKey: ['classes', 'public'] });
+    },
   });
 }
