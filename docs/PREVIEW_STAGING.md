@@ -1,5 +1,14 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Bảng giá, minh chứng khiếu nại và dữ liệu mẫu người học ngày 2026-10-12
+
+Commit `776ea6f` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `f0d2c51a-3e16-4290-bce5-b00e21c11dbb`. Trang "Bảng giá" của người học có thẻ theo đối tượng gia sư, bảng chi tiết theo Cấp 1/2/3, Năng khiếu, Ngoại ngữ và ghi chú học phí tham khảo; form khiếu nại nhận minh chứng (ảnh/PDF, tối đa 3 tệp 1,5 MB, chỉ khi chưa gửi); người đã đăng nhập mở trang khách được chuyển về trang tương ứng trong khu vực của mình.
+
+- Trước phát hành: lint, typecheck, format, secret scan, Vitest **483/483**, Playwright **4/4** và `git diff --check` PASS; chuỗi dữ liệu mẫu đã chạy thử hai lần trên D1 local riêng có phí công bố.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0028` (bảng giá theo nhóm, xóa dòng giá mẫu theo môn) và `0029` (bảng minh chứng khiếu nại) đã áp dụng. Trước: 6 user, 6 yêu cầu, 6 lớp, 4 khiếu nại, 12 bản nội dung.
+- Dữ liệu mẫu `seed:learner-demo:staging:v2`: người học mẫu có 6 yêu cầu (2 đang tìm gia sư, 2 đã gán gia sư với học phí đã chốt, 1 đã hoàn tất, 1 nháp), 8 khiếu nại (mỗi trạng thái 2, hai khiếu nại có ảnh minh chứng), 12 bài cẩm nang và 20 dòng bảng giá theo nhóm. Để có lớp đã gán, staging có thêm gia sư mẫu `gia-su-mau@example.test` (mật khẩu chỉ trong `.wrangler/sample-staging-v2/tutor-credentials.vars`) cùng bản "Điều khoản trách nhiệm gia sư (mẫu)" và bài kiểm tra mẫu, vì staging chưa có điều khoản được công bố. Toàn bộ là dữ liệu minh họa.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS; `PRAGMA foreign_key_check` 0 hàng; D1 có 7 user, 12 yêu cầu, 11 lớp, 8 khiếu nại, 2 tệp minh chứng; người học mẫu đăng nhập thấy đúng số yêu cầu theo tab và tải được danh sách minh chứng.
+
 ## Khu vực người học ngày 2026-10-12
 
 Commit `16b883e` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `9ddcf7a2-1ecc-458b-913e-6d1c5b0f9ae9`. Vai trò phụ huynh hiển thị là "Người học"; form yêu cầu mang tên "Tìm kiếm gia sư" và không còn khối thông báo chia sẻ (phiên bản đồng ý `2026-10-12-v3`); "Khiếu nại của tôi" có bản nháp riêng tư, sửa/gửi/xóa, thẻ trạng thái, tab và bộ lọc; "Cẩm nang dành cho người học" lọc theo danh mục và từ khóa; "Bảng giá" của người học hiển thị khoảng giá tham khảo theo đối tượng gia sư và theo môn.

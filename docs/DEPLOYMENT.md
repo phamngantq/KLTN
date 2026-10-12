@@ -1,6 +1,6 @@
 # Deployment runbook — Cloudflare Workers + D1
 
-> **Trạng thái ngày 2026-10-12:** [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev) được tạo mới trên tài khoản Cloudflare hiện tại và chạy version `9ddcf7a2-1ecc-458b-913e-6d1c5b0f9ae9` từ commit `16b883e` bằng `env.staging_v2`. D1 `tutor-matching-staging-v2` mới (APAC) đã áp dụng migration `0001`–`0027` và seed mẫu DEC-017. Worker/D1 V2 trên tài khoản trước (`https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev`) không còn được tài khoản này quản lý. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Production chưa triển khai.
+> **Trạng thái ngày 2026-10-12:** [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev) được tạo mới trên tài khoản Cloudflare hiện tại và chạy version `f0d2c51a-3e16-4290-bce5-b00e21c11dbb` từ commit `776ea6f` bằng `env.staging_v2`. D1 `tutor-matching-staging-v2` mới (APAC) đã áp dụng migration `0001`–`0029` và seed mẫu DEC-017. Worker/D1 V2 trên tài khoản trước (`https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev`) không còn được tài khoản này quản lý. Xem bằng chứng trong [PREVIEW_STAGING.md](PREVIEW_STAGING.md). Production chưa triển khai.
 
 Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các môi trường hoạt động dùng D1 và rate limiter riêng; cấu hình lịch sử `preview` và `staging_v2` cùng trỏ vào Worker/D1 V2 trong quá trình chuyển đổi. `student`/`admin` trong D1 được ánh xạ thành actor phụ huynh/kiểm duyệt viên; `tutor` là gia sư. Giữ nguyên ID, FK và booking lịch sử.
 
@@ -8,7 +8,7 @@ Một Worker phục vụ API `/api/v1/*` và SPA qua Workers Static Assets. Các
 |---|---|---|
 | Local | `npm run dev` / Miniflare `.wrangler/state` | Dùng để kiểm thử migration và hành trình mới |
 | Preview lịch sử | `tutor-matching-staging-v2` / D1 riêng cùng tên | Đã deploy bản chỉ đọc; không deploy lại bằng cấu hình `preview` |
-| Staging V2 | Cùng Worker/D1 V2, `env.staging_v2` | Tạo mới trên tài khoản hiện tại ngày 2026-10-12, `APP_ENV=staging`; migration 0001–0027 và seed mẫu đã áp dụng, smoke chỉ đọc PASS |
+| Staging V2 | Cùng Worker/D1 V2, `env.staging_v2` | Tạo mới trên tài khoản hiện tại ngày 2026-10-12, `APP_ENV=staging`; migration 0001–0029 và seed mẫu đã áp dụng, smoke chỉ đọc PASS |
 | Staging cũ | `tutor-matching-staging` / D1 cùng tên | Lịch sử MVP đã deploy; tài khoản Wrangler ở lần kiểm tra cuối không nhìn thấy cả Worker/D1 |
 | Production | `tutor-matching` / `tutor-matching-prod` | Chưa tạo; cần quyết định phát hành riêng |
 
