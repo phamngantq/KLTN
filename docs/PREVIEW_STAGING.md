@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Menu phụ huynh và form yêu cầu theo Figma ngày 2026-10-12
+
+Commit `d61d9cf` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `abb10452-e636-44c9-bf04-19238eb0265f`. Menu phụ huynh còn Tổng quan, Tìm kiếm gia sư, Bảng giá, Cẩm nang, Khiếu nại; trang Thuê Gia Sư có thẻ thống kê, tab trạng thái và bộ lọc; form yêu cầu theo export Figma.
+
+- Trước phát hành: lint, typecheck, format, secret scan, build staging V2, Vitest **459/459**, Playwright **4/4** và `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git trong `.wrangler/`; migration `0023` (họ tên học sinh riêng tư, cấp học, số buổi/tuần, yêu cầu gia sư, đặc điểm học sinh) đã áp dụng. Trước và sau: 4 user, 6 yêu cầu, 6 lớp; 6/6 yêu cầu cũ có cấp học suy ra từ lớp.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS; `PRAGMA foreign_key_check` 0 hàng; các route `/parent`, `/parent/request`, `/parent/cam-nang`, `/parent/bang-gia`, `/parent/dashboard` trả 200 và API danh sách yêu cầu trả 401 cho khách. Hành trình ghi đầy đủ được kiểm trên D1 local cô lập, không tạo dữ liệu thử trên staging.
+
 ## Tạo mới trên tài khoản Cloudflare hiện tại ngày 2026-10-12
 
 Commit `7d3dd54` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `5695d8be-6078-42f8-a88b-0a9d9aa9a06d`, `APP_ENV=staging`, trên tài khoản Cloudflare đang đăng nhập ở máy phát hành. Tài khoản này chưa có Worker/D1 V2 nên D1 `tutor-matching-staging-v2` được tạo mới ở APAC; ID không ghi vào Git. D1 `tutor-matching-staging` cũ có trên tài khoản không bị thay đổi.
