@@ -177,6 +177,9 @@ test('parent, tutor and moderator navigation stays compact and reachable', async
           await page.keyboard.press('Enter');
           const accountLink = header.getByRole('link', { name: 'Tài khoản', exact: true });
           await expect(accountLink).toBeVisible();
+          if (role === 'parent') {
+            await expect(header.getByRole('link', { name: 'Khu vực phụ huynh' })).toHaveCount(0);
+          }
           await expect(header.getByRole('button', { name: 'Đăng xuất' })).toBeVisible();
           await page.keyboard.press('Escape');
           await expect(accountLink).not.toBeVisible();

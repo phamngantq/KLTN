@@ -15,6 +15,13 @@ import {
 } from '../../../shared/schemas/requests';
 import { DEFAULT_TIMEZONE } from '../../../shared/schemas/availability';
 import {
+  HANOI_CITY,
+  HANOI_WARDS,
+  hanoiArea,
+  wardOfArea,
+  type HanoiWard,
+} from '../../../shared/schemas/hanoi-wards';
+import {
   isRequestGridWindow,
   RequestScheduleGrid,
 } from '../../components/domain/RequestScheduleGrid';
@@ -52,6 +59,9 @@ type FormState = {
   /** Kept unchanged on edit; the Figma form has no exact-address field. */
   contactAddress: string;
 };
+
+/** Select value for a stored area that predates the current phường/xã catalogue. */
+const LEGACY_AREA = '__legacy__';
 
 const optionalNumber = (value: number | null | undefined) =>
   value === null || value === undefined ? '' : String(value);
@@ -174,7 +184,6 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
   const submit = useSubmitParentRequest();
   const [form, setForm] = useState<FormState>(() => toForm(request));
   const [openedVersion] = useState(request?.version);
-  const [consent, setConsent] = useState(false);
   const [localErrors, setLocalErrors] = useState<Record<string, string>>({});
   const [createdDraft, setCreatedDraft] = useState<OwnParentRequest | null>(null);
   const createKey = useRef(crypto.randomUUID());
@@ -227,11 +236,9 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
       if (!form.studentName.trim()) nextErrors.studentName = 'Cần họ và tên trước khi gửi yêu cầu.';
       if (!form.contactPhone.trim())
         nextErrors.contactPhone = 'Cần số điện thoại trước khi gửi yêu cầu.';
-      if (!form.area.trim()) nextErrors.area = 'Cần khu vực trước khi gửi yêu cầu.';
+      if (form.mode === 'offline' && !form.area.trim())
+        nextErrors.area = 'Cần chọn phường/xã cho hình thức học offline.';
       if (!form.educationLevel) nextErrors.educationLevel = 'Cần chọn cấp học.';
-    }
-    if (intent === 'send' && !consent) {
-      nextErrors.consent = 'Cần đồng ý chia sẻ liên hệ trước khi gửi yêu cầu.';
     }
     setLocalErrors(nextErrors);
     return result.success && Object.keys(nextErrors).length === 0 ? result.data : null;
@@ -269,7 +276,6 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
         `/parent/requests/${encodeURIComponent(draft.id)}`,
       );
       setCreatedDraft(current);
-      if (current.version !== draft.version) setConsent(false);
       if (current.status === 'sourcing' || current.status === 'submitted')
         navigate(`/parent/requests/${encodeURIComponent(current.id)}`);
     } catch {
@@ -278,7 +284,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
   }
 
   async function retrySubmission() {
-    if (!createdDraft || !consent || busy) return;
+    if (!createdDraft || busy) return;
     try {
       const confirmed = await submit.mutateAsync({
         id: createdDraft.id,
@@ -304,11 +310,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
           </Alert>
         )}
         <div className="flex flex-wrap gap-3">
-          <Button
-            onClick={() => void retrySubmission()}
-            loading={submit.isPending}
-            disabled={!consent}
-          >
+          <Button onClick={() => void retrySubmission()} loading={submit.isPending}>
             Thử gửi lại
           </Button>
           <ButtonLink
@@ -401,24 +403,6 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                 error={errors.contactPhone}
               />
             </div>
-            <TextField
-              label="Khu vực"
-              required
-              placeholder="Ví dụ: Thanh Xuân, Hà Nội"
-              maxLength={120}
-              value={form.area}
-              onChange={(event) => edit('area', event.target.value)}
-              error={errors.area}
-            />
-            <TextField
-              label="Địa chỉ cụ thể"
-              placeholder="Số nhà, đường (không bắt buộc)"
-              hint="Không công khai; chỉ gia sư được kiểm duyệt viên gán mới xem được."
-              maxLength={200}
-              value={form.contactAddress}
-              onChange={(event) => edit('contactAddress', event.target.value)}
-              error={errors.contactAddress}
-            />
             <div className="grid gap-4 sm:grid-cols-3">
               <SelectField
                 label="Môn học"
@@ -497,6 +481,57 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                 ))}
               </div>
             </fieldset>
+            <fieldset className="flex min-w-0 flex-col gap-4">
+              <legend className="mb-2 text-sm font-semibold text-primary">Địa chỉ học</legend>
+              {form.mode === 'online' && (
+                <p className="-mt-2 text-xs text-muted">Học online có thể để trống địa chỉ học.</p>
+              )}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <TextField
+                  label="Khu vực"
+                  value={HANOI_CITY}
+                  readOnly
+                  aria-readonly="true"
+                  tabIndex={-1}
+                  className="cursor-not-allowed bg-surface text-muted"
+                />
+                <SelectField
+                  label="Phường/Xã"
+                  required={form.mode === 'offline'}
+                  value={wardOfArea(form.area) ?? (form.area ? LEGACY_AREA : '')}
+                  onChange={(event) =>
+                    edit(
+                      'area',
+                      event.target.value === LEGACY_AREA
+                        ? form.area
+                        : event.target.value
+                          ? hanoiArea(event.target.value as HanoiWard)
+                          : '',
+                    )
+                  }
+                  error={errors.area}
+                >
+                  <option value="">Chọn phường/xã</option>
+                  {form.area && !wardOfArea(form.area) && (
+                    <option value={LEGACY_AREA}>{form.area} (khu vực đã lưu trước đây)</option>
+                  )}
+                  {HANOI_WARDS.map((ward) => (
+                    <option key={ward} value={ward}>
+                      {ward}
+                    </option>
+                  ))}
+                </SelectField>
+              </div>
+              <TextField
+                label="Địa chỉ cụ thể"
+                placeholder="Số nhà, tên đường, ngõ/ngách (không bắt buộc)"
+                hint="Không công khai; chỉ gia sư được kiểm duyệt viên gán mới xem được."
+                maxLength={200}
+                value={form.contactAddress}
+                onChange={(event) => edit('contactAddress', event.target.value)}
+                error={errors.contactAddress}
+              />
+            </fieldset>
             <div className="grid gap-4 sm:grid-cols-2">
               <TextField
                 label="Học phí (VNĐ/buổi)"
@@ -527,7 +562,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
               <legend className="px-2 font-semibold text-primary">
                 <span className="inline-flex items-center gap-2">
                   <Clock aria-hidden="true" className="size-4" />
-                  Thời gian học
+                  Thời gian có thể học
                 </span>
               </legend>
               <RequestScheduleGrid
@@ -620,30 +655,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                   <ShieldCheck aria-hidden="true" className="size-4" />
                   Đồng ý trước khi gửi
                 </h3>
-                <p className="text-sm text-muted">
-                  Khi bạn gửi yêu cầu, môn học, lớp, hình thức, học phí dự kiến và lịch mong muốn sẽ
-                  hiển thị trong danh sách lớp tìm gia sư. Họ tên, số điện thoại, khu vực và các ghi
-                  chú không được công khai; gia sư chỉ xem số điện thoại sau khi được kiểm duyệt
-                  viên gán.
-                </p>
-                <label className="flex min-h-11 items-start gap-3">
-                  <input
-                    type="checkbox"
-                    checked={consent}
-                    onChange={(event) => {
-                      setConsent(event.target.checked);
-                      setLocalErrors((current) => ({ ...current, consent: '' }));
-                    }}
-                    className="mt-1 size-4 shrink-0 accent-[var(--color-primary)]"
-                    aria-invalid={Boolean(errors.consent)}
-                  />
-                  <span className="text-sm">{CONTACT_SHARING_CONSENT_TEXT}</span>
-                </label>
-                {errors.consent && (
-                  <p role="alert" className="text-sm text-danger">
-                    {errors.consent}
-                  </p>
-                )}
+                <p className="text-sm text-muted">{CONTACT_SHARING_CONSENT_TEXT}</p>
               </div>
             )}
           </div>
@@ -656,7 +668,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
             >
               Hủy
             </Button>
-            <Button type="submit" loading={busy} disabled={!request && !consent}>
+            <Button type="submit" loading={busy}>
               {request ? 'Lưu thay đổi' : 'Gửi yêu cầu'}
             </Button>
           </div>

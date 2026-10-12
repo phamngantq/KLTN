@@ -11,6 +11,7 @@ import {
   CONTACT_SHARING_CONSENT_VERSION,
   educationLevelForGrade,
 } from '../../../shared/schemas/requests';
+import { isHanoiCatalogArea } from '../../../shared/schemas/hanoi-wards';
 import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import * as repo from './requests-repository';
@@ -108,6 +109,14 @@ export async function updateOwn(
   if (current.version !== input.version) throw stale();
   if (current.status === 'submitted' && input.contactPhone === null) {
     throw new AppError(422, 'CONTACT_REQUIRED', 'Yêu cầu đã gửi cần số điện thoại liên hệ.');
+  }
+  if (input.area !== null && input.area !== current.area && !isHanoiCatalogArea(input.area)) {
+    throw new AppError(
+      422,
+      'VALIDATION_ERROR',
+      'Chọn phường/xã thuộc Hà Nội theo danh mục hiện hành.',
+      [{ path: 'area', message: 'Chọn phường/xã thuộc Hà Nội theo danh mục hiện hành.' }],
+    );
   }
   await requireKnownSubject(db, input.subjectId);
   if (

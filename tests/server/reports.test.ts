@@ -30,7 +30,7 @@ async function submittedRequest(parent: Session): Promise<OwnParentRequest> {
         subjectId: 'subj_math',
         grade: 'Lớp 10',
         mode: 'online',
-        area: 'Hà Nội',
+        area: 'Phường Ba Đình, Hà Nội',
         expectedBudgetMinor: 250_000,
         description: 'Cần gia sư Toán lớp 10.',
         schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },

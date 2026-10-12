@@ -42,4 +42,24 @@ describe('role navigation', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
     expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Phụ huynh' })).toBeNull();
   });
+
+  it('has no "Khu vực phụ huynh" item for parents but keeps the tutor portal link', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      return undefined;
+    });
+    renderRoute('/');
+    expect(await screen.findByLabelText('Tài khoản của Nguyễn An')).toBeTruthy();
+    expect(screen.queryByText('Khu vực phụ huynh', { ignore: false })).toBeNull();
+    expect(
+      screen.getByRole('link', { name: 'Gia Sư Đỗ Hằng — Trang chủ' }).getAttribute('href'),
+    ).toBe('/parent/dashboard');
+    cleanup();
+    vi.unstubAllGlobals();
+
+    mockApi((req) => (req.path === '/me' ? sessionOf({ role: 'tutor' }) : undefined));
+    renderRoute('/');
+    await screen.findByLabelText('Tài khoản của Nguyễn An');
+    expect(screen.getAllByText('Khu vực gia sư', { ignore: false }).length).toBeGreaterThan(0);
+  });
 });

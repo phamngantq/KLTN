@@ -178,7 +178,9 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect((await parent.context().request.get('/api/v1/bookings')).status()).toBe(200);
     await parent.goto('/parent/request');
     await parent.getByLabel('Họ và tên').fill('Học sinh E2E');
-    await parent.getByRole('textbox', { name: /^Khu vực/ }).fill('Cầu Giấy, Hà Nội');
+    await expect(parent.getByRole('textbox', { name: 'Khu vực' })).toHaveValue('Hà Nội');
+    await expect(parent.getByRole('textbox', { name: 'Khu vực' })).not.toBeEditable();
+    await parent.getByRole('combobox', { name: /^Phường\/Xã/ }).selectOption('Phường Cầu Giấy');
     await parent.getByLabel('Môn học').selectOption('subj_math');
     await parent.getByRole('combobox', { name: /^Lớp/ }).selectOption('Lớp 10');
     await expect(parent.getByLabel('Cấp học')).toHaveValue('upper_secondary');
@@ -192,8 +194,8 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await parent.getByRole('textbox', { name: /^Số điện thoại/ }).fill(phone);
     await parent.getByLabel('Địa chỉ cụ thể').fill(address);
     const send = parent.getByRole('button', { name: 'Gửi yêu cầu' });
-    await expect(send).toBeDisabled();
-    await parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/).check();
+    await expect(parent.getByText(/Họ tên, số điện thoại, khu vực và các ghi chú/)).toBeVisible();
+    await expect(parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/)).toHaveCount(0);
     await send.click();
     await expect(parent).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
     await expect(parent.getByText('Lớp đang tìm gia sư')).toBeVisible();

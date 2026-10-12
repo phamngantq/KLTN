@@ -15,7 +15,7 @@ const INPUT = {
   subjectId: 'subj_math',
   grade: 'Lớp 10',
   mode: 'offline',
-  area: 'Cầu Giấy, Hà Nội',
+  area: 'Phường Cầu Giấy, Hà Nội',
   expectedBudgetMinor: 250_000,
   description: 'Cần gia sư Toán buổi tối.',
   schedule: {

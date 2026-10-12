@@ -54,7 +54,7 @@ const counts = {
 async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByRole('textbox', { name: /Họ và tên/ }), 'Phạm Văn Bình');
   await user.type(screen.getByRole('textbox', { name: /Số điện thoại/ }), '0912345678');
-  await user.type(screen.getByRole('textbox', { name: /Khu vực/ }), 'Cầu Giấy, Hà Nội');
+  await user.selectOptions(screen.getByRole('combobox', { name: /Phường\/Xã/ }), 'Phường Cầu Giấy');
   await user.selectOptions(screen.getByRole('combobox', { name: /Môn học/ }), 'math');
   await user.selectOptions(screen.getByRole('combobox', { name: /^Lớp/ }), 'Lớp 5');
 }
@@ -112,7 +112,7 @@ describe('parent requests', () => {
     );
   });
 
-  it('requires explicit consent before submitting a saved draft and uses its version', async () => {
+  it('shows the sharing notice and submits a saved draft with its version', async () => {
     let current = ownRequest;
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
@@ -133,11 +133,10 @@ describe('parent requests', () => {
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Yêu cầu YC-0001' })).toBeTruthy();
-    const send = screen.getByRole('button', { name: 'Gửi yêu cầu' }) as HTMLButtonElement;
-    expect(send.disabled).toBe(true);
+    expect(screen.getByText(CONTACT_SHARING_CONSENT_TEXT)).toBeTruthy();
+    expect(screen.queryByRole('checkbox')).toBeNull();
     expect(calls.some((call) => call.path.endsWith('/submit'))).toBe(false);
-    await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
-    await user.click(send);
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
     expect(
       await screen.findByText(/Yêu cầu đã được công bố trong danh sách lớp tìm gia sư/),
     ).toBeTruthy();
@@ -149,7 +148,7 @@ describe('parent requests', () => {
     expect(submitted?.headers.get('X-CSRF-Token')).toBe('csrf-test-token');
   });
 
-  it('creates and submits a request only after a checked consent and server response', async () => {
+  it('creates and submits a request with a fixed Hà Nội area and no consent checkbox', async () => {
     let current = ownRequest;
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
@@ -173,12 +172,18 @@ describe('parent requests', () => {
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeTruthy();
-    expect(
-      (screen.getByRole('button', { name: 'Gửi yêu cầu' }) as HTMLButtonElement).disabled,
-    ).toBe(true);
+    const city = screen.getByRole('textbox', { name: 'Khu vực' }) as HTMLInputElement;
+    expect(city.value).toBe('Hà Nội');
+    expect(city.readOnly).toBe(true);
+    expect(screen.getByText(CONTACT_SHARING_CONSENT_TEXT)).toBeTruthy();
+    expect(screen.queryByRole('checkbox', { name: /Tôi đồng ý/ })).toBeNull();
+    expect(screen.getByText('Thời gian có thể học')).toBeTruthy();
     await fillRequiredFields(user);
+    await user.type(
+      screen.getByRole('textbox', { name: 'Địa chỉ cụ thể' }),
+      'Ngõ 12 Trần Thái Tông',
+    );
     await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
-    await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
@@ -193,8 +198,9 @@ describe('parent requests', () => {
       subjectId: 'math',
       grade: 'Lớp 5',
       schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
+      area: 'Phường Cầu Giấy, Hà Nội',
       contactPhone: '0912345678',
-      contactAddress: null,
+      contactAddress: 'Ngõ 12 Trần Thái Tông',
     });
     expect(submitted?.body).toEqual({ version: 1, consentToShareContact: true });
   });
@@ -216,7 +222,6 @@ describe('parent requests', () => {
     await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' });
     await fillRequiredFields(user);
     await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
-    await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
 
     expect(await screen.findByRole('heading', { name: 'Yêu cầu đã được tạo' })).toBeTruthy();
@@ -242,7 +247,6 @@ describe('parent requests', () => {
     const user = userEvent.setup();
     await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' });
     await fillRequiredFields(user);
-    await user.click(screen.getByRole('checkbox', { name: CONTACT_SHARING_CONSENT_TEXT }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
     expect(await screen.findByText('Cần ít nhất một khung giờ.')).toBeTruthy();
     expect(calls.some((call) => call.path === '/parent/requests' && call.method === 'POST')).toBe(
@@ -259,7 +263,7 @@ describe('parent requests', () => {
     expect(create?.body).toMatchObject({
       studentName: 'Phạm Văn Bình',
       educationLevel: 'primary',
-      area: 'Cầu Giấy, Hà Nội',
+      area: 'Phường Cầu Giấy, Hà Nội',
       mode: 'offline',
       schedule: {
         timezone: 'Asia/Ho_Chi_Minh',
@@ -269,7 +273,7 @@ describe('parent requests', () => {
     });
   });
 
-  it('keeps the API limit when selecting whole rows in the weekly grid', async () => {
+  it('does not cap the weekly grid at 14 slots', async () => {
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       if (req.path === '/subjects') return { data: subjects };
@@ -282,10 +286,11 @@ describe('parent requests', () => {
     await user.click(screen.getByRole('button', { name: 'Chọn khung 10:30–12:00 cả tuần' }));
     expect(screen.getByText(/Đã chọn 14 khung giờ/)).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Chọn khung 13:30–15:00 cả tuần' }));
-    expect(screen.getByRole('alert').textContent).toContain('tối đa 14 khung giờ');
+    expect(screen.getByText('Đã chọn 21 khung giờ/tuần')).toBeTruthy();
+    expect(screen.queryByText(/tối đa/)).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Thứ Hai, 13:30–15:00' }).getAttribute('aria-pressed'),
-    ).toBe('false');
+    ).toBe('true');
     expect(calls.some((call) => call.path === '/parent/requests' && call.method === 'POST')).toBe(
       false,
     );
@@ -363,5 +368,37 @@ describe('parent requests', () => {
       description: ownRequest.description,
       version: 1,
     });
+  });
+
+  it('lets an online request leave the address empty but requires a phường/xã offline', async () => {
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/subjects') return { data: subjects };
+      if (req.path === '/parent/requests' && req.method === 'POST')
+        return { status: 201, data: ownRequest };
+      if (req.path === '/parent/requests/req-1/submit')
+        return { data: { ...ownRequest, status: 'sourcing', version: 2 } };
+      if (req.path === '/parent/requests/req-1' && req.method === 'GET')
+        return { data: ownRequest };
+      return undefined;
+    });
+    const { router } = renderRoute('/parent/request');
+    const user = userEvent.setup();
+    await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' });
+    await user.type(screen.getByRole('textbox', { name: /Họ và tên/ }), 'Trần Đức Anh');
+    await user.type(screen.getByRole('textbox', { name: /Số điện thoại/ }), '0912345678');
+    await user.selectOptions(screen.getByRole('combobox', { name: /Môn học/ }), 'math');
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Lớp/ }), 'Lớp 5');
+    await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
+    expect(await screen.findByText('Cần chọn phường/xã cho hình thức học offline.')).toBeTruthy();
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+
+    await user.click(screen.getByRole('radio', { name: 'Online' }));
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
+    expect(
+      calls.find((call) => call.path === '/parent/requests' && call.method === 'POST')?.body,
+    ).toMatchObject({ mode: 'online', area: null, contactAddress: null });
   });
 });

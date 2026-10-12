@@ -39,7 +39,7 @@ export function isRequestGridWindow(window: Window): boolean {
 export function RequestScheduleGrid({
   value,
   onChange,
-  maxWindows = 14,
+  maxWindows = Number.POSITIVE_INFINITY,
   disabled = false,
 }: {
   value: Window[];
@@ -210,7 +210,9 @@ export function RequestScheduleGrid({
       <p className="text-xs text-muted" role="status">
         {disabled
           ? 'Lưới thời gian đã tắt vì bạn chọn trao đổi thời gian sau.'
-          : `Đã chọn ${value.length} khung giờ/tuần · tối đa ${maxWindows} khung giờ cho cả lịch.`}
+          : Number.isFinite(maxWindows)
+            ? `Đã chọn ${value.length} khung giờ/tuần · tối đa ${maxWindows} khung giờ cho cả lịch.`
+            : `Đã chọn ${value.length} khung giờ/tuần`}
       </p>
       {limitMessage && (
         <p role="alert" className="text-sm text-danger">

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
@@ -30,8 +29,6 @@ export function ParentRequestDetailPage() {
   const { id } = useParams();
   const detail = useOwnParentRequest(id);
   const submit = useSubmitParentRequest();
-  const [consentedRequestId, setConsentedRequestId] = useState<string | null>(null);
-  const consent = consentedRequestId === id;
 
   if (detail.isPending) return <PageLoading label="Đang tải chi tiết yêu cầu…" />;
   if (detail.isError) {
@@ -71,7 +68,7 @@ export function ParentRequestDetailPage() {
           : 'neutral';
 
   function send() {
-    if (!consent || !id || submit.isPending) return;
+    if (!id || submit.isPending) return;
     submit.mutate({ id, version: request.version }, { onError: () => void detail.refetch() });
   }
 
@@ -275,34 +272,15 @@ export function ParentRequestDetailPage() {
         <div className="flex max-w-2xl flex-col gap-4 rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
           <h2 className="text-lg font-semibold text-primary">Gửi yêu cầu cho kiểm duyệt viên</h2>
           <p className="text-sm text-muted">
-            Cần số điện thoại, mô tả nhu cầu và lịch mong muốn hợp lệ trước khi gửi.
+            Cần họ và tên, số điện thoại và lịch mong muốn hợp lệ trước khi gửi.
           </p>
-          <p className="text-sm text-muted">
-            Khi gửi, thông tin lớp học và khu vực chung sẽ được công bố để tìm gia sư. Số điện thoại
-            và địa chỉ cụ thể không được công khai.
-          </p>
-          <label className="flex min-h-11 items-start gap-3 rounded-lg border border-border bg-surface p-3">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(event) =>
-                setConsentedRequestId(event.target.checked ? (id ?? null) : null)
-              }
-              className="mt-1 size-4 shrink-0 accent-[var(--color-primary)]"
-            />
-            <span className="text-sm">{CONTACT_SHARING_CONSENT_TEXT}</span>
-          </label>
+          <p className="text-sm text-muted">{CONTACT_SHARING_CONSENT_TEXT}</p>
           {submit.isError && (
             <Alert tone="danger" title="Chưa gửi được yêu cầu">
               {submit.error.message}
             </Alert>
           )}
-          <Button
-            onClick={send}
-            loading={submit.isPending}
-            disabled={!consent}
-            className="self-start rounded-xl"
-          >
+          <Button onClick={send} loading={submit.isPending} className="self-start rounded-xl">
             Gửi yêu cầu
           </Button>
         </div>

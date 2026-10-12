@@ -34,6 +34,7 @@ const CLASS_NAV = PUBLIC_NAV.filter(
   (item) => item.to === '/lop-hoc' || item.to === '/lop-tim-hoc-vien',
 );
 
+// Parents reach their area from the logo and the role menu; no separate "Khu vực phụ huynh" item.
 const ROLE_PORTAL: Record<UserRole, NavItem> = {
   student: { to: '/parent/dashboard', label: 'Khu vực phụ huynh' },
   tutor: { to: '/tutor', label: 'Khu vực gia sư' },
@@ -99,7 +100,11 @@ export function RootLayout() {
         <header className="sticky top-0 z-40 bg-primary text-on-primary shadow-lg print:hidden">
           <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center gap-3 px-4 py-4">
             <Link
-              to={roleArea && user ? ROLE_PORTAL[user.role].to : '/'}
+              to={
+                user && !preview && (roleArea || user.role === 'student')
+                  ? ROLE_PORTAL[user.role].to
+                  : '/'
+              }
               aria-label="Gia Sư Đỗ Hằng — Trang chủ"
               onClick={() => setMobileMenuOpen(false)}
               className="mr-auto inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
@@ -217,12 +222,14 @@ export function RootLayout() {
                       <p className="px-3 py-2 text-xs font-semibold text-muted">
                         {ROLE_LABELS[user.role]}
                       </p>
-                      <Link
-                        to={ROLE_PORTAL[user.role].to}
-                        className="flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus"
-                      >
-                        {ROLE_PORTAL[user.role].label}
-                      </Link>
+                      {user.role !== 'student' && (
+                        <Link
+                          to={ROLE_PORTAL[user.role].to}
+                          className="flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus"
+                        >
+                          {ROLE_PORTAL[user.role].label}
+                        </Link>
+                      )}
                       <Link
                         to="/account"
                         className="flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus"
@@ -347,13 +354,15 @@ export function RootLayout() {
                 </NavLink>
                 {user && !preview && (
                   <>
-                    <NavLink
-                      to={ROLE_PORTAL[user.role].to}
-                      className={publicNavClass}
-                      onClick={() => setMobileMenuOpen(false)}
-                    >
-                      {ROLE_PORTAL[user.role].label}
-                    </NavLink>
+                    {user.role !== 'student' && (
+                      <NavLink
+                        to={ROLE_PORTAL[user.role].to}
+                        className={publicNavClass}
+                        onClick={() => setMobileMenuOpen(false)}
+                      >
+                        {ROLE_PORTAL[user.role].label}
+                      </NavLink>
+                    )}
                     <NavLink
                       to="/account"
                       className={publicNavClass}

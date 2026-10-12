@@ -26,7 +26,7 @@ async function openClass(parent: Session, admin: Session) {
         subjectId: 'subj_math',
         grade: 'Lớp 10',
         mode: 'offline',
-        area: 'Cầu Giấy',
+        area: 'Phường Cầu Giấy, Hà Nội',
         expectedBudgetMinor: 250_000,
         description: `Yêu cầu học tại nhà; liên hệ ${PRIVATE_MARKER}.`,
         schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },

@@ -148,7 +148,7 @@ describe('complaints and account privacy', () => {
           subjectId: 'subj_math',
           grade: 'Lớp 10',
           mode: 'offline',
-          area: 'Hà Nội',
+          area: 'Phường Ba Đình, Hà Nội',
           expectedBudgetMinor: 250_000,
           description: 'Thông tin riêng về học sinh trong yêu cầu.',
           schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },

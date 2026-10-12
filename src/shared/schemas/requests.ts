@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DEFAULT_TIMEZONE } from './availability';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './discovery';
+import { isHanoiCatalogArea } from './hanoi-wards';
 
 export const REQUEST_STATUSES = [
   'draft',
@@ -11,10 +12,15 @@ export const REQUEST_STATUSES = [
   'cancelled',
 ] as const;
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
-/** The exact consent presented by the UI for request contact sharing after moderator assignment. */
-export const CONTACT_SHARING_CONSENT_VERSION = '2026-10-11-v1';
+/**
+ * Notice shown above "Gửi yêu cầu"; sending the request after reading it is the consent.
+ * v1 (2026-10-11) was a separate checkbox. Bump the version whenever this text changes.
+ */
+export const CONTACT_SHARING_CONSENT_VERSION = '2026-10-12-v2';
 export const CONTACT_SHARING_CONSENT_TEXT =
-  'Tôi đồng ý chia sẻ số điện thoại và địa chỉ liên hệ (nếu có) trong yêu cầu này chỉ với gia sư được kiểm duyệt viên gán.';
+  'Khi bạn gửi yêu cầu, môn học, lớp, hình thức, học phí dự kiến và lịch mong muốn sẽ hiển thị trong danh sách lớp tìm gia sư. Họ tên, số điện thoại, khu vực và các ghi chú không được công khai; gia sư chỉ xem số điện thoại sau khi được kiểm duyệt viên gán.';
+/** Anti-abuse bound only; the form itself does not limit how many slots a parent picks. */
+export const REQUEST_MAX_WINDOWS = 168;
 export const REQUEST_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp ${i + 1}`).concat([
   'Ôn thi đại học',
 ]);
@@ -74,7 +80,7 @@ export const requestScheduleSchema = z
   .strictObject({
     timezone: timezone.default(DEFAULT_TIMEZONE),
     discussLater: z.boolean(),
-    windows: z.array(requestWindowSchema).max(14),
+    windows: z.array(requestWindowSchema).max(REQUEST_MAX_WINDOWS),
   })
   .superRefine((schedule, ctx) => {
     if (schedule.discussLater && schedule.windows.length) {
@@ -140,7 +146,7 @@ function refineRequest(value: RefinableRequest, ctx: z.RefinementCtx) {
     ctx.addIssue({
       code: 'custom',
       path: ['area'],
-      message: 'Cần khu vực chung cho hình thức học trực tiếp.',
+      message: 'Cần chọn phường/xã cho hình thức học offline.',
     });
   }
   if (
@@ -155,7 +161,17 @@ function refineRequest(value: RefinableRequest, ctx: z.RefinementCtx) {
   }
 }
 
-export const createParentRequestSchema = requestFields.superRefine(refineRequest);
+/** New requests must pick a current Hà Nội phường/xã; edits may keep a stored legacy area. */
+export const createParentRequestSchema = requestFields.superRefine((value, ctx) => {
+  refineRequest(value, ctx);
+  if (value.area !== null && !isHanoiCatalogArea(value.area)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['area'],
+      message: 'Chọn phường/xã thuộc Hà Nội theo danh mục hiện hành.',
+    });
+  }
+});
 export type CreateParentRequestInput = z.infer<typeof createParentRequestSchema>;
 
 export const updateParentRequestSchema = requestFields

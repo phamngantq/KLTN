@@ -674,7 +674,7 @@ describe('published classes and tutor applications', () => {
       const request = await createSubmittedRequest(parent, {
         subjectId: 'subj_history',
         mode: 'offline',
-        area: 'TP.HCM',
+        area: 'Phường Hoàn Kiếm, Hà Nội',
       });
       const draft = (
         await (await createClass(admin, request, publicArea)).json<ApiSuccess<AdminClass>>()
@@ -734,7 +734,7 @@ describe('published classes and tutor applications', () => {
     const request = await createSubmittedRequest(parent, {
       subjectId: 'subj_history',
       mode: 'offline',
-      area: 'TP.HCM',
+      area: 'Phường Hoàn Kiếm, Hà Nội',
     });
     const draft = (
       await (await createClass(admin, request, 'Quận 10, TP.HCM')).json<ApiSuccess<AdminClass>>()

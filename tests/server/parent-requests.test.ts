@@ -14,7 +14,7 @@ const VALID = {
   subjectId: 'subj_math',
   grade: 'Lớp 10',
   mode: 'offline',
-  area: 'Cầu Giấy, Hà Nội',
+  area: 'Phường Cầu Giấy, Hà Nội',
   expectedBudgetMinor: 250_000,
   description: 'Cần gia sư Toán buổi tối.',
   schedule: {
@@ -612,5 +612,63 @@ describe('parent find-tutor requests', () => {
     expect((await list('to=2020-01-01')).total).toBe(0);
     const invalid = await api(`${PATH}?group=unknown`, { headers: { Cookie: parent.cookie } });
     expect(invalid.status).toBe(422);
+  });
+
+  it('accepts only current Hà Nội phường/xã, keeps a legacy area on edit and allows online without one', async () => {
+    const parent = await register('parent');
+    for (const area of ['Cầu Giấy, Hà Nội', 'Phường Cầu Giấy', 'Quận 1, TP.HCM']) {
+      const response = await create(parent, { ...VALID, area });
+      expect(response.status).toBe(422);
+    }
+    const online = await create(parent, { ...VALID, mode: 'online', area: null });
+    expect(online.status).toBe(201);
+    expect((await create(parent, { ...VALID, mode: 'offline', area: null })).status).toBe(422);
+
+    const draft = await data(await create(parent, VALID));
+    await env.DB.prepare("UPDATE parent_requests SET area = 'Cầu Giấy, Hà Nội' WHERE id = ?")
+      .bind(draft.id)
+      .run();
+    const kept = await api(
+      `${PATH}/${draft.id}`,
+      jsonInit('PATCH', { ...VALID, area: 'Cầu Giấy, Hà Nội', version: draft.version }, parent),
+    );
+    expect(kept.status).toBe(200);
+    const keptBody = await data(kept);
+    const changed = await api(
+      `${PATH}/${draft.id}`,
+      jsonInit(
+        'PATCH',
+        { ...VALID, area: 'Thanh Xuân, Hà Nội', version: keptBody.version },
+        parent,
+      ),
+    );
+    expect(changed.status).toBe(422);
+    expect(await errorCode(changed)).toBe('VALIDATION_ERROR');
+  });
+
+  it('stores more than 14 weekly windows and records the notice consent version', async () => {
+    const parent = await register('parent');
+    const windows = [1, 2, 3, 4, 5, 6, 7].flatMap((weekday) =>
+      ['09:00', '10:30', '13:30'].map((startLocal, index) => ({
+        weekday,
+        startLocal,
+        endLocal: ['10:30', '12:00', '15:00'][index]!,
+      })),
+    );
+    const response = await create(parent, {
+      ...VALID,
+      schedule: { ...VALID.schedule, windows },
+    });
+    expect(response.status).toBe(201);
+    const draft = await data(response);
+    expect(draft.schedule.windows).toHaveLength(21);
+    const submitted = await data(
+      await api(
+        `${PATH}/${draft.id}/submit`,
+        jsonInit('POST', { version: draft.version, consentToShareContact: true }, parent),
+      ),
+    );
+    expect(submitted.contactConsentVersion).toBe(CONTACT_SHARING_CONSENT_VERSION);
+    expect(CONTACT_SHARING_CONSENT_VERSION).toBe('2026-10-12-v2');
   });
 });
