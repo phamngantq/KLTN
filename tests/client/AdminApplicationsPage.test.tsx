@@ -61,7 +61,7 @@ describe('AdminApplicationsPage match snapshot', () => {
     const matchedCard = matchedHeading.closest('article')!;
     expect(within(matchedCard).getByText('Điểm khi ứng tuyển: 78/100')).toBeTruthy();
     expect(within(matchedCard).getByText(/Dạy tại khu vực này/)).toBeTruthy();
-    expect(within(matchedCard).getByText(/phụ huynh chưa xác nhận/)).toBeTruthy();
+    expect(within(matchedCard).getByText(/người học chưa xác nhận/)).toBeTruthy();
     expect(within(matchedCard).getByText(/không tự quyết định gán lớp/)).toBeTruthy();
 
     const legacyHeading = screen.getByRole('heading', { name: 'LH-0002 · Gia sư Bình' });
@@ -72,7 +72,7 @@ describe('AdminApplicationsPage match snapshot', () => {
     await user.click(within(matchedCard).getByRole('button', { name: 'Gán gia sư' }));
     const dialog = screen.getByRole('dialog', { name: 'Gán gia sư cho lớp' });
     expect(within(dialog).getByText('Điểm khi ứng tuyển: 78/100')).toBeTruthy();
-    expect(within(dialog).getByText(/phụ huynh chưa xác nhận/)).toBeTruthy();
+    expect(within(dialog).getByText(/người học chưa xác nhận/)).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Gán và kích hoạt lớp' }));
     expect(within(dialog).getByText(/Nhập học phí đã chốt/)).toBeTruthy();
     expect(calls.some((call) => call.method === 'POST')).toBe(false);

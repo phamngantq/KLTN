@@ -17,6 +17,8 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "seed:sample:local": "node scripts/seed-sample-local.mjs",
     "seed:sample:staging:v2": "node scripts/seed-sample-staging-v2.mjs",
+    "seed:learner-demo:local": "node scripts/seed-learner-demo.mjs --local",
+    "seed:learner-demo:staging:v2": "node scripts/seed-learner-demo.mjs --staging-v2",
     "secret-scan": "node scripts/secret-scan.mjs",
     "e2e": "playwright test",
     "build:staging": "node scripts/build-env.mjs staging",

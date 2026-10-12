@@ -69,7 +69,7 @@ export function SignInPage() {
           <p className="mb-8 text-xl text-white/90">Kết nối tri thức, kiến tạo tương lai</p>
           <div className="grid grid-cols-3 gap-4 text-sm text-white/80">
             <div>
-              <span className="block text-lg font-semibold text-accent">Phụ huynh</span>Tìm gia sư
+              <span className="block text-lg font-semibold text-accent">Người học</span>Tìm gia sư
             </div>
             <div>
               <span className="block text-lg font-semibold text-accent">Gia sư</span>Tìm lớp học

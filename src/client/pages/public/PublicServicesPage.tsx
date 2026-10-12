@@ -9,7 +9,7 @@ import { ContentText } from './PublishedContentPage';
 const STEPS = [
   {
     title: 'Gửi yêu cầu',
-    description: 'Phụ huynh nhập môn học, khối lớp, hình thức và lịch mong muốn.',
+    description: 'Người học nhập môn học, khối lớp, hình thức và lịch mong muốn.',
   },
   {
     title: 'Kiểm duyệt lớp',
@@ -54,7 +54,7 @@ export function PublicServicesPage() {
         <div className="mx-auto max-w-4xl">
           <h1 className="text-4xl font-bold md:text-5xl">Dịch Vụ Của Chúng Tôi</h1>
           <p className="mt-6 text-xl text-on-primary/90">
-            Kết nối nhu cầu học tập của phụ huynh với gia sư qua quy trình điều phối lớp.
+            Kết nối nhu cầu học tập của người học với gia sư qua quy trình điều phối lớp.
           </p>
         </div>
       </header>
@@ -154,10 +154,10 @@ export function PublicServicesPage() {
             </span>
             <div>
               <h2 id="service-fee-heading" className="text-2xl font-semibold text-primary">
-                Phụ huynh tìm gia sư miễn phí
+                Người học tìm gia sư miễn phí
               </h2>
               <p className="mt-2 text-muted">
-                Phụ huynh không trả phí dịch vụ tìm gia sư. Gia sư xem phương án phí nhận lớp do
+                Người học không trả phí dịch vụ tìm gia sư. Gia sư xem phương án phí nhận lớp do
                 kiểm duyệt viên công bố khi ứng tuyển.
               </p>
               <ButtonLink to="/bang-gia" variant="secondary" className="mt-5">

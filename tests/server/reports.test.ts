@@ -36,7 +36,7 @@ async function submittedRequest(parent: Session): Promise<OwnParentRequest> {
         schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
         contactPhone: '0912345678',
         studentName: 'Học sinh mẫu',
-        contactAddress: 'Thông tin riêng của phụ huynh',
+        contactAddress: 'Thông tin riêng của người học',
       },
       parent,
       { 'Idempotency-Key': crypto.randomUUID() },

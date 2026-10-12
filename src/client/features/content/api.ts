@@ -26,6 +26,8 @@ export function usePublishedContentList(query: PublicContentListQuery) {
           kind: query.kind,
           audience: query.audience,
           slugPrefix: query.slugPrefix,
+          category: query.category,
+          q: query.q,
           page: query.page,
           pageSize: query.pageSize,
         })}`,

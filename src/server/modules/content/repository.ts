@@ -3,6 +3,7 @@ import type {
   AdminContent,
   AdminContentListQuery,
   ContentAudience,
+  ContentCategory,
   ContentKind,
   CreateContentInput,
   EditContentInput,
@@ -21,6 +22,8 @@ interface ContentRow {
   title: string;
   summary: string;
   body_text: string;
+  category: ContentCategory | null;
+  author_name: string | null;
   created_by: string | null;
   published_by: string | null;
   revised_from_id: string | null;
@@ -31,7 +34,7 @@ interface ContentRow {
 
 const SELECT_COLUMNS =
   'id, kind, slug, audience, revision, edit_version, status, title, summary, body_text, ' +
-  'created_by, published_by, revised_from_id, published_at, created_at, updated_at';
+  'category, author_name, created_by, published_by, revised_from_id, published_at, created_at, updated_at';
 
 function adminProjection(row: ContentRow): AdminContent {
   return {
@@ -45,6 +48,8 @@ function adminProjection(row: ContentRow): AdminContent {
     title: row.title,
     summary: row.summary,
     bodyText: row.body_text,
+    category: row.category,
+    authorName: row.author_name,
     createdBy: row.created_by,
     publishedBy: row.published_by,
     revisedFromId: row.revised_from_id,
@@ -64,6 +69,8 @@ function publicProjection(row: ContentRow): PublishedContent {
     title: row.title,
     summary: row.summary,
     bodyText: row.body_text,
+    category: row.category,
+    authorName: row.author_name,
     publishedAt: row.published_at!,
   };
 }
@@ -96,14 +103,23 @@ export async function listPublishedContent(
   db: D1Database,
   query: PublicContentListQuery,
 ): Promise<Page<PublishedContent>> {
+  const keyword = query.q ? `%${query.q.replace(/[!%_]/g, (char) => `!${char}`)}%` : null;
   const where =
-    "status = 'published' AND audience = ? AND (? IS NULL OR kind = ?) AND (? IS NULL OR slug LIKE ?)";
+    "status = 'published' AND audience = ? AND (? IS NULL OR kind = ?) AND (? IS NULL OR slug LIKE ?)" +
+    ' AND (? IS NULL OR category = ?)' +
+    " AND (? IS NULL OR title LIKE ? ESCAPE '!' OR summary LIKE ? ESCAPE '!' OR body_text LIKE ? ESCAPE '!')";
   const args = [
     query.audience,
     query.kind ?? null,
     query.kind ?? null,
     query.slugPrefix ?? null,
     query.slugPrefix ? `${query.slugPrefix}%` : null,
+    query.category ?? null,
+    query.category ?? null,
+    keyword,
+    keyword,
+    keyword,
+    keyword,
   ];
   const [items, total] = await Promise.all([
     db
@@ -220,8 +236,8 @@ export async function insertDraft(
       .prepare(
         `INSERT INTO content_revisions
          (id, kind, slug, audience, revision, edit_version, status, title, summary,
-          body_text, created_by, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 1, 'draft', ?, ?, ?, ?, ?, ?)`,
+          body_text, category, author_name, created_by, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, 1, 'draft', ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         id,
@@ -232,6 +248,8 @@ export async function insertDraft(
         input.title,
         input.summary,
         input.bodyText,
+        input.category,
+        input.authorName,
         actorId,
         now,
         now,
@@ -260,9 +278,9 @@ export async function revisePublished(
       .prepare(
         `INSERT INTO content_revisions
          (id, kind, slug, audience, revision, edit_version, status, title, summary,
-          body_text, created_by, revised_from_id, created_at, updated_at)
+          body_text, category, author_name, created_by, revised_from_id, created_at, updated_at)
          SELECT ?, kind, slug, audience, ?, 1, 'draft', title, summary, body_text,
-                ?, id, ?, ?
+                category, author_name, ?, id, ?, ?
          FROM content_revisions
          WHERE id = ? AND status = 'published' AND edit_version = ?`,
       )
@@ -297,11 +315,21 @@ export async function updateDraft(
     db
       .prepare(
         `UPDATE content_revisions
-         SET title = ?, summary = ?, body_text = ?, edit_version = edit_version + 1,
-             updated_at = ?, last_mutation_id = ?
+         SET title = ?, summary = ?, body_text = ?, category = ?, author_name = ?,
+             edit_version = edit_version + 1, updated_at = ?, last_mutation_id = ?
          WHERE id = ? AND status = 'draft' AND edit_version = ?`,
       )
-      .bind(input.title, input.summary, input.bodyText, now, mutationId, id, input.editVersion),
+      .bind(
+        input.title,
+        input.summary,
+        input.bodyText,
+        input.category,
+        input.authorName,
+        now,
+        mutationId,
+        id,
+        input.editVersion,
+      ),
     db
       .prepare(
         `INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, metadata, created_at)

@@ -31,7 +31,7 @@ describe('ParentProfilePage', () => {
     renderRoute('/parent/profile');
     const user = userEvent.setup();
 
-    expect(await screen.findByRole('heading', { name: 'Hồ sơ phụ huynh' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Hồ sơ người học' })).toBeTruthy();
     expect((screen.getByLabelText(/Họ và tên/) as HTMLInputElement).value).toBe('Nguyễn An');
     expect((screen.getByLabelText('Số điện thoại') as HTMLInputElement).value).toBe('0912345678');
     expect(screen.getByText('a@example.com')).toBeTruthy();
@@ -102,7 +102,7 @@ describe('ParentProfilePage', () => {
     const user = userEvent.setup();
     expect(await screen.findByRole('alert')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Thử lại' }));
-    expect(await screen.findByRole('heading', { name: 'Chưa có hồ sơ phụ huynh' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Chưa có hồ sơ người học' })).toBeTruthy();
     expect(attempts).toBe(2);
   });
 

@@ -214,7 +214,7 @@ export function TutorOfferPublicDetailPage() {
               tone="info"
               action={
                 <ButtonLink to={`/sign-in?next=${encodeURIComponent(pathname)}`}>
-                  Đăng nhập phụ huynh
+                  Đăng nhập người học
                 </ButtonLink>
               }
             >

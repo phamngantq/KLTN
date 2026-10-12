@@ -69,7 +69,7 @@ export function PublicPricingPage() {
           <Wallet aria-hidden="true" className="mx-auto mb-6 size-16 text-accent" />
           <h1 className="text-4xl font-bold md:text-5xl">Bảng Giá Gia Sư</h1>
           <p className="mt-6 text-xl text-on-primary/90">
-            Phụ huynh tìm gia sư miễn phí. Phương án phí nhận lớp dành cho gia sư được công bố theo
+            Người học tìm gia sư miễn phí. Phương án phí nhận lớp dành cho gia sư được công bố theo
             từng phiên bản.
           </p>
         </div>
@@ -78,7 +78,7 @@ export function PublicPricingPage() {
         <div className="text-center">
           <h2 className="text-3xl font-bold text-primary">Phí dịch vụ</h2>
           <p className="mt-3 text-lg text-muted">
-            Xem chính sách dành cho phụ huynh và phương án đã công bố cho gia sư.
+            Xem chính sách dành cho người học và phương án đã công bố cho gia sư.
           </p>
         </div>
         <section
@@ -93,7 +93,7 @@ export function PublicPricingPage() {
               <BadgeCheck className="size-8" />
             </span>
             <div>
-              <Badge tone="success">Phụ huynh</Badge>
+              <Badge tone="success">Người học</Badge>
               <h2 id="parent-fee-heading" className="mt-3 text-2xl font-semibold text-primary">
                 Miễn phí dịch vụ tìm gia sư
               </h2>
@@ -286,7 +286,7 @@ export function PublicPricingPage() {
             </h2>
             <p className="mt-3 text-muted">
               Khoảng theo hình thức dạy chỉ để tham khảo. Phí áp dụng được xác định theo phương án
-              gia sư chọn khi ứng tuyển, không phải khoản thu thêm của phụ huynh.
+              gia sư chọn khi ứng tuyển, không phải khoản thu thêm của người học.
             </p>
           </div>
           {classFeeGuidance.isPending ? (

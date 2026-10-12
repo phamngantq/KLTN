@@ -93,7 +93,7 @@ const MODERATOR_PENDING = [
   [
     'requests',
     'Quản lý yêu cầu',
-    'Yêu cầu tìm gia sư của phụ huynh chưa được tiếp nhận từ dữ liệu thật.',
+    'Yêu cầu tìm gia sư của người học chưa được tiếp nhận từ dữ liệu thật.',
   ],
   [
     'requests/find-tutor',
@@ -187,23 +187,22 @@ const parentRoutes: RouteObject[] = [
   {
     path: 'bang-gia',
     ...page(async () => {
-      const { PublicPricingPage } = await import('../pages/public/PublicPricingPage');
-      return <PublicPricingPage />;
+      const { LearnerPricingPage } = await import('../pages/parent/LearnerPricingPage');
+      return <LearnerPricingPage />;
     }),
   },
   {
     path: 'cam-nang',
     ...page(async () => {
-      const { PublishedContentCollectionPage } =
-        await import('../pages/public/PublishedContentPage');
-      return (
-        <PublishedContentCollectionPage
-          kind="blog"
-          slugPrefix="phu-huynh-"
-          title="Cẩm nang phụ huynh"
-          detailBase="/blog/phu-huynh"
-        />
-      );
+      const { LearnerHandbookPage } = await import('../pages/parent/LearnerHandbookPage');
+      return <LearnerHandbookPage />;
+    }),
+  },
+  {
+    path: 'cam-nang/:id',
+    ...page(async () => {
+      const { LearnerHandbookArticlePage } = await import('../pages/parent/LearnerHandbookPage');
+      return <LearnerHandbookArticlePage />;
     }),
   },
   {
@@ -699,7 +698,7 @@ export const routes: RouteObject[] = [
             <PublishedContentCollectionPage
               kind="blog"
               slugPrefix="phu-huynh-"
-              title="Tin tức phụ huynh"
+              title="Tin tức người học"
               detailBase="/blog/phu-huynh"
             />
           );

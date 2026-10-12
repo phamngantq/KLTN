@@ -48,7 +48,7 @@ function ModeratorMatchSnapshot({ item }: { item: AdminApplication }) {
           <ApplicationMatchSummary snapshot={item.matchSnapshot} />
           <p className="text-muted">
             Điểm tính khi nộp đơn theo lớp phiên bản {item.matchSnapshot.classVersion}. Gia sư xác
-            nhận điều chỉnh cho riêng lớp này; phụ huynh chưa xác nhận các điều chỉnh đó.
+            nhận điều chỉnh cho riêng lớp này; người học chưa xác nhận các điều chỉnh đó.
           </p>
         </>
       ) : (
@@ -379,7 +379,7 @@ export function AdminApplicationsPage() {
         title={dialog?.action === 'select' ? 'Gán gia sư cho lớp' : 'Từ chối đơn nhận lớp'}
         description={
           dialog?.action === 'select'
-            ? `Gán ${dialog.item.tutorDisplayName} cho lớp ${dialog.item.classCode} sẽ kích hoạt lớp ngay và cho gia sư được chọn xem liên hệ riêng tư của phụ huynh.`
+            ? `Gán ${dialog.item.tutorDisplayName} cho lớp ${dialog.item.classCode} sẽ kích hoạt lớp ngay và cho gia sư được chọn xem liên hệ riêng tư của người học.`
             : `Từ chối đơn của ${dialog?.item.tutorDisplayName ?? ''} cho lớp ${dialog?.item.classCode ?? ''}.`
         }
         confirmLabel={dialog?.action === 'select' ? 'Gán và kích hoạt lớp' : 'Từ chối đơn'}
@@ -404,7 +404,7 @@ export function AdminApplicationsPage() {
                 setLocalError('');
               }}
               required
-              hint="Chỉ ghi mức phụ huynh và gia sư đã thống nhất. Mức này tách khỏi phí nhận lớp."
+              hint="Chỉ ghi mức người học và gia sư đã thống nhất. Mức này tách khỏi phí nhận lớp."
               error={errors.agreedTuitionPerSessionMinor}
             />
             <label className="flex items-start gap-3 text-sm">
@@ -417,7 +417,7 @@ export function AdminApplicationsPage() {
                 }}
                 className="mt-1 size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
               />
-              Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.
+              Tôi xác nhận người học và gia sư đã thống nhất mức học phí này.
             </label>
             {localError && <Alert tone="danger">{localError}</Alert>}
           </>

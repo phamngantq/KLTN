@@ -63,7 +63,7 @@ describe('published content pages', () => {
       audience: 'public',
       revision: 1,
       title: 'Chọn gia sư cho con',
-      summary: 'Gợi ý dành cho phụ huynh.',
+      summary: 'Gợi ý dành cho người học.',
       bodyText: unsafeText,
       publishedAt: '2026-10-01T00:00:00.000Z',
     };
@@ -83,7 +83,7 @@ describe('published content pages', () => {
       <PublishedContentCollectionPage
         kind="blog"
         slugPrefix="phu-huynh-"
-        title="Tin tức phụ huynh"
+        title="Tin tức người học"
         detailBase="/blog/phu-huynh"
       />,
     );
@@ -132,7 +132,7 @@ describe('published content pages', () => {
                 revision: 1,
                 title: 'Tôi có phải trả phí môi giới không?',
                 summary: '',
-                bodyText: 'Phụ huynh không trả phí dịch vụ tìm gia sư.',
+                bodyText: 'Người học không trả phí dịch vụ tìm gia sư.',
                 publishedAt: '2026-10-11T00:00:00.000Z',
               },
             ],

@@ -142,7 +142,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
   const outsider = await newPage(browser);
   const guest = await newPage(browser);
   const tutorName = `Gia sư E2E ${Date.now()}`;
-  const parentName = `Phụ huynh E2E ${Date.now()}`;
+  const parentName = `Người học E2E ${Date.now()}`;
   const phone = '0900000001';
   const address = 'Địa chỉ riêng của yêu cầu E2E';
 
@@ -194,7 +194,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await parent.getByRole('textbox', { name: /^Số điện thoại/ }).fill(phone);
     await parent.getByLabel('Địa chỉ cụ thể').fill(address);
     const send = parent.getByRole('button', { name: 'Gửi yêu cầu' });
-    await expect(parent.getByText(/Họ tên, số điện thoại, khu vực và các ghi chú/)).toBeVisible();
+    await expect(parent.getByText('Đồng ý trước khi gửi')).toHaveCount(0);
     await expect(parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/)).toHaveCount(0);
     await send.click();
     await expect(parent).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
@@ -272,7 +272,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await admin.getByRole('dialog').getByLabel('Học phí đã chốt (VNĐ/buổi)').fill('180000');
     await admin
       .getByRole('dialog')
-      .getByLabel('Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.')
+      .getByLabel('Tôi xác nhận người học và gia sư đã thống nhất mức học phí này.')
       .check();
     await admin.getByRole('dialog').getByRole('button', { name: 'Gán và kích hoạt lớp' }).click();
     await expect(admin.getByText(new RegExp(`Đã gán lớp ${cls!.code}`))).toBeVisible();
@@ -281,9 +281,9 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(tutor.getByText(cls!.code, { exact: false })).toBeVisible();
     await expect(tutor.getByText(/180\.000\s*₫\/buổi/).first()).toBeVisible();
     await expect(tutor.getByText(phone)).toHaveCount(0);
-    await tutor.getByRole('button', { name: 'Xem liên hệ phụ huynh' }).click();
-    await expect(tutor.getByRole('region', { name: 'Liên hệ phụ huynh' })).toContainText(phone);
-    await expect(tutor.getByRole('region', { name: 'Liên hệ phụ huynh' })).toContainText(address);
+    await tutor.getByRole('button', { name: 'Xem liên hệ người học' }).click();
+    await expect(tutor.getByRole('region', { name: 'Liên hệ người học' })).toContainText(phone);
+    await expect(tutor.getByRole('region', { name: 'Liên hệ người học' })).toContainText(address);
     const assignments = await getData<Items<Assignment>>(tutor, '/tutor/assignments');
     const assignment = assignments.items.find((item) => item.classId === cls!.id);
     expect(assignment).toBeDefined();
@@ -440,7 +440,7 @@ test('tutor contract → public offer → parent join → private contact → co
     await tutor.reload();
     await expect(tutor.getByText('Hợp đồng đăng lớp E2E · phiên bản 1')).toBeVisible();
     await tutor.getByLabel(/Tôi đã đọc và đồng ý hợp đồng phiên bản/).check();
-    await tutor.getByLabel(/Tôi đồng ý cho phụ huynh có yêu cầu/).check();
+    await tutor.getByLabel(/Tôi đồng ý cho người học có yêu cầu/).check();
     await tutor.getByRole('button', { name: 'Xác nhận hợp đồng và gửi duyệt' }).click();
     await expect(tutor.getByText('Đã gửi lớp và hợp đồng để kiểm duyệt.')).toBeVisible();
     const submitted = await getData<{
@@ -499,7 +499,7 @@ test('tutor contract → public offer → parent join → private contact → co
     await signUp(
       parent,
       'student',
-      `Phụ huynh tham gia E2E ${Date.now()}`,
+      `Người học tham gia E2E ${Date.now()}`,
       uniqueEmail('offer-parent'),
     );
     await parent.goto(`/parent/lop-tim-hoc-vien/${offerId}`);
@@ -554,7 +554,7 @@ test('tutor contract → public offer → parent join → private contact → co
     await expect(joinReview).toContainText(parentPhone);
     await expect(joinReview).toContainText(privatePhone);
     await joinReview.getByLabel('Học phí đã chốt (VNĐ/buổi)').fill('210000');
-    await joinReview.getByLabel(/Tôi xác nhận phụ huynh và gia sư đã thống nhất/).check();
+    await joinReview.getByLabel(/Tôi xác nhận người học và gia sư đã thống nhất/).check();
     await joinReview.getByRole('button', { name: 'Duyệt yêu cầu' }).click();
     await expect(admin.getByText(/Đã duyệt yêu cầu với học phí đã chốt/)).toBeVisible();
     const approvedJoin = await getData<
@@ -578,7 +578,7 @@ test('tutor contract → public offer → parent join → private contact → co
     await parent.getByRole('button', { name: 'Xem số điện thoại gia sư' }).click();
     await expect(parent.getByRole('link', { name: privatePhone })).toBeVisible();
     await tutor.reload();
-    await tutor.getByRole('button', { name: 'Xem số điện thoại phụ huynh' }).click();
+    await tutor.getByRole('button', { name: 'Xem số điện thoại người học' }).click();
     await expect(tutor.getByRole('link', { name: parentPhone })).toBeVisible();
 
     await admin.goto('/admin/tutor-offer-joins?status=approved');

@@ -18,20 +18,20 @@ const CONTENT: Record<PageKind, { eyebrow: string; title: string; intro: string;
     about: {
       eyebrow: 'GIỚI THIỆU',
       title: 'Về Chúng Tôi',
-      intro: 'Kết nối phụ huynh và gia sư qua yêu cầu, ứng tuyển và điều phối lớp học.',
+      intro: 'Kết nối người học và gia sư qua yêu cầu, ứng tuyển và điều phối lớp học.',
       status: 'Thông tin giới thiệu đang được kiểm duyệt để công bố.',
     },
     services: {
       eyebrow: 'DỊCH VỤ',
       title: 'Dịch vụ tìm gia sư',
-      intro: 'Phụ huynh gửi yêu cầu, gia sư ứng tuyển và kiểm duyệt viên điều phối lớp học.',
+      intro: 'Người học gửi yêu cầu, gia sư ứng tuyển và kiểm duyệt viên điều phối lớp học.',
       status: 'Các gói dịch vụ và điều kiện áp dụng chưa được công bố.',
     },
     pricing: {
       eyebrow: 'BẢNG GIÁ',
       title: 'Bảng giá đang được xác nhận',
       intro:
-        'Phụ huynh tìm gia sư miễn phí. Phí nhận lớp dành cho gia sư chỉ hiển thị sau khi được công bố.',
+        'Người học tìm gia sư miễn phí. Phí nhận lớp dành cho gia sư chỉ hiển thị sau khi được công bố.',
       status:
         'Chưa có mức phí được công bố tại trang này. Không thực hiện thanh toán qua trang này.',
     },
@@ -43,7 +43,7 @@ const CONTENT: Record<PageKind, { eyebrow: string; title: string; intro: string;
     },
     'blog-parent': {
       eyebrow: 'TIN TỨC',
-      title: 'Tin cho phụ huynh',
+      title: 'Tin cho người học',
       intro: 'Bài viết sẽ được hiển thị sau khi nội dung được biên tập và xuất bản.',
       status: 'Chưa có bài viết được công bố.',
     },
@@ -111,7 +111,7 @@ export function PublicInfoPage({ kind }: { kind: PageKind }) {
         </div>
         {(kind === 'blog-parent' || kind === 'blog-tutor') && (
           <p className="mx-auto mt-6 max-w-4xl text-sm text-muted">
-            {kind === 'blog-parent' ? 'Bạn là gia sư?' : 'Bạn là phụ huynh?'}{' '}
+            {kind === 'blog-parent' ? 'Bạn là gia sư?' : 'Bạn là người học?'}{' '}
             <Link
               to={kind === 'blog-parent' ? '/blog/gia-su' : '/blog/phu-huynh'}
               className="font-medium text-primary underline underline-offset-4"

@@ -40,10 +40,12 @@ Worker [staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.wo
   ```bash
   npm run db:migrate:local   # wrangler d1 migrations apply DB --local (chạy lại an toàn)
   npm run seed:sample:local   # tạo admin mẫu, 3 phương án phí nháp và bảng giá mẫu trong D1 local
+  npm run seed:learner-demo:local   # sau lệnh trên: tài khoản người học mẫu, khiếu nại đủ trạng thái, 6 bài cẩm nang, bảng giá tham khảo
   ```
 
 - Staging V2, theo yêu cầu nạp dữ liệu mẫu riêng: sau khi áp dụng migration mới, sao chép `.env.example` sang `.wrangler/sample-staging-v2/config.vars` bị Git bỏ qua, rồi chạy `npm run seed:sample:staging:v2`. Lệnh đọc cấu hình này và tạo admin mẫu, ba phương án phí đã công bố, sáu lớp tổng hợp đang mở, sáu mức học phí theo buổi và hai khoảng phí nhận lớp tham khảo trong D1 `tutor-matching-staging-v2`. Cấu hình cũ thiếu hai mảng bảng giá sẽ lấy giá trị mặc định từ `.env.example`. Xác minh đúng tài khoản/tài nguyên Cloudflare trước khi chạy. Xem [cấp quyền admin](docs/ADMIN_PROVISIONING.md).
 
+- Dữ liệu minh họa khu vực người học: `npm run seed:learner-demo:staging:v2` chạy sau `seed:sample:staging:v2`, tạo `nguoi-hoc-mau@example.test` (mật khẩu ngẫu nhiên trong `.wrangler/<môi trường>/learner-credentials.vars` bị Git bỏ qua), 4 khiếu nại (Chưa gửi, Đã gửi, Đang xử lý, Đã xử lý), 6 bài cẩm nang có danh mục/tác giả và bảng giá tham khảo theo đối tượng gia sư và theo môn. Mọi giá trị là dữ liệu mẫu; không chạy trên production.
 - Danh mục môn học (dữ liệu tham chiếu) nằm trong migration `0002`, có ở mọi môi trường.
 - Test server tự áp dụng migrations vào D1 local cô lập (`tests/server/setup.ts`).
 - Lưu ý D1: không dùng pattern `GLOB` dài trong `CHECK` (D1 báo "pattern too complex"); kiểm tra định dạng ngày/giờ bằng `date()`/`strftime()`.

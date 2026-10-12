@@ -213,10 +213,10 @@ function TutorJoinRequestCard({
         <div className="mt-3 border-t border-border pt-3">
           {!showContact ? (
             <Button variant="secondary" onClick={() => setShowContact(true)}>
-              Xem số điện thoại phụ huynh
+              Xem số điện thoại người học
             </Button>
           ) : contact.isPending ? (
-            <PageLoading label="Đang tải liên hệ phụ huynh…" />
+            <PageLoading label="Đang tải liên hệ người học…" />
           ) : contact.isError ? (
             <Alert
               tone="danger"
@@ -441,7 +441,7 @@ function OfferDetail({ offer }: { offer: TutorOffer }) {
             Yêu cầu tham gia lớp
           </h2>
           <p className="mt-1 text-sm text-muted">
-            Thông tin học tập do phụ huynh chia sẻ. Số điện thoại chỉ xem được sau khi kiểm duyệt
+            Thông tin học tập do người học chia sẻ. Số điện thoại chỉ xem được sau khi kiểm duyệt
             viên duyệt yêu cầu và xác nhận học phí.
           </p>
           {joinRequests.isPending ? (

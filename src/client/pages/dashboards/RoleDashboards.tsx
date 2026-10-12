@@ -193,7 +193,7 @@ export function ParentDashboardPage() {
             icon={GraduationCap}
           />
           <ActionCard
-            title="Hồ sơ phụ huynh"
+            title="Hồ sơ người học"
             description="Kiểm tra và cập nhật thông tin liên hệ của bạn."
             to="/parent/profile"
             icon={UserRound}

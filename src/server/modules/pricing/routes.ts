@@ -8,6 +8,7 @@ import {
   updateClassFeeGuidanceSchema,
   updateTuitionPriceSchema,
   type ClassFeeGuidanceVersion,
+  type LearnerPriceGuide,
   type TuitionPriceVersion,
 } from '../../../shared/schemas/pricing';
 import { ok } from '../../lib/respond';
@@ -23,6 +24,9 @@ publicPricingRoutes.get('/tuition', async (c) =>
 );
 publicPricingRoutes.get('/class-fees', async (c) =>
   ok<ClassFeeGuidanceVersion[]>(c, await service.listPublicGuidance(c.env.DB)),
+);
+publicPricingRoutes.get('/learner-guides', async (c) =>
+  ok<LearnerPriceGuide[]>(c, await service.listLearnerGuides(c.env.DB)),
 );
 
 /** Moderator-only catalog management. Published revisions are immutable. */

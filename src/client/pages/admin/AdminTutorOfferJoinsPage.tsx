@@ -143,7 +143,7 @@ export function AdminTutorOfferJoinsPage() {
     <section className="flex min-w-0 flex-col gap-6">
       <PageHeader
         title="Yêu cầu tham gia lớp tìm học viên"
-        description="Xem nhu cầu học tập phụ huynh đã gửi và xử lý yêu cầu."
+        description="Xem nhu cầu học tập người học đã gửi và xử lý yêu cầu."
       />
       {notice && <Alert tone="success">{notice}</Alert>}
       {isReadOnlyPreview() && <Alert tone="info">Bản xem trước chỉ đọc.</Alert>}
@@ -207,7 +207,7 @@ export function AdminTutorOfferJoinsPage() {
                   </div>
                   <dl className="grid gap-3 text-sm sm:grid-cols-2">
                     <div>
-                      <dt className="text-muted">Phụ huynh</dt>
+                      <dt className="text-muted">Người học</dt>
                       <dd>{join.parentDisplayName}</dd>
                     </div>
                     <div>
@@ -318,7 +318,7 @@ export function AdminTutorOfferJoinsPage() {
             ? 'Sau khi duyệt, hai bên có thể xem số điện thoại của nhau. Xác nhận mức học phí đã thống nhất.'
             : review?.action === 'complete' || review?.action === 'revoke'
               ? 'Quyền xem số điện thoại của hai bên sẽ chấm dứt ngay khi thao tác được ghi nhận.'
-              : 'Lưu lý do để phụ huynh biết kết quả.'
+              : 'Lưu lý do để người học biết kết quả.'
         }
         confirmLabel={
           review?.action === 'approve'
@@ -358,7 +358,7 @@ export function AdminTutorOfferJoinsPage() {
                 </Alert>
               ) : (
                 <p>
-                  Số điện thoại phụ huynh: {detail.data.parentContactPhone ?? 'Chưa cung cấp'}
+                  Số điện thoại người học: {detail.data.parentContactPhone ?? 'Chưa cung cấp'}
                   <br />
                   Số điện thoại gia sư: {detail.data.tutorContactPhone ?? 'Chưa cung cấp'}
                 </p>
@@ -390,7 +390,7 @@ export function AdminTutorOfferJoinsPage() {
                     }}
                     className="mt-0.5 size-4 shrink-0 accent-primary"
                   />
-                  Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.
+                  Tôi xác nhận người học và gia sư đã thống nhất mức học phí này.
                 </label>
                 {localError && <Alert tone="danger">{localError}</Alert>}
               </>

@@ -78,7 +78,7 @@ export function TutorDetailPage() {
         <p className="max-w-prose whitespace-pre-line text-fg">{data.bio}</p>
       </section>
       <Alert tone="info" title="Tìm gia sư theo yêu cầu">
-        Phụ huynh gửi môn học, lớp và lịch mong muốn. Kiểm duyệt viên sẽ điều phối gia sư phù hợp.
+        Người học gửi môn học, lớp và lịch mong muốn. Kiểm duyệt viên sẽ điều phối gia sư phù hợp.
       </Alert>
       {!preview && <ButtonLink to="/parent/request">Gửi yêu cầu tìm gia sư</ButtonLink>}
     </article>

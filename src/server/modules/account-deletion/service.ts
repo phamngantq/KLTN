@@ -107,6 +107,10 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
     .from(bookings)
     .where(or(eq(bookings.studentId, userId), eq(bookings.tutorId, userId)));
   const statements: BatchItem<'sqlite'>[] = [
+    // Unsent complaint drafts are private notes, not history: remove them outright.
+    db
+      .delete(complaints)
+      .where(and(eq(complaints.creatorUserId, userId), eq(complaints.status, 'draft'))),
     db
       .update(parentRequests)
       .set({

@@ -1,125 +1,582 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarDays, Eye, MessageSquare, Plus, Send } from 'lucide-react';
-import { useRef, useState, type FormEvent } from 'react';
+import {
+  CircleAlert,
+  CircleCheck,
+  Clock,
+  Eye,
+  Filter,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Send,
+  Trash2,
+} from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import {
-  COMPLAINT_STATUSES,
+  COMPLAINT_GROUP_KEYS,
+  COMPLAINT_GROUPS,
   createComplaintSchema,
+  type ComplaintCounts,
   type ComplaintDetail,
+  type ComplaintGroup,
   type ComplaintStatus,
-  type ComplaintSummary,
   type CreateComplaintInput,
+  type OwnComplaintSummary,
 } from '../../../shared/schemas/complaints';
 import type { Page } from '../../../shared/schemas/discovery';
 import { isReadOnlyPreview } from '../../app/preview';
-import { Button, buttonClass } from '../../components/ui/Button';
+import { Button } from '../../components/ui/Button';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { TextareaField, TextField } from '../../components/ui/Field';
+import { ListFooter, StatusTabs, SummaryCard } from '../../components/ui/ListControls';
 import { PageLoading } from '../../components/ui/Spinner';
+import { requestDate } from '../../features/parent-requests/format';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
 
-const LABELS: Record<ComplaintStatus, string> = {
+const STATUS_LABELS: Record<ComplaintStatus, string> = {
+  draft: 'Chưa gửi',
   submitted: 'Đã gửi',
-  in_review: 'Đang xem xét',
+  in_review: 'Đang xử lý',
   resolved: 'Đã xử lý',
 };
+const STATUS_TONES: Record<ComplaintStatus, 'neutral' | 'info' | 'warning' | 'success'> = {
+  draft: 'neutral',
+  submitted: 'info',
+  in_review: 'warning',
+  resolved: 'success',
+};
+const GROUP_LABELS: Record<ComplaintGroup, string> = {
+  draft: 'Chưa gửi',
+  processing: 'Đang xử lý',
+  resolved: 'Đã xử lý',
+};
+const PAGE_SIZES = [10, 20, 40] as const;
+
+type Filters = { q: string; from: string; to: string };
+type Editor = { mode: 'create' } | { mode: 'edit'; complaint: OwnComplaintSummary };
+
+const isLocalDate = (value: string | null): value is string =>
+  !!value && /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+function groupCount(counts: ComplaintCounts | undefined, group: ComplaintGroup) {
+  if (!counts) return null;
+  return COMPLAINT_GROUPS[group].reduce((sum, status) => sum + counts[status], 0);
+}
 
 export function ComplaintsPage() {
-  const [params] = useSearchParams();
-  const classId = params.get('classId');
+  const [params, setParams] = useSearchParams();
   const queryClient = useQueryClient();
-  const [status, setStatus] = useState<ComplaintStatus | ''>('');
-  const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [title, setTitle] = useState('');
-  const [body, setBody] = useState('');
-  const [validation, setValidation] = useState('');
+  const preview = isReadOnlyPreview();
+  const classId = params.get('classId');
+  const groupParam = params.get('group');
+  const group: ComplaintGroup = COMPLAINT_GROUP_KEYS.includes(groupParam as ComplaintGroup)
+    ? (groupParam as ComplaintGroup)
+    : 'draft';
+  const rawPage = Number(params.get('page') ?? 1);
+  const page = Number.isSafeInteger(rawPage) && rawPage >= 1 && rawPage <= 1000 ? rawPage : 1;
+  const rawSize = Number(params.get('pageSize') ?? PAGE_SIZES[0]);
+  const pageSize = PAGE_SIZES.includes(rawSize as (typeof PAGE_SIZES)[number])
+    ? rawSize
+    : PAGE_SIZES[0];
+  const applied: Filters = {
+    q: params.get('q')?.slice(0, 100) ?? '',
+    from: isLocalDate(params.get('from')) ? params.get('from')! : '',
+    to: isLocalDate(params.get('to')) ? params.get('to')! : '',
+  };
+  const [filters, setFilters] = useState<Filters>(applied);
+  const [editor, setEditor] = useState<Editor | null>(classId ? { mode: 'create' } : null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<OwnComplaintSummary | null>(null);
   const [notice, setNotice] = useState('');
-  const keyRef = useRef<string | null>(null);
-  const complaints = useQuery({
-    queryKey: ['complaints', status, page],
+
+  const counts = useQuery({
+    queryKey: ['complaint-counts'],
+    queryFn: ({ signal }) => api.get<ComplaintCounts>('/complaints/counts', { signal }),
+  });
+  const list = useQuery({
+    queryKey: ['complaints', group, applied, page, pageSize],
     queryFn: ({ signal }) =>
-      api.get<Page<ComplaintSummary>>(
-        `/complaints${toQuery({ status: status || undefined, page })}`,
+      api.get<Page<OwnComplaintSummary>>(
+        `/complaints${toQuery({
+          group,
+          q: applied.q || undefined,
+          from: applied.from || undefined,
+          to: applied.to || undefined,
+          page: page > 1 ? page : undefined,
+          pageSize,
+        })}`,
         { signal },
       ),
     placeholderData: keepPreviousData,
   });
-  const detail = useQuery({
-    queryKey: ['complaint', selectedId],
-    queryFn: ({ signal }) =>
-      api.get<ComplaintDetail>(`/complaints/${encodeURIComponent(selectedId!)}`, { signal }),
-    enabled: selectedId !== null,
+
+  function refresh() {
+    void queryClient.invalidateQueries({ queryKey: ['complaints'] });
+    void queryClient.invalidateQueries({ queryKey: ['complaint-counts'] });
+  }
+
+  const submitDraft = useMutation({
+    mutationFn: (item: OwnComplaintSummary) =>
+      api.post<ComplaintDetail>(`/complaints/${encodeURIComponent(item.id)}/submit`, {
+        version: item.version,
+      }),
+    onSuccess: (sent) => {
+      setNotice(`Đã gửi khiếu nại ${sent.code} đến trung tâm.`);
+      refresh();
+    },
   });
-  const create = useMutation({
-    mutationFn: ({ input, key }: { input: CreateComplaintInput; key: string }) =>
-      api.post<ComplaintDetail>('/complaints', input, { headers: { 'Idempotency-Key': key } }),
-    onSuccess: (created) => {
-      keyRef.current = null;
-      setTitle('');
-      setBody('');
-      setValidation('');
-      setNotice(`Đã gửi khiếu nại ${created.code}.`);
-      setSelectedId(created.id);
-      void queryClient.invalidateQueries({ queryKey: ['complaints'] });
+  const remove = useMutation({
+    mutationFn: (item: OwnComplaintSummary) =>
+      api.delete(`/complaints/${encodeURIComponent(item.id)}`, { version: item.version }),
+    onSuccess: () => {
+      setNotice(`Đã xóa bản nháp ${deleting?.code ?? ''}.`.trim());
+      setDeleting(null);
+      refresh();
     },
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setNotice('');
-    const input = createComplaintSchema.safeParse({ classId, title, body });
-    if (!input.success) {
-      setValidation(input.error.issues[0]?.message ?? 'Thông tin khiếu nại chưa hợp lệ.');
-      return;
-    }
-    setValidation('');
-    keyRef.current ??= crypto.randomUUID();
-    create.mutate({ input: input.data, key: keyRef.current });
+  function navigate(
+    next: Partial<Filters & { group: ComplaintGroup; page: number; pageSize: number }>,
+  ) {
+    const merged = { ...applied, group, page: 1, pageSize, ...next };
+    const search = new URLSearchParams();
+    if (merged.group !== 'draft') search.set('group', merged.group);
+    for (const key of ['q', 'from', 'to'] as const) if (merged[key]) search.set(key, merged[key]);
+    if (merged.page > 1) search.set('page', String(merged.page));
+    if (merged.pageSize !== PAGE_SIZES[0]) search.set('pageSize', String(merged.pageSize));
+    setParams(search);
   }
 
-  const errors = fieldErrors(create.error);
-  const totalPages = Math.max(
-    1,
-    Math.ceil((complaints.data?.total ?? 0) / (complaints.data?.pageSize ?? 12)),
-  );
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    navigate({ ...filters, q: filters.q.trim() });
+  }
+
+  function resetFilters() {
+    const empty = { q: '', from: '', to: '' };
+    setFilters(empty);
+    navigate(empty);
+    refresh();
+  }
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-semibold text-[#0e2f5f]">Khiếu nại của tôi</h1>
-          <p className="mt-2 text-sm text-muted">
-            Quản lý và theo dõi các khiếu nại gửi đến trung tâm. Nội dung chỉ hiển thị cho bạn và
-            kiểm duyệt viên.
+          <h1 className="text-3xl font-semibold text-primary">Khiếu nại của tôi</h1>
+          <p className="mt-1 text-sm text-muted">
+            Quản lý và theo dõi các khiếu nại gửi đến trung tâm
           </p>
         </div>
-        <a href="#new-complaint" className={buttonClass('primary')}>
-          <Plus aria-hidden="true" className="size-4" />
-          Tạo khiếu nại
-        </a>
+        {!preview && (
+          <Button
+            className="gap-2"
+            onClick={() => {
+              setNotice('');
+              setEditor({ mode: 'create' });
+            }}
+          >
+            <Plus aria-hidden="true" className="size-4" />
+            Tạo khiếu nại
+          </Button>
+        )}
       </div>
-      {isReadOnlyPreview() && (
+      {preview && (
         <Alert tone="info">Bản xem trước chỉ cho phép xem, chưa nhận khiếu nại mới.</Alert>
       )}
       {notice && <Alert tone="success">{notice}</Alert>}
+      {(submitDraft.isError || remove.isError) && (
+        <Alert tone="danger" title="Chưa thực hiện được thao tác">
+          {(submitDraft.error ?? remove.error)?.message}
+        </Alert>
+      )}
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <SummaryCard
+          label={GROUP_LABELS.draft}
+          value={groupCount(counts.data, 'draft')}
+          unit="khiếu nại"
+          icon={Clock}
+          active={group === 'draft'}
+          onSelect={() => navigate({ group: 'draft' })}
+        />
+        <SummaryCard
+          label={GROUP_LABELS.processing}
+          value={groupCount(counts.data, 'processing')}
+          unit="khiếu nại"
+          icon={CircleAlert}
+          tone="info"
+          active={group === 'processing'}
+          onSelect={() => navigate({ group: 'processing' })}
+        />
+        <SummaryCard
+          label={GROUP_LABELS.resolved}
+          value={groupCount(counts.data, 'resolved')}
+          unit="khiếu nại"
+          icon={CircleCheck}
+          tone="success"
+          active={group === 'resolved'}
+          onSelect={() => navigate({ group: 'resolved' })}
+        />
+      </div>
 
       <form
-        id="new-complaint"
-        onSubmit={submit}
-        className="flex max-w-2xl scroll-mt-24 flex-col gap-4 rounded-xl border border-border bg-white p-5 shadow-card sm:p-6"
+        onSubmit={applyFilters}
+        className="grid gap-3 rounded-xl border border-border bg-bg p-4 shadow-card md:grid-cols-2 xl:grid-cols-[minmax(0,3fr)_repeat(2,minmax(0,1fr))_auto] xl:items-end"
       >
-        <h2 className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]">
-          <MessageSquare aria-hidden="true" className="size-5" />
-          Gửi khiếu nại
+        <TextField
+          label="Từ khóa"
+          type="search"
+          placeholder="Mã, tiêu đề, nội dung…"
+          maxLength={100}
+          value={filters.q}
+          onChange={(event) => setFilters({ ...filters, q: event.target.value })}
+        />
+        <TextField
+          label="Từ ngày"
+          type="date"
+          value={filters.from}
+          max={filters.to || undefined}
+          onChange={(event) => setFilters({ ...filters, from: event.target.value })}
+        />
+        <TextField
+          label="Đến ngày"
+          type="date"
+          value={filters.to}
+          min={filters.from || undefined}
+          onChange={(event) => setFilters({ ...filters, to: event.target.value })}
+        />
+        <div className="flex gap-2">
+          <Button type="submit" className="gap-2">
+            <Filter aria-hidden="true" className="size-4" />
+            Lọc
+          </Button>
+          <Button type="button" variant="secondary" className="gap-2" onClick={resetFilters}>
+            <RefreshCw aria-hidden="true" className="size-4" />
+            Làm mới
+          </Button>
+        </div>
+      </form>
+
+      <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg shadow-card">
+        <StatusTabs
+          label="Trạng thái khiếu nại"
+          tabs={COMPLAINT_GROUP_KEYS.map((key) => ({
+            key,
+            label: GROUP_LABELS[key],
+            count: groupCount(counts.data, key),
+          }))}
+          selected={group}
+          onSelect={(key) => navigate({ group: key })}
+        />
+        {list.isPending ? (
+          <div className="p-6">
+            <PageLoading label="Đang tải khiếu nại…" />
+          </div>
+        ) : list.isError ? (
+          <div className="p-4">
+            <Alert
+              tone="danger"
+              title="Không tải được khiếu nại"
+              action={
+                <Button variant="secondary" onClick={() => void list.refetch()}>
+                  Thử lại
+                </Button>
+              }
+            >
+              {list.error.message}
+            </Alert>
+          </div>
+        ) : list.data.items.length === 0 ? (
+          <div className="p-4">
+            <EmptyState
+              title="Chưa có khiếu nại phù hợp"
+              description="Không có khiếu nại nào khớp với tab và bộ lọc hiện tại."
+            />
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="border-b border-border bg-surface text-xs uppercase tracking-wide text-muted">
+                  <tr>
+                    {['Mã', 'Tiêu đề / Nội dung', 'Ngày tạo', 'Trạng thái'].map((label) => (
+                      <th key={label} scope="col" className="px-4 py-3 font-medium">
+                        {label}
+                      </th>
+                    ))}
+                    <th scope="col" className="px-4 py-3 text-right font-medium">
+                      Thao tác
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {list.data.items.map((item) => (
+                    <tr key={item.id} className="hover:bg-surface">
+                      <td className="px-4 py-3 font-mono text-xs whitespace-nowrap text-muted">
+                        {item.code}
+                      </td>
+                      <td className="max-w-xl px-4 py-3">
+                        <p className="font-semibold text-primary">{item.title}</p>
+                        <p className="mt-0.5 line-clamp-1 text-xs text-muted">{item.body}</p>
+                      </td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap text-muted">
+                        {requestDate(item.createdAt)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <Badge tone={STATUS_TONES[item.status]}>{STATUS_LABELS[item.status]}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-2">
+                          {item.status === 'draft' && !preview ? (
+                            <>
+                              <RowAction
+                                label={`Sửa ${item.code}`}
+                                onClick={() => {
+                                  setNotice('');
+                                  setEditor({ mode: 'edit', complaint: item });
+                                }}
+                              >
+                                <Pencil aria-hidden="true" className="size-4" />
+                                Sửa
+                              </RowAction>
+                              <RowAction
+                                label={`Gửi ${item.code}`}
+                                emphasis
+                                disabled={submitDraft.isPending}
+                                onClick={() => {
+                                  setNotice('');
+                                  submitDraft.mutate(item);
+                                }}
+                              >
+                                <Send aria-hidden="true" className="size-4" />
+                                Gửi
+                              </RowAction>
+                              <RowAction
+                                label={`Xóa ${item.code}`}
+                                danger
+                                onClick={() => setDeleting(item)}
+                              >
+                                <Trash2 aria-hidden="true" className="size-4" />
+                              </RowAction>
+                            </>
+                          ) : (
+                            <RowAction
+                              label={`Xem ${item.code}`}
+                              onClick={() => setViewingId(item.id)}
+                            >
+                              <Eye aria-hidden="true" className="size-4" />
+                              Xem
+                            </RowAction>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <ListFooter
+              page={page}
+              pageSize={pageSize}
+              pageSizes={PAGE_SIZES}
+              shown={list.data.items.length}
+              total={list.data.total}
+              navigationLabel="Trang khiếu nại"
+              onPage={(next) => navigate({ page: next })}
+              onPageSize={(size) => navigate({ pageSize: size })}
+            />
+          </>
+        )}
+      </div>
+
+      {editor && (
+        <ComplaintEditor
+          key={editor.mode === 'edit' ? editor.complaint.id : 'new'}
+          editor={editor}
+          classId={classId}
+          onClose={() => setEditor(null)}
+          onSaved={(saved, sent) => {
+            setEditor(null);
+            setNotice(
+              sent
+                ? `Đã gửi khiếu nại ${saved.code} đến trung tâm.`
+                : `Đã lưu bản nháp ${saved.code}.`,
+            );
+            refresh();
+            if (sent && group === 'draft') navigate({ group: 'processing' });
+          }}
+        />
+      )}
+      {viewingId && <ComplaintViewer id={viewingId} onClose={() => setViewingId(null)} />}
+      <ConfirmDialog
+        open={deleting !== null}
+        title="Xóa bản nháp khiếu nại"
+        description={`Bản nháp ${deleting?.code ?? ''} sẽ bị xóa và không khôi phục được.`}
+        confirmLabel="Xóa bản nháp"
+        tone="danger"
+        loading={remove.isPending}
+        onConfirm={() => deleting && remove.mutate(deleting)}
+        onCancel={() => setDeleting(null)}
+      />
+    </section>
+  );
+}
+
+function RowAction({
+  label,
+  onClick,
+  disabled,
+  emphasis,
+  danger,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  emphasis?: boolean;
+  danger?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex min-h-11 min-w-11 items-center justify-center gap-1 whitespace-nowrap rounded-lg border px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:opacity-50 ${
+        danger
+          ? 'border-danger/40 text-danger hover:bg-danger-surface'
+          : emphasis
+            ? 'border-primary text-primary hover:bg-info-surface'
+            : 'border-border text-fg hover:bg-surface'
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+/** Native <dialog> shell: focus trap, Escape and focus return come from the browser. */
+function Modal({
+  title,
+  onClose,
+  locked = false,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  locked?: boolean;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = ref.current;
+    const opener = document.activeElement;
+    if (dialog && !dialog.open) {
+      if (typeof dialog.showModal === 'function') dialog.showModal();
+      else dialog.setAttribute('open', '');
+    }
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, []);
+  const titleId = `${title.replace(/\W+/g, '-')}-title`;
+  return (
+    <dialog
+      ref={ref}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        event.preventDefault();
+        if (!locked) onClose();
+      }}
+      className="m-auto w-[min(40rem,calc(100vw-2rem))] rounded-xl border border-border bg-bg p-0 text-fg shadow-card backdrop:bg-fg/40"
+    >
+      <div className="flex flex-col gap-4 p-6">
+        <h2 id={titleId} className="text-lg font-semibold text-primary">
+          {title}
         </h2>
-        {classId && <p className="text-sm text-muted">Khiếu nại liên quan đến lớp được chọn.</p>}
+        {children}
+      </div>
+    </dialog>
+  );
+}
+
+function ComplaintEditor({
+  editor,
+  classId,
+  onClose,
+  onSaved,
+}: {
+  editor: Editor;
+  classId: string | null;
+  onClose: () => void;
+  onSaved: (saved: ComplaintDetail, sent: boolean) => void;
+}) {
+  const existing = editor.mode === 'edit' ? editor.complaint : null;
+  const [title, setTitle] = useState(existing?.title ?? '');
+  const [body, setBody] = useState(existing?.body ?? '');
+  const [localError, setLocalError] = useState('');
+  const keyRef = useRef<string | null>(null);
+  const linkedClass = existing ? existing.classId : classId;
+
+  const save = useMutation({
+    mutationFn: async ({ input, send }: { input: CreateComplaintInput; send: boolean }) => {
+      if (!existing) {
+        keyRef.current ??= crypto.randomUUID();
+        return api.post<ComplaintDetail>(
+          '/complaints',
+          { ...input, submit: send },
+          { headers: { 'Idempotency-Key': keyRef.current } },
+        );
+      }
+      const path = `/complaints/${encodeURIComponent(existing.id)}`;
+      const edited = await api.patch<ComplaintDetail>(path, {
+        classId: input.classId,
+        title: input.title,
+        body: input.body,
+        version: existing.version,
+      });
+      return send
+        ? api.post<ComplaintDetail>(`${path}/submit`, { version: edited.version })
+        : edited;
+    },
+    onSuccess: (saved, { send }) => onSaved(saved, send),
+  });
+
+  function persist(send: boolean) {
+    const parsed = createComplaintSchema.safeParse({ classId: linkedClass, title, body });
+    if (!parsed.success) {
+      setLocalError(parsed.error.issues[0]?.message ?? 'Thông tin khiếu nại chưa hợp lệ.');
+      return;
+    }
+    setLocalError('');
+    save.mutate({ input: parsed.data, send });
+  }
+
+  const errors = fieldErrors(save.error);
+  return (
+    <Modal
+      title={existing ? `Sửa khiếu nại ${existing.code}` : 'Tạo khiếu nại'}
+      onClose={onClose}
+      locked={save.isPending}
+    >
+      <form
+        noValidate
+        className="flex flex-col gap-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          persist(true);
+        }}
+      >
+        {linkedClass && <p className="text-sm text-muted">Khiếu nại liên quan đến lớp đã chọn.</p>}
         <TextField
           label="Tiêu đề"
-          value={title}
           required
-          minLength={5}
           maxLength={120}
+          value={title}
           onChange={(event) => {
             setTitle(event.target.value);
             keyRef.current = null;
@@ -128,173 +585,96 @@ export function ComplaintsPage() {
         />
         <TextareaField
           label="Nội dung"
-          value={body}
           required
-          minLength={10}
           maxLength={5000}
+          hint="Mô tả sự việc, thời gian và mong muốn của bạn. Nội dung chỉ bạn và kiểm duyệt viên xem được."
+          value={body}
           onChange={(event) => {
             setBody(event.target.value);
             keyRef.current = null;
           }}
           error={errors.body}
-          hint="Không gửi mật khẩu hoặc giấy tờ cá nhân trong nội dung."
         />
-        {validation && <Alert tone="danger">{validation}</Alert>}
-        {create.isError && <Alert tone="danger">{create.error.message}</Alert>}
-        <div>
-          <Button type="submit" loading={create.isPending} disabled={isReadOnlyPreview()}>
+        {(localError || (save.isError && !Object.keys(errors).length)) && (
+          <p role="alert" className="text-sm text-danger">
+            {localError || save.error?.message}
+          </p>
+        )}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button type="button" variant="secondary" disabled={save.isPending} onClick={onClose}>
+            Hủy
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={save.isPending && save.variables?.send === false}
+            disabled={save.isPending}
+            onClick={() => persist(false)}
+          >
+            Lưu nháp
+          </Button>
+          <Button
+            type="submit"
+            className="gap-2"
+            loading={save.isPending && save.variables?.send === true}
+            disabled={save.isPending}
+          >
             <Send aria-hidden="true" className="size-4" />
             Gửi khiếu nại
           </Button>
         </div>
       </form>
+    </Modal>
+  );
+}
 
-      <section
-        className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-card"
-        aria-labelledby="complaint-list-heading"
-      >
-        <div className="border-b border-border px-4 pt-5 sm:px-6">
-          <h2
-            id="complaint-list-heading"
-            className="flex items-center gap-2 text-xl font-semibold text-[#0e2f5f]"
-          >
-            <MessageSquare aria-hidden="true" className="size-5" />
-            Danh sách khiếu nại
-          </h2>
-          <div
-            role="group"
-            className="mt-4 flex gap-1 overflow-x-auto"
-            aria-label="Lọc trạng thái khiếu nại"
-          >
-            {(['', ...COMPLAINT_STATUSES] as const).map((value) => (
-              <button
-                key={value || 'all'}
-                type="button"
-                aria-pressed={status === value}
-                onClick={() => {
-                  setStatus(value);
-                  setPage(1);
-                }}
-                className={`min-h-11 shrink-0 border-b-2 px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-focus ${status === value ? 'border-[#0e2f5f] text-[#0e2f5f]' : 'border-transparent text-muted hover:text-[#0e2f5f]'}`}
-              >
-                {value ? LABELS[value] : 'Tất cả'}
-              </button>
-            ))}
+function ComplaintViewer({ id, onClose }: { id: string; onClose: () => void }) {
+  const detail = useQuery({
+    queryKey: ['complaint', id],
+    queryFn: ({ signal }) =>
+      api.get<ComplaintDetail>(`/complaints/${encodeURIComponent(id)}`, { signal }),
+  });
+  return (
+    <Modal title="Chi tiết khiếu nại" onClose={onClose}>
+      {detail.isPending ? (
+        <PageLoading label="Đang tải khiếu nại…" />
+      ) : detail.isError ? (
+        <Alert tone="danger">{detail.error.message}</Alert>
+      ) : (
+        <div className="flex flex-col gap-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs text-muted">{detail.data.code}</span>
+            <Badge tone={STATUS_TONES[detail.data.status]}>
+              {STATUS_LABELS[detail.data.status]}
+            </Badge>
           </div>
-        </div>
-        <div className="p-4 sm:p-6">
-          {complaints.isPending ? (
-            <PageLoading label="Đang tải khiếu nại…" />
-          ) : complaints.isError ? (
-            <Alert
-              tone="danger"
-              action={
-                <Button variant="secondary" onClick={() => void complaints.refetch()}>
-                  Thử lại
-                </Button>
-              }
-            >
-              {complaints.error.message}
-            </Alert>
-          ) : complaints.data.items.length === 0 ? (
-            <EmptyState
-              title="Chưa có khiếu nại"
-              description="Khi gửi thành công, khiếu nại sẽ xuất hiện tại đây."
-            />
-          ) : (
-            <>
-              <ul className="grid gap-3">
-                {complaints.data.items.map((item) => (
-                  <li
-                    key={item.id}
-                    className="rounded-lg border border-border bg-white p-4 transition-shadow hover:shadow-md"
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="font-semibold text-[#0e2f5f]">{item.title}</p>
-                        <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted">
-                          <span className="font-mono text-xs">{item.code}</span>
-                          <span aria-hidden="true">·</span>
-                          <CalendarDays aria-hidden="true" className="size-4" />
-                          {new Date(item.createdAt).toLocaleDateString('vi-VN')}
-                        </p>
-                      </div>
-                      <Badge tone={item.status === 'resolved' ? 'success' : 'info'}>
-                        {LABELS[item.status]}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      className="mt-3"
-                      onClick={() => setSelectedId(item.id)}
-                    >
-                      <Eye aria-hidden="true" className="size-4" />
-                      Xem chi tiết
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-              <nav aria-label="Phân trang khiếu nại" className="flex items-center gap-3">
-                <Button variant="secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-                  Trước
-                </Button>
-                <span>
-                  Trang {page}/{totalPages}
-                </span>
-                <Button
-                  variant="secondary"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Sau
-                </Button>
-              </nav>
-            </>
-          )}
-        </div>
-      </section>
-
-      {selectedId && (
-        <section
-          className="max-w-2xl rounded-xl border border-border bg-white p-5 shadow-card sm:p-6"
-          aria-label="Chi tiết khiếu nại"
-        >
-          <div className="mb-3 flex justify-between gap-3">
-            <h2 className="text-lg font-semibold text-[#0e2f5f]">Chi tiết khiếu nại</h2>
-            <Button variant="secondary" onClick={() => setSelectedId(null)}>
-              Đóng
-            </Button>
-          </div>
-          {detail.isPending ? (
-            <PageLoading label="Đang tải chi tiết…" />
-          ) : detail.isError ? (
-            <Alert
-              tone="danger"
-              action={
-                <Button variant="secondary" onClick={() => void detail.refetch()}>
-                  Thử lại
-                </Button>
-              }
-            >
-              {detail.error.message}
-            </Alert>
-          ) : (
-            <div className="space-y-3">
-              <p className="font-medium">{detail.data.title}</p>
-              <p className="whitespace-pre-wrap">{detail.data.body}</p>
-              <Badge tone={detail.data.status === 'resolved' ? 'success' : 'info'}>
-                {LABELS[detail.data.status]}
-              </Badge>
-              {detail.data.resolution && (
-                <div className="rounded-md border border-success p-3">
-                  <h3 className="font-medium">Kết quả xử lý</h3>
-                  <p className="whitespace-pre-wrap">{detail.data.resolution}</p>
-                </div>
-              )}
+          <p className="text-base font-semibold text-primary">{detail.data.title}</p>
+          <p className="whitespace-pre-line break-words">{detail.data.body}</p>
+          <dl className="grid gap-1 text-xs text-muted sm:grid-cols-2">
+            <div>
+              <dt className="inline">Ngày tạo: </dt>
+              <dd className="inline">{requestDate(detail.data.createdAt)}</dd>
+            </div>
+            {detail.data.submittedAt && (
+              <div>
+                <dt className="inline">Ngày gửi: </dt>
+                <dd className="inline">{requestDate(detail.data.submittedAt)}</dd>
+              </div>
+            )}
+          </dl>
+          {detail.data.resolution && (
+            <div className="rounded-lg border border-success bg-success-surface p-3">
+              <p className="font-semibold text-success">Kết quả xử lý</p>
+              <p className="mt-1 whitespace-pre-line break-words">{detail.data.resolution}</p>
             </div>
           )}
-        </section>
+        </div>
       )}
-    </section>
+      <div className="flex justify-end">
+        <Button variant="secondary" onClick={onClose}>
+          Đóng
+        </Button>
+      </div>
+    </Modal>
   );
 }

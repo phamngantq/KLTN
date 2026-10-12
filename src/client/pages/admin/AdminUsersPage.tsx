@@ -15,7 +15,7 @@ import { api, fieldErrors, toQuery } from '../../lib/api-client';
 import { formatDate } from '../../lib/format';
 
 const ROLE_LABELS: Record<UserRole, string> = {
-  student: 'Phụ huynh',
+  student: 'Người học',
   tutor: 'Gia sư',
   admin: 'Kiểm duyệt viên',
 };
@@ -149,7 +149,7 @@ export function AdminUsersPage() {
             }
           >
             <option value="">Tất cả vai trò</option>
-            <option value="student">Phụ huynh</option>
+            <option value="student">Người học</option>
             <option value="tutor">Gia sư</option>
             <option value="admin">Kiểm duyệt viên</option>
           </SelectField>
@@ -312,7 +312,7 @@ export function AdminUsersPage() {
                     {detailUser.role === 'tutor'
                       ? 'Hồ sơ gia sư'
                       : detailUser.role === 'student'
-                        ? 'Thông tin phụ huynh'
+                        ? 'Thông tin người học'
                         : 'Thông tin kiểm duyệt viên'}
                   </h2>
                   <p className="mt-1 text-sm text-muted">Thông tin tài khoản từ hệ thống</p>

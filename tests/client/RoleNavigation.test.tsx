@@ -24,10 +24,10 @@ describe('role navigation', () => {
 
     expect(document.querySelectorAll('header.sticky')).toHaveLength(1);
     expect(document.querySelector('[data-role-area="parent"] nav')).toBeNull();
-    expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Phụ huynh' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Người học' })).toBeNull();
 
     await user.click(screen.getByRole('button', { name: 'Mở menu' }));
-    const menu = screen.getByRole('navigation', { name: 'Điều hướng di động Phụ huynh' });
+    const menu = screen.getByRole('navigation', { name: 'Điều hướng di động Người học' });
     expect(
       within(menu)
         .getAllByRole('link')
@@ -36,21 +36,21 @@ describe('role navigation', () => {
     expect(within(menu).getByRole('link', { name: 'Tìm kiếm gia sư' }).className).toContain(
       'bg-accent',
     );
-    expect(within(menu).queryByRole('link', { name: 'Khu vực phụ huynh' })).toBeNull();
+    expect(within(menu).queryByRole('link', { name: 'Khu vực người học' })).toBeNull();
 
     await user.click(within(menu).getByRole('link', { name: 'Tìm kiếm gia sư' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
-    expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Phụ huynh' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Người học' })).toBeNull();
   });
 
-  it('has no "Khu vực phụ huynh" item for parents but keeps the tutor portal link', async () => {
+  it('has no "Khu vực người học" item for parents but keeps the tutor portal link', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       return undefined;
     });
     renderRoute('/');
     expect(await screen.findByLabelText('Tài khoản của Nguyễn An')).toBeTruthy();
-    expect(screen.queryByText('Khu vực phụ huynh', { ignore: false })).toBeNull();
+    expect(screen.queryByText('Khu vực người học', { ignore: false })).toBeNull();
     expect(
       screen.getByRole('link', { name: 'Gia Sư Đỗ Hằng — Trang chủ' }).getAttribute('href'),
     ).toBe('/parent/dashboard');

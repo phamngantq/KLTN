@@ -79,7 +79,7 @@ describe('agreed tuition UI', () => {
 
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.',
+        name: 'Tôi xác nhận người học và gia sư đã thống nhất mức học phí này.',
       }),
     );
     await user.click(screen.getByRole('button', { name: 'Gán và kích hoạt lớp' }));
@@ -127,7 +127,7 @@ describe('agreed tuition UI', () => {
     expect(calls.some((call) => call.path.endsWith('/tuition'))).toBe(false);
     await user.click(
       screen.getByRole('checkbox', {
-        name: 'Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.',
+        name: 'Tôi xác nhận người học và gia sư đã thống nhất mức học phí này.',
       }),
     );
     await user.click(screen.getByRole('button', { name: 'Lưu học phí đã chốt' }));

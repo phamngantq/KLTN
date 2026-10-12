@@ -2,14 +2,17 @@ import { Hono } from 'hono';
 import type { Page } from '../../../shared/schemas/discovery';
 import {
   adminComplaintListSchema,
+  complaintVersionSchema,
   createComplaintSchema,
   ownComplaintListSchema,
+  updateComplaintDraftSchema,
   resolveComplaintSchema,
   triageComplaintSchema,
   type AdminComplaintDetail,
   type AdminComplaintSummary,
+  type ComplaintCounts,
   type ComplaintDetail,
-  type ComplaintSummary,
+  type OwnComplaintSummary,
 } from '../../../shared/schemas/complaints';
 import { AppError } from '../../lib/errors';
 import { ok } from '../../lib/respond';
@@ -53,7 +56,7 @@ complaintRoutes.post('/', async (c) => {
 });
 
 complaintRoutes.get('/', async (c) =>
-  ok<Page<ComplaintSummary>>(
+  ok<Page<OwnComplaintSummary>>(
     c,
     await service.listOwnComplaints(
       c.var.db,
@@ -62,6 +65,32 @@ complaintRoutes.get('/', async (c) =>
     ),
   ),
 );
+
+complaintRoutes.get('/counts', async (c) =>
+  ok<ComplaintCounts>(c, await service.countOwnComplaints(c.var.db, authOf(c).user.id)),
+);
+
+complaintRoutes.patch('/:id', async (c) => {
+  const input = await parseJsonBody(c, updateComplaintDraftSchema);
+  return ok<ComplaintDetail>(
+    c,
+    await service.updateOwnDraft(c.var.db, authOf(c).user.id, c.req.param('id'), input),
+  );
+});
+
+complaintRoutes.post('/:id/submit', async (c) => {
+  const { version } = await parseJsonBody(c, complaintVersionSchema);
+  return ok<ComplaintDetail>(
+    c,
+    await service.submitOwnDraft(c.var.db, authOf(c).user.id, c.req.param('id'), version),
+  );
+});
+
+complaintRoutes.delete('/:id', async (c) => {
+  const { version } = await parseJsonBody(c, complaintVersionSchema);
+  await service.deleteOwnDraft(c.var.db, authOf(c).user.id, c.req.param('id'), version);
+  return ok(c, { deleted: true });
+});
 
 complaintRoutes.get('/:id', async (c) =>
   ok<ComplaintDetail>(

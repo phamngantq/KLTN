@@ -1,19 +1,5 @@
-import { useState, type FormEvent, type ReactNode } from 'react';
-import type { LucideIcon } from 'lucide-react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  CircleCheck,
-  Eye,
-  Filter,
-  Phone,
-  Plus,
-  RefreshCw,
-  Search,
-  UserCheck,
-} from 'lucide-react';
+import { useState, type FormEvent } from 'react';
+import { CircleCheck, Eye, Filter, Phone, Plus, RefreshCw, Search, UserCheck } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
 import {
   EDUCATION_LEVEL_LABELS,
@@ -28,6 +14,7 @@ import type { ParentDashboard } from '../../../shared/schemas/reports';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { SelectField, TextField } from '../../components/ui/Field';
+import { ListFooter, StatusTabs, SummaryCard } from '../../components/ui/ListControls';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
   useParentRequestCounts,
@@ -176,17 +163,12 @@ export function ParentRequestsPage() {
   const tabs = REQUEST_STATUS_GROUP_KEYS.filter(
     (key) => key !== 'other' || group === 'other' || (groupCount(counts.data, 'other') ?? 0) > 0,
   );
-  const lastPage = requests.data
-    ? Math.max(1, Math.ceil(requests.data.total / requests.data.pageSize))
-    : 1;
-  const firstRow = requests.data?.items.length ? (page - 1) * pageSize + 1 : 0;
-  const lastRow = requests.data ? (page - 1) * pageSize + requests.data.items.length : 0;
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Thuê Gia Sư</h1>
+          <h1 className="text-3xl font-bold text-primary">Tìm kiếm gia sư</h1>
           <p className="mt-1 text-sm text-muted">
             Gửi yêu cầu để chúng tôi tìm gia sư phù hợp cho bạn
           </p>
@@ -207,10 +189,11 @@ export function ParentRequestsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryCard label="Tổng yêu cầu" value={total} />
+        <SummaryCard label="Tổng yêu cầu" value={total} unit="yêu cầu" />
         <SummaryCard
           label={GROUP_LABELS.searching}
           value={groupCount(counts.data, 'searching')}
+          unit="yêu cầu"
           icon={Search}
           tone="warning"
           active={group === 'searching'}
@@ -219,6 +202,7 @@ export function ParentRequestsPage() {
         <SummaryCard
           label={GROUP_LABELS.found}
           value={groupCount(counts.data, 'found')}
+          unit="yêu cầu"
           icon={UserCheck}
           tone="info"
           active={group === 'found'}
@@ -227,6 +211,7 @@ export function ParentRequestsPage() {
         <SummaryCard
           label={GROUP_LABELS.confirmed}
           value={groupCount(counts.data, 'confirmed')}
+          unit="yêu cầu"
           icon={CircleCheck}
           tone="success"
           active={group === 'confirmed'}
@@ -294,41 +279,16 @@ export function ParentRequestsPage() {
       </form>
 
       <div className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg shadow-card">
-        <div
-          role="tablist"
-          aria-label="Trạng thái yêu cầu"
-          className="flex overflow-x-auto border-b border-border"
-        >
-          {tabs.map((key) => {
-            const selected = group === key && !status;
-            const value = groupCount(counts.data, key);
-            return (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={selected}
-                onClick={() => navigate({ group: key })}
-                className={`inline-flex min-h-12 shrink-0 items-center gap-2 border-b-2 px-5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus ${
-                  selected
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted hover:text-primary'
-                }`}
-              >
-                {GROUP_LABELS[key]}
-                {value !== null && (
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      selected ? 'bg-primary text-on-primary' : 'bg-surface text-muted'
-                    }`}
-                  >
-                    {value}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+        <StatusTabs
+          label="Trạng thái yêu cầu"
+          tabs={tabs.map((key) => ({
+            key,
+            label: GROUP_LABELS[key],
+            count: groupCount(counts.data, key),
+          }))}
+          selected={status ? null : group}
+          onSelect={(key) => navigate({ group: key })}
+        />
         {status && (
           <div className="flex flex-wrap items-center gap-3 border-b border-border px-4 py-3 text-sm">
             <span>
@@ -403,63 +363,16 @@ export function ParentRequestsPage() {
                 </tbody>
               </table>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-surface px-4 py-3">
-              <div className="flex items-center gap-3 text-sm text-muted">
-                <label className="flex items-center gap-2">
-                  Hiển thị
-                  <select
-                    value={pageSize}
-                    onChange={(event) => navigate({ pageSize: Number(event.target.value) })}
-                    className="min-h-11 rounded-md border border-border bg-bg px-2 text-sm text-fg focus-visible:outline-2 focus-visible:outline-focus"
-                  >
-                    {PAGE_SIZES.map((size) => (
-                      <option key={size} value={size}>
-                        {size}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <span role="status">
-                  {firstRow}–{lastRow} / <strong>{requests.data.total}</strong> bản ghi
-                </span>
-              </div>
-              <nav aria-label="Trang yêu cầu" className="flex items-center gap-1">
-                <PageButton
-                  label="Trang đầu"
-                  disabled={page <= 1}
-                  onClick={() => navigate({ page: 1 })}
-                >
-                  <ChevronsLeft aria-hidden="true" className="size-4" />
-                </PageButton>
-                <PageButton
-                  label="Trang trước"
-                  disabled={page <= 1}
-                  onClick={() => navigate({ page: page - 1 })}
-                >
-                  <ChevronLeft aria-hidden="true" className="size-4" />
-                </PageButton>
-                <span
-                  aria-current="page"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md bg-primary px-2 text-sm font-semibold text-on-primary"
-                >
-                  {page}
-                </span>
-                <PageButton
-                  label="Trang sau"
-                  disabled={page >= lastPage}
-                  onClick={() => navigate({ page: page + 1 })}
-                >
-                  <ChevronRight aria-hidden="true" className="size-4" />
-                </PageButton>
-                <PageButton
-                  label="Trang cuối"
-                  disabled={page >= lastPage}
-                  onClick={() => navigate({ page: lastPage })}
-                >
-                  <ChevronsRight aria-hidden="true" className="size-4" />
-                </PageButton>
-              </nav>
-            </div>
+            <ListFooter
+              page={page}
+              pageSize={pageSize}
+              pageSizes={PAGE_SIZES}
+              shown={requests.data.items.length}
+              total={requests.data.total}
+              navigationLabel="Trang yêu cầu"
+              onPage={(next) => navigate({ page: next })}
+              onPageSize={(size) => navigate({ pageSize: size })}
+            />
           </>
         )}
       </div>
@@ -517,76 +430,5 @@ function RequestRow({ request }: { request: ParentRequestListItem }) {
         </Link>
       </td>
     </tr>
-  );
-}
-
-function SummaryCard({
-  label,
-  value,
-  icon: Icon,
-  tone = 'neutral',
-  active = false,
-  onSelect,
-}: {
-  label: string;
-  value: number | null;
-  icon?: LucideIcon;
-  tone?: 'neutral' | 'warning' | 'info' | 'success';
-  active?: boolean;
-  onSelect?: () => void;
-}) {
-  const tones = {
-    neutral: 'bg-surface text-primary',
-    warning: 'bg-warning-surface text-warning',
-    info: 'bg-info-surface text-primary',
-    success: 'bg-success-surface text-success',
-  } as const;
-  const content: ReactNode = (
-    <>
-      <span className="flex items-center gap-2 text-sm font-medium">
-        {Icon && <Icon aria-hidden="true" className="size-5" />}
-        {label}
-      </span>
-      <span className="mt-3 block text-3xl font-bold">{value ?? '—'}</span>
-      <span className="mt-1 block text-sm opacity-70">yêu cầu</span>
-    </>
-  );
-  const className = `rounded-xl border p-5 text-left ${tones[tone]} ${
-    active ? 'border-2 border-primary shadow-card' : 'border-border'
-  }`;
-  if (!onSelect) return <div className={className}>{content}</div>;
-  return (
-    <button
-      type="button"
-      aria-pressed={active}
-      onClick={onSelect}
-      className={`${className} transition-shadow hover:shadow-card focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus`}
-    >
-      {content}
-    </button>
-  );
-}
-
-function PageButton({
-  label,
-  disabled,
-  onClick,
-  children,
-}: {
-  label: string;
-  disabled: boolean;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
-      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md border border-border bg-bg text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-40"
-    >
-      {children}
-    </button>
   );
 }

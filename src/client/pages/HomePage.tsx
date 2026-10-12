@@ -28,7 +28,7 @@ const tutorBenefits = [
 ];
 
 const processSteps = [
-  { icon: ClipboardList, title: 'Gửi yêu cầu', detail: 'Phụ huynh mô tả nhu cầu học tập' },
+  { icon: ClipboardList, title: 'Gửi yêu cầu', detail: 'Người học mô tả nhu cầu học tập' },
   { icon: BookOpen, title: 'Công bố lớp', detail: 'Kiểm duyệt viên xem xét yêu cầu' },
   { icon: GraduationCap, title: 'Ứng tuyển', detail: 'Gia sư chọn lớp và gửi đơn' },
   { icon: HeartHandshake, title: 'Điều phối', detail: 'Kiểm duyệt viên gán gia sư cho lớp' },
@@ -109,7 +109,7 @@ export function HomePage() {
             Tìm gia sư uy tín - Chất lượng cao cho con bạn
           </p>
           <p className="mx-auto mt-4 max-w-3xl text-lg text-on-primary/90 md:text-xl">
-            Phụ huynh gửi yêu cầu học tập, gia sư ứng tuyển lớp đã công bố và kiểm duyệt viên điều
+            Người học gửi yêu cầu học tập, gia sư ứng tuyển lớp đã công bố và kiểm duyệt viên điều
             phối lớp học.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-4">

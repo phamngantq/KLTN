@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import {
-  COMPLAINT_STATUSES,
+  SENT_COMPLAINT_STATUSES,
   type AdminComplaintDetail,
   type AdminComplaintSummary,
   type ComplaintStatus,
@@ -25,6 +25,7 @@ import { PageLoading } from '../../components/ui/Spinner';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
 
 const LABELS: Record<ComplaintStatus, string> = {
+  draft: 'Chưa gửi',
   submitted: 'Chờ xem xét',
   in_review: 'Đang xử lý',
   resolved: 'Đã xử lý',
@@ -123,7 +124,7 @@ export function AdminComplaintsPage() {
     <section className="flex min-w-0 flex-col gap-6">
       <PageHeader
         title="Quản lý khiếu nại"
-        description="Xử lý và giải quyết khiếu nại từ phụ huynh và gia sư"
+        description="Xử lý và giải quyết khiếu nại từ người học và gia sư"
       />
       {isReadOnlyPreview() && (
         <Alert tone="info">Bản xem trước chỉ cho phép xem, chưa xử lý khiếu nại.</Alert>
@@ -202,7 +203,7 @@ export function AdminComplaintsPage() {
           >
             Tất cả
           </Button>
-          {COMPLAINT_STATUSES.map((value) => (
+          {SENT_COMPLAINT_STATUSES.map((value) => (
             <Button
               key={value}
               variant={status === value ? 'primary' : 'secondary'}
@@ -273,7 +274,7 @@ export function AdminComplaintsPage() {
                     <UserRound aria-hidden="true" className="size-4 shrink-0" />
                     <span className="break-words">
                       {item.creatorDisplayName} ·{' '}
-                      {item.creatorRole === 'parent' ? 'Phụ huynh' : 'Gia sư'}
+                      {item.creatorRole === 'parent' ? 'Người học' : 'Gia sư'}
                     </span>
                   </p>
                   <p className="flex items-center gap-2">
@@ -372,7 +373,7 @@ export function AdminComplaintsPage() {
                     <dd className="mt-1 font-medium">
                       {detail.data.creatorDisplayName}
                       <span className="block text-xs font-normal text-muted">
-                        {detail.data.creatorRole === 'parent' ? 'Phụ huynh' : 'Gia sư'}
+                        {detail.data.creatorRole === 'parent' ? 'Người học' : 'Gia sư'}
                       </span>
                     </dd>
                   </div>

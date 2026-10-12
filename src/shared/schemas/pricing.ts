@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { EducationLevel } from './requests';
 
 export const PRICING_LEVELS = ['basic', 'advanced', 'intensive'] as const;
 export const PRICING_MODES = ['online', 'offline'] as const;
@@ -79,4 +80,26 @@ export interface ClassFeeGuidanceVersion {
   status: (typeof PRICING_CATALOG_STATUSES)[number];
   publishedAt: string | null;
   createdAt: string;
+}
+
+/** Learner "Bảng giá": reference ranges per session, by tutor type or by subject. */
+export const LEARNER_PRICE_DIMENSIONS = ['tutor_type', 'subject'] as const;
+export type LearnerPriceDimension = (typeof LEARNER_PRICE_DIMENSIONS)[number];
+export const TUTOR_TYPES = ['university_student', 'pedagogy_student', 'teacher'] as const;
+export type TutorType = (typeof TUTOR_TYPES)[number];
+export const TUTOR_TYPE_LABELS: Record<TutorType, string> = {
+  university_student: 'Sinh viên',
+  pedagogy_student: 'Sinh viên sư phạm',
+  teacher: 'Giáo viên',
+};
+
+export interface LearnerPriceGuide {
+  id: string;
+  dimension: LearnerPriceDimension;
+  tutorType: TutorType | null;
+  subjectId: string | null;
+  subjectName: string | null;
+  educationLevel: EducationLevel;
+  minPriceMinor: number;
+  maxPriceMinor: number;
 }

@@ -39,7 +39,7 @@ const detail: AdminRequestDetail = {
   publishedClassId: null,
   publishedClassCode: null,
   parentUserId: 'parent-1',
-  parentDisplayName: 'Phụ huynh thử',
+  parentDisplayName: 'Người học thử',
   studentName: 'Học sinh thử',
   contactPhone: '0912345678',
   contactAddress: 'Số 10, đường thử nghiệm',

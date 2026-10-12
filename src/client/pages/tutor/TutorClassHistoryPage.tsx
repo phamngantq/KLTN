@@ -30,7 +30,7 @@ export function TutorClassHistoryPage() {
         <h1 className="text-3xl font-semibold text-[#0e2f5f]">Lịch sử nhận lớp</h1>
         <p className="mt-2 text-sm text-muted">
           Các lớp đã hoàn tất hoặc được kiểm duyệt viên rút gán. Lịch sử này không chứa liên hệ
-          riêng tư của phụ huynh.
+          riêng tư của người học.
         </p>
       </header>
       {history.isPending ? (

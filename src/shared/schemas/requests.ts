@@ -13,10 +13,10 @@ export const REQUEST_STATUSES = [
 ] as const;
 export type RequestStatus = (typeof REQUEST_STATUSES)[number];
 /**
- * Notice shown above "Gửi yêu cầu"; sending the request after reading it is the consent.
- * v1 (2026-10-11) was a separate checkbox. Bump the version whenever this text changes.
+ * Sharing rule recorded when a request is sent. v1 (2026-10-11) was a checkbox, v2 a notice
+ * above "Gửi yêu cầu"; v3 (2026-10-12) shows no separate notice in the form. Bump on any change.
  */
-export const CONTACT_SHARING_CONSENT_VERSION = '2026-10-12-v2';
+export const CONTACT_SHARING_CONSENT_VERSION = '2026-10-12-v3';
 export const CONTACT_SHARING_CONSENT_TEXT =
   'Khi bạn gửi yêu cầu, môn học, lớp, hình thức, học phí dự kiến và lịch mong muốn sẽ hiển thị trong danh sách lớp tìm gia sư. Họ tên, số điện thoại, khu vực và các ghi chú không được công khai; gia sư chỉ xem số điện thoại và địa chỉ cụ thể (nếu có) sau khi được kiểm duyệt viên gán.';
 /** Anti-abuse bound only; the form itself does not limit how many slots a parent picks. */
@@ -184,7 +184,7 @@ export const submitParentRequestSchema = z.strictObject({
   consentToShareContact: z.literal(true),
 });
 
-/** Tabs on "Thuê Gia Sư"; each status belongs to exactly one group. */
+/** Tabs on "Tìm kiếm gia sư"; each status belongs to exactly one group. */
 export const REQUEST_STATUS_GROUPS = {
   searching: ['submitted', 'sourcing'],
   found: ['assigned'],

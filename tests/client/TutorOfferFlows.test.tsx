@@ -93,7 +93,7 @@ describe('tutor posted classes', () => {
       screen.getByRole('checkbox', { name: /Tôi đã đọc và đồng ý hợp đồng phiên bản 2/ }),
     );
     expect(submit.disabled).toBe(true);
-    await user.click(screen.getByRole('checkbox', { name: /Tôi đồng ý cho phụ huynh có yêu cầu/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Tôi đồng ý cho người học có yêu cầu/ }));
     await user.click(submit);
     expect(await screen.findByText('Đã gửi lớp và hợp đồng để kiểm duyệt.')).toBeTruthy();
     expect(

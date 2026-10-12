@@ -141,7 +141,7 @@ export function TutorAssignedClassesPage() {
                         setSelectedId(item.id);
                       }}
                     >
-                      Xem liên hệ phụ huynh
+                      Xem liên hệ người học
                     </Button>
                   </div>
                 </article>
@@ -179,12 +179,12 @@ export function TutorAssignedClassesPage() {
       {selectedId && (
         <section
           className="overflow-hidden rounded-xl border border-border bg-bg shadow-card"
-          aria-label="Liên hệ phụ huynh"
+          aria-label="Liên hệ người học"
         >
           <div className="flex flex-wrap items-center justify-between gap-2 bg-primary px-5 py-4 text-white">
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <UserRound className="size-5" aria-hidden="true" />
-              Liên hệ phụ huynh
+              Liên hệ người học
             </h2>
             <Button variant="secondary" onClick={closeContact}>
               Đóng
@@ -206,7 +206,7 @@ export function TutorAssignedClassesPage() {
               </Alert>
             ) : (
               <dl className="grid gap-3 text-sm sm:grid-cols-[9rem_1fr]">
-                <dt className="font-medium text-muted">Phụ huynh</dt>
+                <dt className="font-medium text-muted">Người học</dt>
                 <dd>{contact.data.parentDisplayName}</dd>
                 <dt className="flex items-center gap-2 font-medium text-muted">
                   <Phone className="size-4" aria-hidden="true" />
@@ -221,7 +221,7 @@ export function TutorAssignedClassesPage() {
                   <MapPin className="size-4" aria-hidden="true" />
                   Địa chỉ
                 </dt>
-                <dd>{contact.data.address ?? 'Phụ huynh chưa cung cấp'}</dd>
+                <dd>{contact.data.address ?? 'Người học chưa cung cấp'}</dd>
               </dl>
             )}
           </div>

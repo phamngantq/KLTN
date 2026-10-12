@@ -126,7 +126,7 @@ export function AdminPricingPage() {
       <header>
         <h1 className="text-3xl font-semibold text-primary">Bảng giá &amp; Phí nhận lớp</h1>
         <p className="mt-2 text-muted">
-          Quản lý học phí tham khảo và phí nhận lớp cho gia sư. Phụ huynh không trả phí dịch vụ.
+          Quản lý học phí tham khảo và phí nhận lớp cho gia sư. Người học không trả phí dịch vụ.
         </p>
       </header>
       <nav

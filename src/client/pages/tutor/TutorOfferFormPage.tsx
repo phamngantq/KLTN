@@ -184,7 +184,7 @@ function OfferEditor({ offer }: { offer?: TutorOffer }) {
             autoComplete="tel"
             maxLength={16}
             required
-            hint="Chỉ phụ huynh có yêu cầu được kiểm duyệt viên duyệt mới xem được số này."
+            hint="Chỉ người học có yêu cầu được kiểm duyệt viên duyệt mới xem được số này."
             value={form.contactPhone}
             onChange={(event) =>
               setForm((current) => ({ ...current, contactPhone: event.target.value }))

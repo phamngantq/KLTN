@@ -10,9 +10,10 @@ export const TUTOR_OFFER_STATUSES = [
   'closed',
 ] as const;
 export type TutorOfferStatus = (typeof TUTOR_OFFER_STATUSES)[number];
-export const TUTOR_OFFER_CONTACT_CONSENT_VERSION = '2026-10-12-v1';
+// v2: same consent, role renamed from "phụ huynh" to "người học".
+export const TUTOR_OFFER_CONTACT_CONSENT_VERSION = '2026-10-12-v2';
 export const TUTOR_OFFER_CONTACT_CONSENT_TEXT =
-  'Tôi đồng ý cho phụ huynh có yêu cầu được kiểm duyệt viên duyệt xem số điện thoại của tôi; số này không hiển thị công khai hoặc cho người đang chờ duyệt.';
+  'Tôi đồng ý cho người học có yêu cầu được kiểm duyệt viên duyệt xem số điện thoại của tôi; số này không hiển thị công khai hoặc cho người đang chờ duyệt.';
 
 const broadArea = z
   .string()

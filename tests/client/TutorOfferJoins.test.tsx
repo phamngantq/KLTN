@@ -163,7 +163,7 @@ describe('parent joins tutor-posted class', () => {
     let current: AdminTutorOfferJoin = {
       ...join,
       parentUserId: 'parent-1',
-      parentDisplayName: 'Phụ huynh A',
+      parentDisplayName: 'Người học A',
       tutorUserId: 'tutor-1',
       reviewedBy: null,
       terminatedBy: null,
@@ -213,7 +213,7 @@ describe('parent joins tutor-posted class', () => {
     renderRoute('/admin/tutor-offer-joins');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Duyệt yêu cầu' }));
-    expect(await screen.findByText(/Số điện thoại phụ huynh: 0912345678/)).toBeTruthy();
+    expect(await screen.findByText(/Số điện thoại người học: 0912345678/)).toBeTruthy();
     await user.click(screen.getAllByRole('button', { name: 'Duyệt yêu cầu' }).at(-1)!);
     expect(
       screen.getByText('Nhập học phí đã chốt từ 1 đến 100.000.000 VNĐ mỗi buổi.'),
@@ -222,7 +222,7 @@ describe('parent joins tutor-posted class', () => {
       screen.getByRole('spinbutton', { name: 'Học phí đã chốt (VNĐ/buổi)' }),
       '270000',
     );
-    await user.click(screen.getByRole('checkbox', { name: /Tôi xác nhận phụ huynh và gia sư/ }));
+    await user.click(screen.getByRole('checkbox', { name: /Tôi xác nhận người học và gia sư/ }));
     const approveButtons = screen.getAllByRole('button', { name: 'Duyệt yêu cầu' });
     await user.click(approveButtons[approveButtons.length - 1]!);
     await waitFor(() => expect(calls.some((call) => call.path.endsWith('/approve'))).toBe(true));
@@ -305,11 +305,11 @@ describe('parent joins tutor-posted class', () => {
     renderRoute(`/tutor/offers/${offerId}`);
     expect(await screen.findByText(join.learningNeeds)).toBeTruthy();
     expect(screen.getAllByText(/270\.000/).length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: 'Xem số điện thoại phụ huynh' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Xem số điện thoại người học' })).toBeTruthy();
     expect(calls.some((call) => call.path.endsWith('/contact'))).toBe(false);
     await userEvent
       .setup()
-      .click(screen.getByRole('button', { name: 'Xem số điện thoại phụ huynh' }));
+      .click(screen.getByRole('button', { name: 'Xem số điện thoại người học' }));
     expect(await screen.findByRole('link', { name: '0912345678' })).toBeTruthy();
     expect(calls.some((call) => call.path.endsWith(`/${joinId}/contact`))).toBe(false);
   });

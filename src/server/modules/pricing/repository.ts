@@ -2,6 +2,7 @@ import type {
   ClassFeeGuidanceVersion,
   CreateClassFeeGuidanceInput,
   CreateTuitionPriceInput,
+  LearnerPriceGuide,
   TuitionPriceVersion,
   UpdateClassFeeGuidanceInput,
   UpdateTuitionPriceInput,
@@ -555,4 +556,25 @@ export async function discardGuidance(
     .bind(id, editVersion, id);
   const [, result] = await db.batch([auditWrite, deleteWrite]);
   return result?.meta.changes === 1;
+}
+
+const LEVEL_ORDER =
+  "CASE g.education_level WHEN 'primary' THEN 1 WHEN 'lower_secondary' THEN 2 WHEN 'upper_secondary' THEN 3 ELSE 4 END";
+
+/** Published learner reference ranges, ordered by tutor type, subject and school stage. */
+export async function listLearnerGuides(db: D1Database): Promise<LearnerPriceGuide[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT g.id, g.dimension, g.tutor_type AS tutorType, g.subject_id AS subjectId,
+         s.name AS subjectName, g.education_level AS educationLevel,
+         g.min_price_minor AS minPriceMinor, g.max_price_minor AS maxPriceMinor
+       FROM learner_price_guides g
+       LEFT JOIN subjects s ON s.id = g.subject_id
+       WHERE g.status = 'published'
+       ORDER BY g.dimension DESC,
+         CASE g.tutor_type WHEN 'university_student' THEN 1 WHEN 'pedagogy_student' THEN 2 ELSE 3 END,
+         s.name, ${LEVEL_ORDER}`,
+    )
+    .all<LearnerPriceGuide>();
+  return results;
 }

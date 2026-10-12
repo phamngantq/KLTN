@@ -199,7 +199,7 @@ describe('tutor-origin student offers', () => {
       contractRevision: contract.revision,
       contractBodyText: contract.bodyText,
       contactPhone: fields.contactPhone,
-      contactShareConsentVersion: '2026-10-12-v1',
+      contactShareConsentVersion: '2026-10-12-v2',
     });
     expect(submitted.acknowledgedAt).toBeTruthy();
     expect(submitted.contactShareConsentAt).toBeTruthy();
@@ -209,7 +209,7 @@ describe('tutor-origin student offers', () => {
       .bind(item.id)
       .first<{ count: number; consent_version: string | null }>();
     expect(ack?.count).toBe(1);
-    expect(ack?.consent_version).toBe('2026-10-12-v1');
+    expect(ack?.consent_version).toBe('2026-10-12-v2');
     expect((await api(`/tutor-offers/${item.id}`)).status).toBe(404);
     const parent = await register('parent');
     expect(

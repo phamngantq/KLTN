@@ -9,10 +9,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
-import {
-  CONTACT_SHARING_CONSENT_TEXT,
-  EDUCATION_LEVEL_LABELS,
-} from '../../../shared/schemas/requests';
+import { EDUCATION_LEVEL_LABELS } from '../../../shared/schemas/requests';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
@@ -274,7 +271,6 @@ export function ParentRequestDetailPage() {
           <p className="text-sm text-muted">
             Cần họ và tên, số điện thoại và lịch mong muốn hợp lệ trước khi gửi.
           </p>
-          <p className="text-sm text-muted">{CONTACT_SHARING_CONSENT_TEXT}</p>
           {submit.isError && (
             <Alert tone="danger" title="Chưa gửi được yêu cầu">
               {submit.error.message}

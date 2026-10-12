@@ -669,6 +669,6 @@ describe('parent find-tutor requests', () => {
       ),
     );
     expect(submitted.contactConsentVersion).toBe(CONTACT_SHARING_CONSENT_VERSION);
-    expect(CONTACT_SHARING_CONSENT_VERSION).toBe('2026-10-12-v2');
+    expect(CONTACT_SHARING_CONSENT_VERSION).toBe('2026-10-12-v3');
   });
 });

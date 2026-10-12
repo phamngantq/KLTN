@@ -133,7 +133,8 @@ describe('parent requests', () => {
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Yêu cầu YC-0001' })).toBeTruthy();
-    expect(screen.getByText(CONTACT_SHARING_CONSENT_TEXT)).toBeTruthy();
+    expect(screen.queryByText(CONTACT_SHARING_CONSENT_TEXT)).toBeNull();
+    expect(screen.queryByText('Đồng ý trước khi gửi')).toBeNull();
     expect(screen.queryByRole('checkbox')).toBeNull();
     expect(calls.some((call) => call.path.endsWith('/submit'))).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
@@ -175,7 +176,8 @@ describe('parent requests', () => {
     const city = screen.getByRole('textbox', { name: 'Khu vực' }) as HTMLInputElement;
     expect(city.value).toBe('Hà Nội');
     expect(city.readOnly).toBe(true);
-    expect(screen.getByText(CONTACT_SHARING_CONSENT_TEXT)).toBeTruthy();
+    expect(screen.queryByText(CONTACT_SHARING_CONSENT_TEXT)).toBeNull();
+    expect(screen.queryByText('Đồng ý trước khi gửi')).toBeNull();
     expect(screen.queryByRole('checkbox', { name: /Tôi đồng ý/ })).toBeNull();
     expect(screen.getByText('Thời gian có thể học')).toBeTruthy();
     await fillRequiredFields(user);
@@ -355,16 +357,16 @@ describe('parent requests', () => {
     await screen.findByRole('heading', { name: 'Chỉnh sửa yêu cầu YC-0001' });
     const description = screen.getByLabelText('Yêu cầu đối với gia sư') as HTMLTextAreaElement;
     await user.clear(description);
-    await user.type(description, 'Nội dung mới của phụ huynh');
+    await user.type(description, 'Nội dung mới của người học');
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
 
     expect(await screen.findByRole('alert')).toBeTruthy();
     expect(screen.getByRole('alert').textContent).toContain('Yêu cầu đã được cập nhật ở nơi khác.');
-    expect(description.value).toBe('Nội dung mới của phụ huynh');
+    expect(description.value).toBe('Nội dung mới của người học');
     expect(router.state.location.pathname).toBe('/parent/requests/req-1/edit');
     const patch = calls.find((call) => call.method === 'PATCH');
     expect(patch?.body).toMatchObject({
-      tutorRequirements: 'Nội dung mới của phụ huynh',
+      tutorRequirements: 'Nội dung mới của người học',
       description: ownRequest.description,
       version: 1,
     });

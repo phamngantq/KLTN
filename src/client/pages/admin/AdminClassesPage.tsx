@@ -193,7 +193,7 @@ export function AdminClassesPage() {
       ) : pageItems.length === 0 ? (
         <EmptyState
           title="Chưa có lớp phù hợp"
-          description="Kiểm duyệt viên có thể tạo lớp từ một yêu cầu đã được phụ huynh gửi."
+          description="Kiểm duyệt viên có thể tạo lớp từ một yêu cầu đã được người học gửi."
           action={<ButtonLink to="/admin/requests">Xem yêu cầu</ButtonLink>}
         />
       ) : (
@@ -361,7 +361,7 @@ export function AdminClassesPage() {
       <ConfirmDialog
         open={refreshFrom !== null}
         title="Cập nhật bản nháp từ yêu cầu"
-        description="Kiểm tra nội dung phụ huynh vừa sửa và chọn lại khu vực công khai trước khi cập nhật lớp."
+        description="Kiểm tra nội dung người học vừa sửa và chọn lại khu vực công khai trước khi cập nhật lớp."
         confirmLabel="Cập nhật bản nháp"
         loading={refresh.isPending}
         onConfirm={confirmRefresh}

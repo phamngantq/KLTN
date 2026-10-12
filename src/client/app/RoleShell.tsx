@@ -38,7 +38,7 @@ type MenuEntry = MenuLink | MenuGroup;
 
 const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
   parent: {
-    label: 'Phụ huynh',
+    label: 'Người học',
     entries: [
       { to: '/parent/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
       {

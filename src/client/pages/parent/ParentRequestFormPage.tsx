@@ -1,9 +1,8 @@
 import { useRef, useState, type FormEvent } from 'react';
-import { ArrowLeft, Clock, Phone, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Clock, Phone } from 'lucide-react';
 import { Link, useNavigate, useParams } from 'react-router';
 import type { Subject } from '../../../shared/schemas/tutors';
 import {
-  CONTACT_SHARING_CONSENT_TEXT,
   EDUCATION_LEVEL_LABELS,
   EDUCATION_LEVELS,
   REQUEST_GRADE_OPTIONS,
@@ -328,7 +327,7 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
     <section className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold text-primary">Thuê Gia Sư</h1>
+          <h1 className="text-3xl font-semibold text-primary">Tìm kiếm gia sư</h1>
           <p className="mt-1 text-sm text-muted">
             Gửi yêu cầu để chúng tôi tìm gia sư phù hợp cho bạn
           </p>
@@ -648,16 +647,6 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
                 error={errors.studentTraits}
               />
             </div>
-
-            {!request && (
-              <div className="flex flex-col gap-3 rounded-xl border border-primary/20 bg-info-surface/40 p-4">
-                <h3 className="flex items-center gap-2 font-semibold text-primary">
-                  <ShieldCheck aria-hidden="true" className="size-4" />
-                  Đồng ý trước khi gửi
-                </h3>
-                <p className="text-sm text-muted">{CONTACT_SHARING_CONSENT_TEXT}</p>
-              </div>
-            )}
           </div>
           <div className="flex flex-wrap justify-end gap-3 border-t border-border bg-surface px-4 py-4 sm:px-6">
             <Button

@@ -114,7 +114,7 @@ export function SignUpPage() {
             hint="Tài khoản kiểm duyệt viên được cấp riêng."
             error={errors.role}
           >
-            <option value="parent">Phụ huynh / Học sinh</option>
+            <option value="parent">Người học / Học sinh</option>
             <option value="tutor">Gia sư</option>
           </SelectField>
           <div className="relative">

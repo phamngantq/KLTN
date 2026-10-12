@@ -90,8 +90,8 @@ export const api = {
     request<T>('PUT', path, { ...options, body }),
   patch: <T>(path: string, body: unknown, options?: Omit<RequestOptions, 'body'>) =>
     request<T>('PATCH', path, { ...options, body }),
-  delete: <T>(path: string, options?: Omit<RequestOptions, 'body'>) =>
-    request<T>('DELETE', path, options),
+  delete: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'body'>) =>
+    request<T>('DELETE', path, body === undefined ? options : { ...options, body }),
 };
 
 /** Builds `?a=1&b=2`, skipping empty values. */

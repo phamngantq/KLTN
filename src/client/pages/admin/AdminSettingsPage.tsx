@@ -36,7 +36,7 @@ const SETTINGS = [
   {
     to: '/admin/content/blog',
     title: 'Bài viết',
-    description: 'Quản lý bài viết cho phụ huynh và gia sư.',
+    description: 'Quản lý bài viết cho người học và gia sư.',
   },
   {
     to: '/admin/users',

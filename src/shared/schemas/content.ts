@@ -12,6 +12,23 @@ export const CONTENT_KINDS = [
 export const CONTENT_AUDIENCES = ['public', 'parent', 'tutor'] as const;
 export const CONTENT_STATUSES = ['draft', 'published', 'retired'] as const;
 
+/** Handbook categories for blog articles ("Cẩm nang dành cho người học"). */
+export const CONTENT_CATEGORIES = [
+  'choosing_tutor',
+  'study_methods',
+  'motivation',
+  'exam_prep',
+  'skills',
+] as const;
+export type ContentCategory = (typeof CONTENT_CATEGORIES)[number];
+export const CONTENT_CATEGORY_LABELS: Record<ContentCategory, string> = {
+  choosing_tutor: 'Chọn gia sư',
+  study_methods: 'Phương pháp học',
+  motivation: 'Động lực học tập',
+  exam_prep: 'Ôn thi',
+  skills: 'Kỹ năng & tâm lý',
+};
+
 export type ContentKind = (typeof CONTENT_KINDS)[number];
 export type ContentAudience = (typeof CONTENT_AUDIENCES)[number];
 export type ContentStatus = (typeof CONTENT_STATUSES)[number];
@@ -26,6 +43,8 @@ const fields = {
   summary: z.string().trim().max(500),
   // Deliberately plain text. The client renders it as text nodes, never raw HTML.
   bodyText: z.string().trim().min(1).max(20_000),
+  category: z.enum(CONTENT_CATEGORIES).nullable().default(null),
+  authorName: z.string().trim().min(1).max(80).nullable().default(null),
 };
 const paging = {
   page: z.coerce.number().int().min(1).max(1000).default(1),
@@ -40,12 +59,21 @@ export const createContentSchema = z
     ...fields,
   })
   .superRefine((value, context) => {
-    if (value.kind !== 'blog') return;
+    if (value.kind !== 'blog') {
+      if (value.category !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['category'],
+          message: 'Chỉ bài viết mới có danh mục.',
+        });
+      }
+      return;
+    }
     if (!/^(phu-huynh|gia-su)-[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.slug)) {
       context.addIssue({
         code: 'custom',
         path: ['slug'],
-        message: 'Bài viết cần thuộc danh mục phụ huynh hoặc gia sư.',
+        message: 'Bài viết cần thuộc danh mục người học hoặc gia sư.',
       });
     }
     if (value.audience !== 'public') {
@@ -75,6 +103,9 @@ export const publicContentListSchema = z.strictObject({
     .string()
     .regex(/^[a-z0-9-]{2,30}$/)
     .optional(),
+  category: z.enum(CONTENT_CATEGORIES).optional(),
+  /** Matches title, summary or body text. */
+  q: z.string().trim().max(100).optional(),
   ...paging,
 });
 export type PublicContentListQuery = z.infer<typeof publicContentListSchema>;
@@ -100,6 +131,8 @@ export interface PublishedContent {
   title: string;
   summary: string;
   bodyText: string;
+  category: ContentCategory | null;
+  authorName: string | null;
   publishedAt: string;
 }
 

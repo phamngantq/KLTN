@@ -320,8 +320,8 @@ export function AdminClassLifecyclePanel({
           action === 'revoke'
             ? 'Lớp sẽ mở lại để nhận ứng tuyển mới. Gia sư hiện tại mất quyền xem liên hệ sau khi lưu.'
             : action === 'cancel'
-              ? 'Lớp và yêu cầu của phụ huynh sẽ đóng. Các đơn đang chờ được từ chối có lý do; lịch sử vẫn được giữ.'
-              : 'Lớp và yêu cầu của phụ huynh sẽ được ghi nhận hoàn tất. Lịch sử ứng tuyển, phí và hợp đồng vẫn được giữ.'
+              ? 'Lớp và yêu cầu của người học sẽ đóng. Các đơn đang chờ được từ chối có lý do; lịch sử vẫn được giữ.'
+              : 'Lớp và yêu cầu của người học sẽ được ghi nhận hoàn tất. Lịch sử ứng tuyển, phí và hợp đồng vẫn được giữ.'
         }
         confirmLabel={
           action === 'revoke'
@@ -351,7 +351,7 @@ export function AdminClassLifecyclePanel({
       <ConfirmDialog
         open={tuitionOpen}
         title="Ghi học phí đã chốt"
-        description={`Lớp ${item.code} đã được gán trước khi hệ thống yêu cầu ghi học phí. Chỉ lưu mức mà phụ huynh và gia sư đã thống nhất.`}
+        description={`Lớp ${item.code} đã được gán trước khi hệ thống yêu cầu ghi học phí. Chỉ lưu mức mà người học và gia sư đã thống nhất.`}
         confirmLabel="Lưu học phí đã chốt"
         loading={recordTuition.isPending}
         onCancel={() => setTuitionOpen(false)}
@@ -382,7 +382,7 @@ export function AdminClassLifecyclePanel({
             }}
             className="mt-1 size-4 accent-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           />
-          Tôi xác nhận phụ huynh và gia sư đã thống nhất mức học phí này.
+          Tôi xác nhận người học và gia sư đã thống nhất mức học phí này.
         </label>
         {recordTuition.isError && <Alert tone="danger">{recordTuition.error.message}</Alert>}
       </ConfirmDialog>

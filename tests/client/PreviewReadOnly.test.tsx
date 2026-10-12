@@ -77,7 +77,7 @@ describe('read-only preview UI', () => {
     renderRoute('/tutors/demo-tutor');
     expect(await screen.findByRole('heading', { name: demoTutor.displayName })).toBeTruthy();
     expect(screen.getByText('Hồ sơ minh họa · Học phí chưa công bố')).toBeTruthy();
-    expect(screen.getByText(/Phụ huynh gửi môn học, lớp và lịch mong muốn/)).toBeTruthy();
+    expect(screen.getByText(/Người học gửi môn học, lớp và lịch mong muốn/)).toBeTruthy();
     expect(screen.queryByText(/123\.000/)).toBeNull();
     expect(screen.queryByRole('button', { name: /Gửi yêu cầu đặt lịch/ })).toBeNull();
   });

@@ -89,7 +89,7 @@ describe('Figma role route matrix', () => {
     const { router } = renderRoute('/parent/request');
     expect(await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeTruthy();
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent/request'));
-    expect(screen.getByRole('navigation', { name: 'Điều hướng Phụ huynh' })).toBeTruthy();
+    expect(screen.getByRole('navigation', { name: 'Điều hướng Người học' })).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Gửi yêu cầu' })).toBeTruthy();
   });
 

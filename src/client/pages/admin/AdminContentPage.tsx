@@ -5,7 +5,10 @@ import {
   CONTENT_AUDIENCES,
   CONTENT_KINDS,
   CONTENT_STATUSES,
+  CONTENT_CATEGORIES,
+  CONTENT_CATEGORY_LABELS,
   createContentSchema,
+  type ContentCategory,
   editContentSchema,
   type AdminContent,
   type ContentAudience,
@@ -37,7 +40,7 @@ const KIND_LABELS: Record<ContentKind, string> = {
 };
 const AUDIENCE_LABELS: Record<ContentAudience, string> = {
   public: 'Công khai',
-  parent: 'Phụ huynh',
+  parent: 'Người học',
   tutor: 'Gia sư',
 };
 const STATUS_LABELS: Record<ContentStatus, string> = {
@@ -53,10 +56,21 @@ interface EditorForm {
   title: string;
   summary: string;
   bodyText: string;
+  category: ContentCategory | null;
+  authorName: string | null;
 }
 
 function emptyForm(kind: ContentKind, audience: ContentAudience): EditorForm {
-  return { kind, slug: '', audience, title: '', summary: '', bodyText: '' };
+  return {
+    kind,
+    slug: '',
+    audience,
+    title: '',
+    summary: '',
+    bodyText: '',
+    category: null,
+    authorName: null,
+  };
 }
 function formFromContent(item: AdminContent): EditorForm {
   return {
@@ -66,6 +80,8 @@ function formFromContent(item: AdminContent): EditorForm {
     title: item.title,
     summary: item.summary,
     bodyText: item.bodyText,
+    category: item.category,
+    authorName: item.authorName,
   };
 }
 
@@ -115,7 +131,9 @@ export function AdminContentPage({
     current?.status === 'draft' &&
     (form.title !== current.title ||
       form.summary !== current.summary ||
-      form.bodyText !== current.bodyText);
+      form.bodyText !== current.bodyText ||
+      form.category !== current.category ||
+      form.authorName !== current.authorName);
   const blogCategory = form.slug.startsWith('gia-su-') ? 'gia-su' : 'phu-huynh';
   const blogSlug = form.slug.replace(/^(phu-huynh|gia-su)-/, '');
 
@@ -158,6 +176,8 @@ export function AdminContentPage({
       title: form.title,
       summary: form.summary,
       bodyText: form.bodyText,
+      category: form.category,
+      authorName: form.authorName,
       editVersion: current.editVersion,
     });
     if (!parsed.success) {
@@ -502,7 +522,7 @@ export function AdminContentPage({
                         })
                       }
                     >
-                      <option value="phu-huynh">Phụ huynh</option>
+                      <option value="phu-huynh">Người học</option>
                       <option value="gia-su">Gia sư</option>
                     </SelectField>
                   )}
@@ -543,6 +563,37 @@ export function AdminContentPage({
                     error={errors.summary}
                     maxLength={500}
                   />
+                  {form.kind === 'blog' && (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <SelectField
+                        label="Danh mục cẩm nang"
+                        value={form.category ?? ''}
+                        onChange={(event) =>
+                          setForm({
+                            ...form,
+                            category: (event.target.value || null) as ContentCategory | null,
+                          })
+                        }
+                        error={errors.category}
+                      >
+                        <option value="">Chưa phân loại</option>
+                        {CONTENT_CATEGORIES.map((category) => (
+                          <option key={category} value={category}>
+                            {CONTENT_CATEGORY_LABELS[category]}
+                          </option>
+                        ))}
+                      </SelectField>
+                      <TextField
+                        label="Tác giả"
+                        value={form.authorName ?? ''}
+                        maxLength={80}
+                        onChange={(event) =>
+                          setForm({ ...form, authorName: event.target.value || null })
+                        }
+                        error={errors.authorName}
+                      />
+                    </div>
+                  )}
                   <TextareaField
                     label="Nội dung văn bản"
                     value={form.bodyText}

@@ -75,7 +75,7 @@ describe('D1 pricing catalogues', () => {
     ).toBeTruthy();
     expect(await screen.findByText(/165.000/)).toBeTruthy();
     expect(await screen.findByText(/100.000.*210.000/)).toBeTruthy();
-    expect(screen.getByText(/không phải khoản thu thêm của phụ huynh/)).toBeTruthy();
+    expect(screen.getByText(/không phải khoản thu thêm của người học/)).toBeTruthy();
     expect(calls.some((call) => call.path === '/pricing/tuition')).toBe(true);
     expect(calls.some((call) => call.path === '/pricing/class-fees')).toBe(true);
   });

@@ -139,7 +139,7 @@ describe('class lifecycle routes', () => {
               eventType: 'cancelled',
               agreedTuitionPerSessionMinor: null,
               actorId: 'admin-1',
-              reason: 'Phụ huynh dừng tìm gia sư.',
+              reason: 'Người học dừng tìm gia sư.',
               createdAt: '2026-10-11T01:00:00.000Z',
             },
           ],
@@ -152,13 +152,13 @@ describe('class lifecycle routes', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Vòng đời và lịch sử' }));
     await user.click(await screen.findByRole('button', { name: 'Hủy lớp đang tuyển' }));
-    await user.type(screen.getByRole('textbox', { name: 'Lý do' }), 'Phụ huynh dừng tìm gia sư.');
+    await user.type(screen.getByRole('textbox', { name: 'Lý do' }), 'Người học dừng tìm gia sư.');
     await user.click(screen.getByRole('button', { name: 'Hủy lớp và yêu cầu' }));
     await waitFor(() => expect(screen.getByText(/Đã hủy lớp và yêu cầu nguồn/)).toBeTruthy());
     expect(calls.find((call) => call.path.endsWith('/cancel'))?.body).toEqual({
       classVersion: 3,
       requestVersion: 4,
-      reason: 'Phụ huynh dừng tìm gia sư.',
+      reason: 'Người học dừng tìm gia sư.',
     });
   });
 
@@ -186,6 +186,6 @@ describe('class lifecycle routes', () => {
     renderRoute('/tutor/classes');
     expect(await screen.findByText('Hai bên đã kết thúc lớp.', { exact: false })).toBeTruthy();
     expect(screen.getByText('Đã hoàn tất')).toBeTruthy();
-    expect(screen.queryByText(/số điện thoại|địa chỉ phụ huynh/i)).toBeNull();
+    expect(screen.queryByText(/số điện thoại|địa chỉ người học/i)).toBeNull();
   });
 });

@@ -247,7 +247,7 @@ function AboutArticle({ item }: { item: PublishedContent }) {
   const actors = [
     {
       icon: Users,
-      title: 'Phụ huynh',
+      title: 'Người học',
       detail: 'Gửi yêu cầu tìm gia sư và theo dõi việc điều phối lớp học.',
     },
     {
@@ -312,7 +312,7 @@ function AboutArticle({ item }: { item: PublishedContent }) {
               <GraduationCap aria-hidden="true" className="mb-6 size-20 text-accent" />
               <p className="text-3xl font-bold">Gia Sư Đỗ Hằng</p>
               <p className="mt-4 max-w-sm text-on-primary/90">
-                Kết nối phụ huynh và gia sư qua yêu cầu, ứng tuyển và điều phối lớp.
+                Kết nối người học và gia sư qua yêu cầu, ứng tuyển và điều phối lớp.
               </p>
             </div>
           </div>
@@ -345,7 +345,7 @@ function AboutArticle({ item }: { item: PublishedContent }) {
           <div className="rounded-xl border border-primary/20 bg-bg p-8 shadow-card">
             <BookOpen aria-hidden="true" className="mb-4 size-10 text-primary" />
             <p className="leading-relaxed text-muted">
-              Phụ huynh có thể tìm gia sư theo môn học hoặc gửi yêu cầu. Gia sư xem lớp công khai và
+              Người học có thể tìm gia sư theo môn học hoặc gửi yêu cầu. Gia sư xem lớp công khai và
               ứng tuyển; kiểm duyệt viên điều phối lớp theo yêu cầu đã được xem xét.
             </p>
             <ButtonLink to="/dich-vu" variant="secondary" className="mt-6">

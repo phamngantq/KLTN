@@ -90,7 +90,7 @@ function ClassFacts({ item }: { item: PublicClass }) {
                 : formatVnd(item.expectedBudgetMinor)}
             </dd>
             <p className="text-xs text-muted">
-              Mức chi của phụ huynh; phí nhận lớp được chọn khi ứng tuyển.
+              Mức chi của người học; phí nhận lớp được chọn khi ứng tuyển.
             </p>
           </div>
         </div>
@@ -376,7 +376,7 @@ function TutorApplicationForm({
                           ))}
                         </ul>
                       ) : (
-                        <p>Chưa có khung giờ cụ thể; cần trao đổi lịch với phụ huynh.</p>
+                        <p>Chưa có khung giờ cụ thể; cần trao đổi lịch với người học.</p>
                       )}
                     </div>
                   )}

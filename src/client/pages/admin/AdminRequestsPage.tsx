@@ -132,7 +132,7 @@ export function AdminRequestsPage() {
     <section className="flex min-w-0 flex-col gap-8">
       <PageHeader
         title="Yêu cầu tìm gia sư"
-        description="Quản lý các yêu cầu phụ huynh đã gửi và tạo lớp từ dữ liệu được đồng ý chia sẻ."
+        description="Quản lý các yêu cầu người học đã gửi và tạo lớp từ dữ liệu được đồng ý chia sẻ."
       />
       {notice && (
         <Alert tone="success" action={<ButtonLink to="/admin/classes">Quản lý lớp</ButtonLink>}>
@@ -198,7 +198,7 @@ export function AdminRequestsPage() {
         ) : list.data.items.length === 0 ? (
           <EmptyState
             title="Chưa có yêu cầu phù hợp"
-            description="Yêu cầu phụ huynh chưa gửi sẽ không xuất hiện trong hàng chờ kiểm duyệt."
+            description="Yêu cầu người học chưa gửi sẽ không xuất hiện trong hàng chờ kiểm duyệt."
           />
         ) : (
           <>
@@ -343,7 +343,7 @@ export function AdminRequestsPage() {
                 {detail.data.code} · {detail.data.subjectName} · {detail.data.grade}
               </p>
               <dl className="grid min-w-0 gap-x-6 gap-y-2 text-sm sm:grid-cols-[minmax(9rem,auto)_minmax(0,1fr)]">
-                <dt className="font-medium text-muted">Phụ huynh</dt>
+                <dt className="font-medium text-muted">Người học</dt>
                 <dd>{detail.data.parentDisplayName}</dd>
                 <dt className="font-medium text-muted">Học sinh</dt>
                 <dd className="break-words">{detail.data.studentName ?? 'Chưa nhập'}</dd>

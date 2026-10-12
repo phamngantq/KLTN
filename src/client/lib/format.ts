@@ -45,7 +45,7 @@ export const WEEKDAY_LABELS: Record<number, string> = {
 
 /** Display names for the trusted storage roles, following DEC-009 product mapping. */
 export const ROLE_LABELS = {
-  student: 'Phụ huynh',
+  student: 'Người học',
   tutor: 'Gia sư',
   admin: 'Kiểm duyệt viên',
 } as const;

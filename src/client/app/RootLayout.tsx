@@ -26,7 +26,7 @@ const PUBLIC_NAV: NavItem[] = [
 ];
 
 const BLOG_NAV: NavItem[] = [
-  { to: '/blog/phu-huynh', label: 'Tin tức Phụ huynh' },
+  { to: '/blog/phu-huynh', label: 'Tin tức Người học' },
   { to: '/blog/gia-su', label: 'Tin tức Gia sư' },
 ];
 
@@ -34,9 +34,9 @@ const CLASS_NAV = PUBLIC_NAV.filter(
   (item) => item.to === '/lop-hoc' || item.to === '/lop-tim-hoc-vien',
 );
 
-// Parents reach their area from the logo and the role menu; no separate "Khu vực phụ huynh" item.
+// Parents reach their area from the logo and the role menu; no separate "Khu vực người học" item.
 const ROLE_PORTAL: Record<UserRole, NavItem> = {
-  student: { to: '/parent/dashboard', label: 'Khu vực phụ huynh' },
+  student: { to: '/parent/dashboard', label: 'Khu vực người học' },
   tutor: { to: '/tutor', label: 'Khu vực gia sư' },
   admin: { to: '/admin', label: 'Khu vực kiểm duyệt' },
 };
@@ -448,7 +448,7 @@ export function RootLayout() {
                 <BrandSignature />
               </div>
               <p className="mt-4 text-sm text-on-primary/80">
-                Kết nối phụ huynh và gia sư qua yêu cầu, ứng tuyển và điều phối lớp học.
+                Kết nối người học và gia sư qua yêu cầu, ứng tuyển và điều phối lớp học.
               </p>
             </div>
             <nav aria-label="Liên kết cuối trang" className="text-sm">

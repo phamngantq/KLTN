@@ -6,6 +6,7 @@ import { desc, sql } from 'drizzle-orm';
 import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
 import { BOOKING_STATUSES } from '../../shared/schemas/bookings';
 import { COMPLAINT_STATUSES } from '../../shared/schemas/complaints';
+import { CONTENT_CATEGORIES } from '../../shared/schemas/content';
 import { CLASS_ASSIGNMENT_STATUSES } from '../../shared/schemas/admin-assignments';
 import { EDUCATION_LEVELS, REQUEST_STATUSES } from '../../shared/schemas/requests';
 import {
@@ -18,6 +19,8 @@ import {
   PRICING_CATALOG_STATUSES,
   PRICING_LEVELS,
   PRICING_MODES,
+  LEARNER_PRICE_DIMENSIONS,
+  TUTOR_TYPES,
 } from '../../shared/schemas/pricing';
 import { TUTOR_OFFER_STATUSES } from '../../shared/schemas/tutor-offers';
 import { TUTOR_OFFER_JOIN_STATUSES } from '../../shared/schemas/tutor-offer-joins';
@@ -316,6 +319,33 @@ export const feeOptionVersions = sqliteTable(
   ],
 );
 
+/** Learner "Bảng giá" reference ranges; guidance only, never a settled price. */
+export const learnerPriceGuides = sqliteTable(
+  'learner_price_guides',
+  {
+    id: text('id').primaryKey(),
+    dimension: text('dimension', { enum: LEARNER_PRICE_DIMENSIONS }).notNull(),
+    tutorType: text('tutor_type', { enum: TUTOR_TYPES }),
+    subjectId: text('subject_id').references(() => subjects.id, { onDelete: 'restrict' }),
+    educationLevel: text('education_level', { enum: EDUCATION_LEVELS }).notNull(),
+    minPriceMinor: integer('min_price_minor').notNull(),
+    maxPriceMinor: integer('max_price_minor').notNull(),
+    status: text('status', { enum: ['draft', 'published'] })
+      .notNull()
+      .default('published'),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('learner_price_guides_key_uq').on(
+      t.dimension,
+      sql`COALESCE(${t.tutorType}, '')`,
+      sql`COALESCE(${t.subjectId}, '')`,
+      t.educationLevel,
+    ),
+    index('learner_price_guides_public_idx').on(t.status, t.dimension),
+  ],
+);
+
 export const tuitionPriceVersions = sqliteTable(
   'tuition_price_versions',
   {
@@ -511,6 +541,8 @@ export const contentRevisions = sqliteTable(
     publishedAt: text('published_at'),
     ...timestamps(),
     lastMutationId: text('last_mutation_id'),
+    category: text('category', { enum: CONTENT_CATEGORIES }),
+    authorName: text('author_name'),
   },
   (t) => [
     uniqueIndex('content_one_draft_uq')
@@ -521,6 +553,7 @@ export const contentRevisions = sqliteTable(
       .where(sql`${t.status} = 'published'`),
     index('content_public_idx').on(t.kind, t.audience, t.status, desc(t.publishedAt)),
     index('content_history_idx').on(t.kind, t.slug, t.audience, desc(t.revision)),
+    index('content_category_idx').on(t.kind, t.audience, t.status, t.category, desc(t.publishedAt)),
   ],
 );
 
@@ -859,6 +892,7 @@ export const complaints = sqliteTable(
     resolution: text('resolution'),
     handledBy: text('handled_by').references(() => users.id, { onDelete: 'restrict' }),
     resolvedAt: text('resolved_at'),
+    submittedAt: text('submitted_at'),
     mutationId: text('mutation_id').notNull(),
     ...timestamps(),
   },

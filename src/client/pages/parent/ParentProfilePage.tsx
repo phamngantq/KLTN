@@ -12,12 +12,12 @@ import { fieldErrors } from '../../lib/api-client';
 export function ParentProfilePage() {
   const profile = useParentProfile();
 
-  if (profile.isPending) return <PageLoading label="Đang tải hồ sơ phụ huynh…" />;
+  if (profile.isPending) return <PageLoading label="Đang tải hồ sơ người học…" />;
   if (profile.isError) {
     return (
       <Alert
         tone="danger"
-        title="Không tải được hồ sơ phụ huynh"
+        title="Không tải được hồ sơ người học"
         action={
           <Button variant="secondary" onClick={() => void profile.refetch()}>
             Thử lại
@@ -31,7 +31,7 @@ export function ParentProfilePage() {
   if (!profile.data) {
     return (
       <EmptyState
-        title="Chưa có hồ sơ phụ huynh"
+        title="Chưa có hồ sơ người học"
         description="Không tìm thấy dữ liệu hồ sơ cho tài khoản này."
         action={
           <Button variant="secondary" onClick={() => void profile.refetch()}>
@@ -88,7 +88,7 @@ function ProfileEditor({ profile }: { profile: ParentProfile }) {
 
   return (
     <section className="flex min-w-0 flex-col gap-6">
-      <PageHeader title="Hồ sơ phụ huynh" description="Quản lý thông tin tài khoản của bạn" />
+      <PageHeader title="Hồ sơ người học" description="Quản lý thông tin tài khoản của bạn" />
       <form onSubmit={onSubmit} noValidate className="flex max-w-3xl flex-col gap-6">
         {update.isError && !Object.keys(errors).length && (
           <Alert tone="danger" title="Không lưu được hồ sơ">
@@ -148,7 +148,7 @@ function ProfileEditor({ profile }: { profile: ParentProfile }) {
             <div>
               <p className="font-medium">Vai trò</p>
               <p className="mt-2 min-h-11 rounded-md border border-border bg-surface px-3 py-2.5 text-muted">
-                Phụ huynh
+                Người học
               </p>
             </div>
             <div className="flex items-start gap-2 rounded-lg bg-info-surface p-3 text-muted sm:col-span-2">

@@ -162,7 +162,7 @@ function Conversion({ data }: { data: ConversionReport }) {
         Từ yêu cầu đến lớp hoàn tất
       </h2>
       <p className="text-sm text-muted">
-        Nhóm yêu cầu được phụ huynh gửi trong kỳ; các bước tiếp theo được tính theo lịch sử của
+        Nhóm yêu cầu được người học gửi trong kỳ; các bước tiếp theo được tính theo lịch sử của
         chính nhóm đó.
       </p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -192,7 +192,7 @@ function ConversionDetail({ data }: { data: ConversionReport }) {
       <div className="rounded-2xl bg-gradient-to-r from-primary to-primary-gradient-end px-6 py-7 text-on-primary print:border print:border-border print:bg-bg print:text-fg">
         <h2 className="text-2xl font-semibold">Từ yêu cầu đến lớp hoàn tất</h2>
         <p className="mt-2 text-sm text-on-primary/90 print:text-fg">
-          Theo dõi các bước xử lý của những yêu cầu phụ huynh đã gửi trong kỳ.
+          Theo dõi các bước xử lý của những yêu cầu người học đã gửi trong kỳ.
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

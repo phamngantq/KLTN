@@ -185,7 +185,7 @@ function DashboardData({
           <MetricCard
             title="Yêu cầu tham gia lớp chờ duyệt"
             value={submittedOfferJoins}
-            description="Phụ huynh đã gửi · toàn thời gian"
+            description="Người học đã gửi · toàn thời gian"
             to="/admin/tutor-offer-joins?status=submitted"
             icon={ClipboardList}
             iconClass="bg-warning-surface text-warning"

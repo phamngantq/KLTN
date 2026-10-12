@@ -140,7 +140,7 @@ export function PublicContactPage() {
             {
               icon: Phone,
               title: 'Tư vấn tìm gia sư',
-              detail: 'Phụ huynh có thể gọi qua số điện thoại đã công bố.',
+              detail: 'Người học có thể gọi qua số điện thoại đã công bố.',
             },
             {
               icon: MessageCircle,

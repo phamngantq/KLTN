@@ -36,12 +36,12 @@ describe('parent profile', () => {
 
     const updated = await api(
       ENDPOINT,
-      jsonInit('PATCH', { displayName: 'Phụ huynh An', phone: '+84912345678' }, owner),
+      jsonInit('PATCH', { displayName: 'Người học An', phone: '+84912345678' }, owner),
     );
     expect(updated.status).toBe(200);
     expect((await updated.json<ApiSuccess<ParentProfile>>()).data).toMatchObject({
       userId: owner.userId,
-      displayName: 'Phụ huynh An',
+      displayName: 'Người học An',
       phone: '+84912345678',
     });
     expect((await profile(other.cookie)).phone).toBeNull();
