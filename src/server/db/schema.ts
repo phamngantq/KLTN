@@ -5,7 +5,7 @@
 import { desc, sql } from 'drizzle-orm';
 import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
 import { BOOKING_STATUSES } from '../../shared/schemas/bookings';
-import { COMPLAINT_STATUSES } from '../../shared/schemas/complaints';
+import { COMPLAINT_ATTACHMENT_TYPES, COMPLAINT_STATUSES } from '../../shared/schemas/complaints';
 import { CONTENT_CATEGORIES } from '../../shared/schemas/content';
 import { CLASS_ASSIGNMENT_STATUSES } from '../../shared/schemas/admin-assignments';
 import { EDUCATION_LEVELS, REQUEST_STATUSES } from '../../shared/schemas/requests';
@@ -20,12 +20,14 @@ import {
   PRICING_LEVELS,
   PRICING_MODES,
   LEARNER_PRICE_DIMENSIONS,
+  LEARNER_PRICE_GROUPS,
   TUTOR_TYPES,
 } from '../../shared/schemas/pricing';
 import { TUTOR_OFFER_STATUSES } from '../../shared/schemas/tutor-offers';
 import { TUTOR_OFFER_JOIN_STATUSES } from '../../shared/schemas/tutor-offer-joins';
 import {
   type AnySQLiteColumn,
+  blob,
   index,
   integer,
   primaryKey,
@@ -343,6 +345,26 @@ export const learnerPriceGuides = sqliteTable(
       t.educationLevel,
     ),
     index('learner_price_guides_public_idx').on(t.status, t.dimension),
+  ],
+);
+
+export const learnerPriceItems = sqliteTable(
+  'learner_price_items',
+  {
+    id: text('id').primaryKey(),
+    groupKey: text('group_key', { enum: LEARNER_PRICE_GROUPS }).notNull(),
+    label: text('label').notNull(),
+    minPriceMinor: integer('min_price_minor').notNull(),
+    maxPriceMinor: integer('max_price_minor').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    status: text('status', { enum: ['draft', 'published'] })
+      .notNull()
+      .default('published'),
+    ...timestamps(),
+  },
+  (t) => [
+    uniqueIndex('learner_price_items_label_uq').on(t.groupKey, t.label),
+    index('learner_price_items_public_idx').on(t.status, t.groupKey, t.sortOrder),
   ],
 );
 
@@ -902,6 +924,23 @@ export const complaints = sqliteTable(
     index('complaints_status_created_idx').on(t.status, desc(t.createdAt), t.id),
     index('complaints_class_idx').on(t.classId, desc(t.createdAt)),
   ],
+);
+
+export const complaintAttachments = sqliteTable(
+  'complaint_attachments',
+  {
+    id: text('id').primaryKey(),
+    complaintId: text('complaint_id')
+      .notNull()
+      .references(() => complaints.id, { onDelete: 'cascade' }),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type', { enum: COMPLAINT_ATTACHMENT_TYPES }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    // Read and written with raw D1 statements as bytes; never selected in list queries.
+    data: blob('data', { mode: 'buffer' }).notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [index('complaint_attachments_complaint_idx').on(t.complaintId, t.createdAt)],
 );
 
 export const accountDeletions = sqliteTable('account_deletions', {

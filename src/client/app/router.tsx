@@ -182,8 +182,28 @@ const parentRoutes: RouteObject[] = [
     }),
   },
   { path: 'trang-chu', element: <HomePage /> },
-  { path: 'gioi-thieu', element: <Navigate to="/gioi-thieu" replace /> },
-  { path: 'dich-vu', element: <Navigate to="/dich-vu" replace /> },
+  // Signed-in users see shared pages inside their area (see member-routes.ts).
+  {
+    path: 'gioi-thieu',
+    ...page(async () => {
+      const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
+      return <PublishedContentPage kind="page" slug="about" fallbackTitle="Giới thiệu" />;
+    }),
+  },
+  {
+    path: 'dich-vu',
+    ...page(async () => {
+      const { PublicServicesPage } = await import('../pages/public/PublicServicesPage');
+      return <PublicServicesPage />;
+    }),
+  },
+  {
+    path: 'lop-hoc/:id',
+    ...page(async () => {
+      const { PublicClassDetailPage } = await import('../pages/classes/ClassDetailPage');
+      return <PublicClassDetailPage />;
+    }),
+  },
   {
     path: 'bang-gia',
     ...page(async () => {
@@ -249,8 +269,14 @@ const parentRoutes: RouteObject[] = [
       return <ComplaintsPage />;
     }),
   },
-  { path: 'blog', element: <Navigate to="/blog/phu-huynh" replace /> },
-  { path: 'lien-he', element: <Navigate to="/lien-he" replace /> },
+  { path: 'blog', element: <Navigate to="/parent/cam-nang" replace /> },
+  {
+    path: 'lien-he',
+    ...page(async () => {
+      const { PublicContactPage } = await import('../pages/public/PublicContactPage');
+      return <PublicContactPage />;
+    }),
+  },
   ...pendingRoutes(
     'parent',
     PARENT_PENDING.filter(([path]) => path !== 'khieu-nai'),
@@ -275,9 +301,56 @@ const tutorRoutes: RouteObject[] = [
   { path: 'dashboard', element: <Navigate to="/tutor" replace /> },
   { path: 'signed-contracts', element: <Navigate to="/tutor/contracts" replace /> },
   { path: 'tutor-blog', element: <Navigate to="/tutor/blog" replace /> },
-  { path: 'pricing', element: <Navigate to="/bang-gia" replace /> },
-  { path: 'blog', element: <Navigate to="/blog/gia-su" replace /> },
-  { path: 'contact', element: <Navigate to="/lien-he" replace /> },
+  {
+    path: 'pricing',
+    ...page(async () => {
+      const { PublicPricingPage } = await import('../pages/public/PublicPricingPage');
+      return <PublicPricingPage />;
+    }),
+  },
+  {
+    path: 'blog',
+    ...page(async () => {
+      const { PublishedContentCollectionPage } =
+        await import('../pages/public/PublishedContentPage');
+      return (
+        <PublishedContentCollectionPage
+          kind="blog"
+          slugPrefix="gia-su-"
+          title="Tin tức gia sư"
+          detailBase="/tutor/blog"
+        />
+      );
+    }),
+  },
+  {
+    path: 'blog/:id',
+    ...page(async () => {
+      const { TutorBlogArticleRoute } = await import('../pages/public/PublishedContentPage');
+      return <TutorBlogArticleRoute />;
+    }),
+  },
+  {
+    path: 'contact',
+    ...page(async () => {
+      const { PublicContactPage } = await import('../pages/public/PublicContactPage');
+      return <PublicContactPage />;
+    }),
+  },
+  {
+    path: 'gioi-thieu',
+    ...page(async () => {
+      const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
+      return <PublishedContentPage kind="page" slug="about" fallbackTitle="Giới thiệu" />;
+    }),
+  },
+  {
+    path: 'dich-vu',
+    ...page(async () => {
+      const { PublicServicesPage } = await import('../pages/public/PublicServicesPage');
+      return <PublicServicesPage />;
+    }),
+  },
   {
     path: 'offers',
     ...page(async () => {

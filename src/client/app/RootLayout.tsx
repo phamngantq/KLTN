@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { ChevronDown, GraduationCap, Mail, MapPin, Menu, Phone, UserRound, X } from 'lucide-react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
+import { Link, Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router';
 import type { UserRole } from '../../shared/schemas/auth';
 import { FloatingContactLinks } from '../components/domain/FloatingContactLinks';
 import { Button } from '../components/ui/Button';
 import { Alert } from '../components/ui/Feedback';
 import { ROLE_LABELS } from '../lib/format';
 import { useLogout, useSession } from './auth';
+import { memberPathFor } from './member-routes';
 import { isReadOnlyPreview } from './preview';
 import { RoleNavigation } from './RoleShell';
 
@@ -81,6 +82,18 @@ export function RootLayout() {
     location.pathname === '/dich-vu' ||
     PUBLIC_NAV.some((item) => item.to === location.pathname) ||
     location.pathname.startsWith('/blog/');
+
+  // Signed-in users never stay on guest pages; send them to the same page in their area.
+  const memberTarget =
+    !isLoading && user && !preview
+      ? memberPathFor(user.role, location.pathname, location.search)
+      : null;
+  if (memberTarget) {
+    const keepsQuery = !/^\/(sign-in|sign-up|login|register|forgot-password)$/.test(
+      location.pathname,
+    );
+    return <Navigate to={`${memberTarget}${keepsQuery ? location.search : ''}`} replace />;
+  }
 
   function logOut() {
     setMobileMenuOpen(false);

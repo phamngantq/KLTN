@@ -14,6 +14,8 @@ import {
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
 import {
+  COMPLAINT_ATTACHMENT_MAX_COUNT,
+  COMPLAINT_ATTACHMENT_TYPES,
   COMPLAINT_GROUP_KEYS,
   COMPLAINT_GROUPS,
   createComplaintSchema,
@@ -26,6 +28,12 @@ import {
 } from '../../../shared/schemas/complaints';
 import type { Page } from '../../../shared/schemas/discovery';
 import { isReadOnlyPreview } from '../../app/preview';
+import {
+  ATTACHMENT_ACCEPT,
+  AttachmentLinks,
+  PendingFile,
+  prepareEvidence,
+} from '../../components/domain/ComplaintAttachments';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
@@ -397,7 +405,10 @@ export function ComplaintsPage() {
           key={editor.mode === 'edit' ? editor.complaint.id : 'new'}
           editor={editor}
           classId={classId}
-          onClose={() => setEditor(null)}
+          onClose={() => {
+            setEditor(null);
+            refresh(); // a failed upload may already have saved the draft
+          }}
           onSaved={(saved, sent) => {
             setEditor(null);
             setNotice(
@@ -518,33 +529,84 @@ function ComplaintEditor({
   const existing = editor.mode === 'edit' ? editor.complaint : null;
   const [title, setTitle] = useState(existing?.title ?? '');
   const [body, setBody] = useState(existing?.body ?? '');
+  const [files, setFiles] = useState<File[]>([]);
+  const [removed, setRemoved] = useState<string[]>([]);
   const [localError, setLocalError] = useState('');
+  const [draftSaved, setDraftSaved] = useState(false);
   const keyRef = useRef<string | null>(null);
+  // Set once the draft exists, so a retry after a failed upload edits it instead of re-creating.
+  const draftRef = useRef<{ id: string; version: number } | null>(
+    existing ? { id: existing.id, version: existing.version } : null,
+  );
   const linkedClass = existing ? existing.classId : classId;
+  const current = useQuery({
+    queryKey: ['complaint', existing?.id],
+    queryFn: ({ signal }) =>
+      api.get<ComplaintDetail>(`/complaints/${encodeURIComponent(existing!.id)}`, { signal }),
+    enabled: existing !== null,
+  });
+  const kept = (current.data?.attachments ?? []).filter((item) => !removed.includes(item.id));
+  const roomLeft = COMPLAINT_ATTACHMENT_MAX_COUNT - kept.length - files.length;
 
   const save = useMutation({
     mutationFn: async ({ input, send }: { input: CreateComplaintInput; send: boolean }) => {
-      if (!existing) {
+      let draft: ComplaintDetail;
+      if (!draftRef.current) {
         keyRef.current ??= crypto.randomUUID();
-        return api.post<ComplaintDetail>(
+        // Always start as a draft: evidence can only be attached before sending.
+        draft = await api.post<ComplaintDetail>(
           '/complaints',
-          { ...input, submit: send },
+          { ...input, submit: false },
           { headers: { 'Idempotency-Key': keyRef.current } },
         );
+      } else {
+        draft = await api.patch<ComplaintDetail>(
+          `/complaints/${encodeURIComponent(draftRef.current.id)}`,
+          {
+            classId: input.classId,
+            title: input.title,
+            body: input.body,
+            version: draftRef.current.version,
+          },
+        );
       }
-      const path = `/complaints/${encodeURIComponent(existing.id)}`;
-      const edited = await api.patch<ComplaintDetail>(path, {
-        classId: input.classId,
-        title: input.title,
-        body: input.body,
-        version: existing.version,
-      });
+      draftRef.current = { id: draft.id, version: draft.version };
+      setDraftSaved(true);
+      const path = `/complaints/${encodeURIComponent(draft.id)}`;
+      for (const attachmentId of removed) {
+        await api.delete(`${path}/attachments/${encodeURIComponent(attachmentId)}`);
+        setRemoved((list) => list.filter((value) => value !== attachmentId));
+      }
+      for (const file of files) {
+        const form = new FormData();
+        form.set('file', await prepareEvidence(file));
+        await api.upload(`${path}/attachments`, form);
+        setFiles((list) => list.filter((value) => value !== file));
+      }
       return send
-        ? api.post<ComplaintDetail>(`${path}/submit`, { version: edited.version })
-        : edited;
+        ? api.post<ComplaintDetail>(`${path}/submit`, { version: draft.version })
+        : api.get<ComplaintDetail>(path);
     },
     onSuccess: (saved, { send }) => onSaved(saved, send),
   });
+
+  function addFiles(list: FileList | null) {
+    if (!list?.length) return;
+    const chosen = [...list];
+    const rejected = chosen.find(
+      (file) => !(COMPLAINT_ATTACHMENT_TYPES as readonly string[]).includes(file.type),
+    );
+    if (rejected) {
+      setLocalError(`${rejected.name}: chỉ nhận ảnh JPG, PNG, WebP hoặc tệp PDF.`);
+      return;
+    }
+    if (chosen.length > roomLeft) {
+      setLocalError(`Mỗi khiếu nại có tối đa ${COMPLAINT_ATTACHMENT_MAX_COUNT} tệp minh chứng.`);
+      return;
+    }
+    setLocalError('');
+    setFiles((current) => [...current, ...chosen]);
+  }
 
   function persist(send: boolean) {
     const parsed = createComplaintSchema.safeParse({ classId: linkedClass, title, body });
@@ -595,9 +657,58 @@ function ComplaintEditor({
           }}
           error={errors.body}
         />
+        <div className="flex flex-col gap-2">
+          <label htmlFor="complaint-evidence" className="text-sm font-medium text-fg">
+            Đính kèm minh chứng
+          </label>
+          <input
+            id="complaint-evidence"
+            type="file"
+            multiple
+            accept={ATTACHMENT_ACCEPT}
+            disabled={save.isPending || roomLeft <= 0}
+            aria-describedby="complaint-evidence-hint"
+            onChange={(event) => {
+              addFiles(event.target.files);
+              event.target.value = '';
+            }}
+            className="text-sm file:mr-3 file:min-h-11 file:rounded-lg file:border file:border-border file:bg-surface file:px-4 file:text-sm file:font-medium file:text-primary"
+          />
+          <p id="complaint-evidence-hint" className="text-xs text-muted">
+            Ảnh JPG, PNG, WebP hoặc PDF; tối đa {COMPLAINT_ATTACHMENT_MAX_COUNT} tệp, mỗi tệp 1,5
+            MB. Ảnh lớn được tự thu nhỏ. Minh chứng chỉ bạn và kiểm duyệt viên xem được.
+          </p>
+          {(kept.length > 0 || files.length > 0) && (
+            <ul className="flex flex-col gap-2">
+              {kept.map((item) => (
+                <PendingFile
+                  key={item.id}
+                  name={item.fileName}
+                  size={item.sizeBytes}
+                  disabled={save.isPending}
+                  onRemove={() => setRemoved((list) => [...list, item.id])}
+                />
+              ))}
+              {files.map((file, index) => (
+                <PendingFile
+                  key={`${file.name}-${index}`}
+                  name={file.name}
+                  size={file.size}
+                  disabled={save.isPending}
+                  onRemove={() => setFiles((list) => list.filter((value) => value !== file))}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
         {(localError || (save.isError && !Object.keys(errors).length)) && (
           <p role="alert" className="text-sm text-danger">
             {localError || save.error?.message}
+          </p>
+        )}
+        {save.isError && draftSaved && !existing && (
+          <p className="text-xs text-muted">
+            Khiếu nại đã được lưu nháp; bạn có thể thử lại hoặc mở lại từ tab “Chưa gửi”.
           </p>
         )}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -662,6 +773,10 @@ function ComplaintViewer({ id, onClose }: { id: string; onClose: () => void }) {
               </div>
             )}
           </dl>
+          <AttachmentLinks
+            attachments={detail.data.attachments}
+            basePath={`/complaints/${encodeURIComponent(detail.data.id)}`}
+          />
           {detail.data.resolution && (
             <div className="rounded-lg border border-success bg-success-surface p-3">
               <p className="font-semibold text-success">Kết quả xử lý</p>

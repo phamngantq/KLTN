@@ -10,6 +10,8 @@ import {
   triageComplaintSchema,
   type AdminComplaintDetail,
   type AdminComplaintSummary,
+  COMPLAINT_ATTACHMENT_MAX_BYTES,
+  type ComplaintAttachment,
   type ComplaintCounts,
   type ComplaintDetail,
   type OwnComplaintSummary,
@@ -20,6 +22,7 @@ import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import * as idempotency from '../idempotency/service';
+import * as attachments from './complaint-attachments';
 import * as service from './complaints-service';
 
 /** Mounted at /api/v1/complaints. List and detail belong only to the signed-in user. */
@@ -92,6 +95,42 @@ complaintRoutes.delete('/:id', async (c) => {
   return ok(c, { deleted: true });
 });
 
+/** Multipart upload of one evidence file ("file") to an own draft. */
+complaintRoutes.post('/:id/attachments', async (c) => {
+  const length = Number(c.req.header('Content-Length') ?? 0);
+  if (length > COMPLAINT_ATTACHMENT_MAX_BYTES + 64 * 1024) {
+    throw new AppError(413, 'PAYLOAD_TOO_LARGE', 'Mỗi tệp tối đa 1,5 MB.');
+  }
+  const form = await c.req.formData().catch(() => null);
+  const file = form?.get('file');
+  if (!(file instanceof File)) {
+    throw new AppError(422, 'VALIDATION_ERROR', 'Cần chọn tệp minh chứng.', [
+      { path: 'file', message: 'Cần chọn tệp minh chứng.' },
+    ]);
+  }
+  return ok<ComplaintAttachment>(
+    c,
+    await attachments.addAttachment(c.env.DB, authOf(c).user.id, c.req.param('id'), file),
+    201,
+  );
+});
+
+complaintRoutes.delete('/:id/attachments/:attachmentId', async (c) => {
+  await attachments.removeAttachment(
+    c.env.DB,
+    authOf(c).user.id,
+    c.req.param('id'),
+    c.req.param('attachmentId'),
+  );
+  return ok(c, { deleted: true });
+});
+
+complaintRoutes.get('/:id/attachments/:attachmentId', (c) =>
+  attachments.downloadAttachment(c.env.DB, c.req.param('id'), c.req.param('attachmentId'), {
+    userId: authOf(c).user.id,
+  }),
+);
+
 complaintRoutes.get('/:id', async (c) =>
   ok<ComplaintDetail>(
     c,
@@ -115,6 +154,12 @@ adminComplaintRoutes.get('/:id', async (c) =>
     c,
     await service.getAdminComplaint(c.var.db, c.req.param('id'), authOf(c).user.id),
   ),
+);
+
+adminComplaintRoutes.get('/:id/attachments/:attachmentId', (c) =>
+  attachments.downloadAttachment(c.env.DB, c.req.param('id'), c.req.param('attachmentId'), {
+    moderator: true,
+  }),
 );
 
 adminComplaintRoutes.post('/:id/triage', async (c) => {

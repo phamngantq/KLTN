@@ -9,6 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
+import { deflateSync } from 'node:zlib';
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -66,6 +67,13 @@ const COMPLAINTS = [
     resolution:
       'Trung tâm đã giới thiệu gia sư mới có kinh nghiệm dạy Toán THCS; lớp học tiếp tục từ tuần sau.',
     createdDaysAgo: 20,
+  },
+  {
+    status: 'submitted',
+    title: 'Lịch học bị thay đổi không báo trước',
+    body: 'Buổi học thứ Bảy tuần trước bị đổi giờ mà không có thông báo. Tôi gửi kèm ảnh lịch học đã thống nhất.',
+    evidence: 'lich-hoc-da-thong-nhat.png',
+    createdDaysAgo: 1,
   },
 ];
 
@@ -138,62 +146,102 @@ function articleBody(article) {
 
 const LEVELS = ['primary', 'lower_secondary', 'upper_secondary', 'university_prep'];
 const k = (value) => value * 1000;
+// Sample reference ranges (thousand VND per session). Card ranges span these per-stage rows.
 const TUTOR_TYPE_PRICES = {
   university_student: [
+    [80, 100],
+    [100, 120],
     [120, 150],
-    [150, 180],
-    [180, 220],
-    [220, 260],
+    [130, 150],
   ],
   pedagogy_student: [
-    [150, 180],
+    [100, 130],
+    [120, 160],
+    [150, 200],
     [180, 220],
-    [220, 260],
-    [260, 300],
   ],
   teacher: [
-    [200, 250],
+    [150, 200],
+    [180, 230],
+    [200, 260],
     [250, 300],
-    [300, 350],
-    [350, 450],
   ],
 };
-const SUBJECT_PRICES = {
-  subj_math: [
-    [150, 250],
-    [180, 280],
-    [200, 320],
-    [250, 400],
+const PRICE_ITEMS = {
+  primary: [
+    ['Toán, Tiếng Việt', 80, 120],
+    ['Tiếng Anh', 100, 150],
+    ['Ôn thi vào lớp 6', 120, 180],
   ],
-  subj_literature: [
-    [150, 230],
-    [170, 260],
-    [200, 300],
-    [240, 380],
+  lower_secondary: [
+    ['Toán, Ngữ văn', 100, 150],
+    ['Tiếng Anh', 120, 180],
+    ['Vật lý, Hóa học, Sinh học', 120, 180],
+    ['Ôn thi vào lớp 10', 150, 250],
   ],
-  subj_english: [
-    [160, 260],
-    [180, 300],
-    [220, 340],
-    [260, 420],
+  upper_secondary: [
+    ['Toán, Vật lý, Hóa học', 150, 250],
+    ['Ngữ văn, Lịch sử, Địa lý', 150, 220],
+    ['Tiếng Anh', 150, 250],
+    ['Luyện thi tốt nghiệp THPT, đại học', 200, 400],
   ],
-  subj_physics: [null, [180, 270], [200, 320], [250, 400]],
-  subj_chemistry: [null, [180, 270], [200, 320], [250, 400]],
-  subj_biology: [null, [170, 250], [190, 300], [240, 380]],
-  subj_history: [
-    [140, 200],
-    [160, 230],
-    [180, 260],
-    [220, 320],
+  talent: [
+    ['Vẽ, Mỹ thuật', 120, 200],
+    ['Piano, Organ', 150, 300],
+    ['Guitar, Ukulele', 120, 200],
+    ['Thanh nhạc', 150, 250],
   ],
-  subj_geography: [
-    [140, 200],
-    [160, 230],
-    [180, 260],
-    [220, 320],
+  language: [
+    ['Tiếng Anh giao tiếp', 150, 250],
+    ['IELTS, TOEIC', 250, 450],
+    ['Tiếng Nhật', 150, 250],
+    ['Tiếng Hàn', 150, 250],
+    ['Tiếng Trung', 150, 250],
   ],
-  subj_informatics: [[150, 220], [170, 250], [200, 300], null],
 };
+
+/** A small striped PNG standing in for a photographed timetable (sample evidence). */
+function samplePng(width = 240, height = 160) {
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k2 = 0; k2 < 8; k2++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buffer) => {
+    let c = 0xffffffff;
+    for (const byte of buffer) c = crcTable[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.set([8, 2, 0, 0, 0], 8); // 8-bit RGB
+  const rows = [];
+  for (let y = 0; y < height; y++) {
+    const row = Buffer.alloc(1 + width * 3);
+    for (let x = 0; x < width; x++) {
+      const line = y % 32 < 4;
+      const column = x % 60 < 3;
+      const [r, g, b] = y < 28 ? [14, 47, 95] : line || column ? [200, 210, 225] : [250, 250, 252];
+      row.set([r, g, b], 1 + x * 3);
+    }
+    rows.push(row);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
 
 function sql(value) {
   if (value === null || value === undefined) return 'NULL';
@@ -225,13 +273,25 @@ VALUES (${sql(learnerId)}, '0901234567', ${sql(now)}, ${sql(now)});`,
     const created = ago(item.createdDaysAgo);
     const sent = item.status !== 'draft';
     const handled = item.status === 'in_review' || item.status === 'resolved';
+    // Evidence can only be attached to a draft, so such a complaint starts as one and is sent after.
+    const startStatus = item.evidence ? 'draft' : item.status;
     out.push(`INSERT OR IGNORE INTO complaints (id, code, creator_user_id, class_id, title, body, status, version,
   triage_reason, resolution, handled_by, resolved_at, submitted_at, mutation_id, created_at, updated_at)
 VALUES (${sql(id)}, ${sql(`KN-DEMO${String(index + 1).padStart(8, '0')}`)}, ${sql(learnerId)}, NULL,
-  ${sql(item.title)}, ${sql(item.body)}, ${sql(item.status)}, 1, ${sql(item.triage ?? null)},
+  ${sql(item.title)}, ${sql(item.body)}, ${sql(startStatus)}, 1, ${sql(item.triage ?? null)},
   ${sql(item.resolution ?? null)}, ${handled ? sql(adminId) : 'NULL'},
   ${item.status === 'resolved' ? sql(ago(item.createdDaysAgo - 3)) : 'NULL'},
-  ${sent ? sql(created) : 'NULL'}, ${sql(id)}, ${sql(created)}, ${sql(created)});`);
+  ${sent && !item.evidence ? sql(created) : 'NULL'}, ${sql(id)}, ${sql(created)}, ${sql(created)});`);
+    if (item.evidence) {
+      const png = samplePng();
+      out.push(`INSERT INTO complaint_attachments (id, complaint_id, file_name, content_type, size_bytes, data, created_at)
+SELECT ${sql(demoId(5, index + 1))}, ${sql(id)}, ${sql(item.evidence)}, 'image/png', ${png.length},
+  X'${png.toString('hex')}', ${sql(created)}
+WHERE NOT EXISTS (SELECT 1 FROM complaint_attachments WHERE id = ${sql(demoId(5, index + 1))})
+  AND EXISTS (SELECT 1 FROM complaints WHERE id = ${sql(id)} AND status = 'draft');`);
+      out.push(`UPDATE complaints SET status = ${sql(item.status)}, submitted_at = ${sql(created)}
+WHERE id = ${sql(id)} AND status = 'draft';`);
+    }
     out.push(
       audit(
         learnerId,
@@ -261,24 +321,30 @@ WHERE NOT EXISTS (SELECT 1 FROM content_revisions WHERE kind = 'blog' AND slug =
     );
   });
 
+  // Demo rows are owned by this script: re-running refreshes their sample values.
   let n = 0;
   for (const [tutorType, ranges] of Object.entries(TUTOR_TYPE_PRICES)) {
     ranges.forEach((range, level) => {
       n += 1;
-      out.push(`INSERT OR IGNORE INTO learner_price_guides (id, dimension, tutor_type, subject_id, education_level,
+      out.push(`INSERT INTO learner_price_guides (id, dimension, tutor_type, subject_id, education_level,
   min_price_minor, max_price_minor, status, created_at, updated_at)
 VALUES (${sql(demoId(3, n))}, 'tutor_type', ${sql(tutorType)}, NULL, ${sql(LEVELS[level])},
-  ${k(range[0])}, ${k(range[1])}, 'published', ${sql(now)}, ${sql(now)});`);
+  ${k(range[0])}, ${k(range[1])}, 'published', ${sql(now)}, ${sql(now)})
+ON CONFLICT (id) DO UPDATE SET min_price_minor = excluded.min_price_minor,
+  max_price_minor = excluded.max_price_minor, updated_at = excluded.updated_at;`);
     });
   }
-  for (const [subjectId, ranges] of Object.entries(SUBJECT_PRICES)) {
-    ranges.forEach((range, level) => {
-      n += 1;
-      if (!range) return;
-      out.push(`INSERT OR IGNORE INTO learner_price_guides (id, dimension, tutor_type, subject_id, education_level,
-  min_price_minor, max_price_minor, status, created_at, updated_at)
-SELECT ${sql(demoId(3, n))}, 'subject', NULL, id, ${sql(LEVELS[level])}, ${k(range[0])}, ${k(range[1])},
-  'published', ${sql(now)}, ${sql(now)} FROM subjects WHERE id = ${sql(subjectId)};`);
+  let order = 0;
+  for (const [group, rows] of Object.entries(PRICE_ITEMS)) {
+    rows.forEach(([label, min, max], index) => {
+      order += 1;
+      out.push(`INSERT INTO learner_price_items (id, group_key, label, min_price_minor, max_price_minor,
+  sort_order, status, created_at, updated_at)
+VALUES (${sql(demoId(4, order))}, ${sql(group)}, ${sql(label)}, ${k(min)}, ${k(max)}, ${index + 1},
+  'published', ${sql(now)}, ${sql(now)})
+ON CONFLICT (id) DO UPDATE SET label = excluded.label, min_price_minor = excluded.min_price_minor,
+  max_price_minor = excluded.max_price_minor, sort_order = excluded.sort_order,
+  updated_at = excluded.updated_at;`);
     });
   }
   return out;
@@ -392,16 +458,21 @@ function main() {
       (SELECT group_concat(status) FROM (SELECT status FROM complaints WHERE creator_user_id = ${sql(learnerId)} ORDER BY status)) AS complaints,
       (SELECT count(*) FROM content_revisions WHERE kind = 'blog' AND status = 'published' AND slug LIKE 'phu-huynh-%' AND category IS NOT NULL) AS articles,
       (SELECT count(*) FROM learner_price_guides WHERE status = 'published' AND dimension = 'tutor_type') AS tutorTypeRows,
-      (SELECT count(*) FROM learner_price_guides WHERE status = 'published' AND dimension = 'subject') AS subjectRows`,
+      (SELECT count(*) FROM learner_price_items WHERE status = 'published') AS itemRows`,
     options,
   );
-  if (counts.credential !== 1 || counts.articles < ARTICLES.length || counts.tutorTypeRows < 12) {
+  if (
+    counts.credential !== 1 ||
+    counts.articles < ARTICLES.length ||
+    counts.tutorTypeRows < 12 ||
+    counts.itemRows < 20
+  ) {
     throw new Error('Learner demo verification failed.');
   }
   if (query('PRAGMA foreign_key_check', options).length)
     throw new Error('Foreign key check failed.');
   console.log(
-    `Learner demo ready (${options.target}): complaints [${counts.complaints}], ${counts.articles} categorised articles, ${counts.tutorTypeRows} tutor-type and ${counts.subjectRows} subject price rows.`,
+    `Learner demo ready (${options.target}): complaints [${counts.complaints}], ${counts.articles} categorised articles, ${counts.tutorTypeRows} tutor-type price rows and ${counts.itemRows} grouped price items.`,
   );
   console.log(
     `Learner login: ${LEARNER_EMAIL}; password in ${relative(ROOT, credentialsFile)} (ignored by Git).`,

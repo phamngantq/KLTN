@@ -3,6 +3,7 @@ import type {
   CreateClassFeeGuidanceInput,
   CreateTuitionPriceInput,
   LearnerPriceGuide,
+  LearnerPriceItem,
   TuitionPriceVersion,
   UpdateClassFeeGuidanceInput,
   UpdateTuitionPriceInput,
@@ -576,5 +577,21 @@ export async function listLearnerGuides(db: D1Database): Promise<LearnerPriceGui
          s.name, ${LEVEL_ORDER}`,
     )
     .all<LearnerPriceGuide>();
+  return results;
+}
+
+const GROUP_ORDER =
+  "CASE group_key WHEN 'primary' THEN 1 WHEN 'lower_secondary' THEN 2 WHEN 'upper_secondary' THEN 3 WHEN 'talent' THEN 4 ELSE 5 END";
+
+/** Published grouped reference items for the learner price list. */
+export async function listLearnerItems(db: D1Database): Promise<LearnerPriceItem[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT id, group_key AS groupKey, label, min_price_minor AS minPriceMinor,
+         max_price_minor AS maxPriceMinor, sort_order AS sortOrder
+       FROM learner_price_items WHERE status = 'published'
+       ORDER BY ${GROUP_ORDER}, sort_order, label`,
+    )
+    .all<LearnerPriceItem>();
   return results;
 }

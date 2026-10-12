@@ -88,9 +88,29 @@ export interface OwnComplaintSummary extends ComplaintSummary {
   body: string;
 }
 
+/** Evidence files: images or PDF, attached while the complaint is a draft. */
+export const COMPLAINT_ATTACHMENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
+export type ComplaintAttachmentType = (typeof COMPLAINT_ATTACHMENT_TYPES)[number];
+export const COMPLAINT_ATTACHMENT_MAX_BYTES = 1_572_864; // 1.5 MB, within a D1 row.
+export const COMPLAINT_ATTACHMENT_MAX_COUNT = 3;
+
+export interface ComplaintAttachment {
+  id: string;
+  fileName: string;
+  contentType: ComplaintAttachmentType;
+  sizeBytes: number;
+  createdAt: string;
+}
+
 export interface ComplaintDetail extends ComplaintSummary {
   body: string;
   resolution: string | null;
+  attachments: ComplaintAttachment[];
 }
 
 export interface AdminComplaintSummary extends ComplaintSummary {
@@ -104,4 +124,5 @@ export interface AdminComplaintDetail extends AdminComplaintSummary {
   triageReason: string | null;
   resolution: string | null;
   handledBy: string | null;
+  attachments: ComplaintAttachment[];
 }

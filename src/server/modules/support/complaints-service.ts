@@ -1,4 +1,4 @@
-import { and, count, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, lt, ne, or, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import type { Page } from '../../../shared/schemas/discovery';
 import {
@@ -7,6 +7,7 @@ import {
   type AdminComplaintDetail,
   type AdminComplaintListQuery,
   type AdminComplaintSummary,
+  type ComplaintAttachment,
   type ComplaintCounts,
   type ComplaintDetail,
   type ComplaintListQuery,
@@ -16,7 +17,7 @@ import {
   type UpdateComplaintDraftInput,
 } from '../../../shared/schemas/complaints';
 import type { Db } from '../../db/client';
-import { auditLogs, classListings, complaints, users } from '../../db/schema';
+import { auditLogs, classListings, complaintAttachments, complaints, users } from '../../db/schema';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 
 const notFound = () => new AppError(404, 'COMPLAINT_NOT_FOUND', 'Không tìm thấy khiếu nại.');
@@ -279,6 +280,22 @@ export async function countOwnComplaints(db: Db, userId: string): Promise<Compla
   return counts;
 }
 
+/** Attachment metadata only; bytes are served by the download route. */
+function attachmentsOf(db: Db, complaintId: string): Promise<ComplaintAttachment[]> {
+  return db
+    .select({
+      id: complaintAttachments.id,
+      fileName: complaintAttachments.fileName,
+      contentType: complaintAttachments.contentType,
+      sizeBytes: complaintAttachments.sizeBytes,
+      createdAt: complaintAttachments.createdAt,
+    })
+    .from(complaintAttachments)
+    .where(eq(complaintAttachments.complaintId, complaintId))
+    .orderBy(asc(complaintAttachments.createdAt), asc(complaintAttachments.id))
+    .all();
+}
+
 export async function getOwnComplaint(
   db: Db,
   userId: string,
@@ -290,7 +307,7 @@ export async function getOwnComplaint(
     .where(and(eq(complaints.id, id), eq(complaints.creatorUserId, userId)))
     .get();
   if (!item) throw notFound();
-  return item;
+  return { ...item, attachments: await attachmentsOf(db, id) };
 }
 
 const adminColumns = {
@@ -366,7 +383,7 @@ export async function getAdminComplaint(
       createdAt: new Date().toISOString(),
     });
   }
-  return adminSummary(row);
+  return { ...adminSummary(row), attachments: await attachmentsOf(db, id) };
 }
 
 async function transition(

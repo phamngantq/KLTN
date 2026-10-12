@@ -51,7 +51,9 @@ async function request<T>(method: string, path: string, options: RequestOptions 
   const headers: Record<string, string> = { Accept: 'application/json', ...options.headers };
   const init: RequestInit = { method, headers, credentials: 'same-origin' };
   if (options.signal) init.signal = options.signal;
-  if (options.body !== undefined) {
+  if (options.body instanceof FormData) {
+    init.body = options.body; // the browser sets the multipart boundary
+  } else if (options.body !== undefined) {
     headers['Content-Type'] = 'application/json';
     init.body = JSON.stringify(options.body);
   }
@@ -90,6 +92,8 @@ export const api = {
     request<T>('PUT', path, { ...options, body }),
   patch: <T>(path: string, body: unknown, options?: Omit<RequestOptions, 'body'>) =>
     request<T>('PATCH', path, { ...options, body }),
+  upload: <T>(path: string, form: FormData, options?: Omit<RequestOptions, 'body'>) =>
+    request<T>('POST', path, { ...options, body: form }),
   delete: <T>(path: string, body?: unknown, options?: Omit<RequestOptions, 'body'>) =>
     request<T>('DELETE', path, body === undefined ? options : { ...options, body }),
 };

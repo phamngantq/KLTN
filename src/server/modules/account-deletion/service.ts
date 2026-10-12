@@ -14,6 +14,7 @@ import {
   classCancellations,
   classLifecycleEvents,
   classListings,
+  complaintAttachments,
   complaints,
   idempotencyKeys,
   parentProfiles,
@@ -107,6 +108,18 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
     .from(bookings)
     .where(or(eq(bookings.studentId, userId), eq(bookings.tutorId, userId)));
   const statements: BatchItem<'sqlite'>[] = [
+    // Evidence files may hold personal data: purge them for every own complaint.
+    db
+      .delete(complaintAttachments)
+      .where(
+        inArray(
+          complaintAttachments.complaintId,
+          db
+            .select({ id: complaints.id })
+            .from(complaints)
+            .where(eq(complaints.creatorUserId, userId)),
+        ),
+      ),
     // Unsent complaint drafts are private notes, not history: remove them outright.
     db
       .delete(complaints)

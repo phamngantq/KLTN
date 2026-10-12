@@ -23,7 +23,12 @@ export function mockApi(handler: Handler) {
     const req = {
       method: (init.method ?? 'GET').toUpperCase(),
       path: url.pathname.replace(/^\/api\/v1/, '') + url.search,
-      body: init.body ? JSON.parse(String(init.body)) : undefined,
+      body:
+        init.body instanceof FormData
+          ? init.body
+          : init.body
+            ? JSON.parse(String(init.body))
+            : undefined,
       headers: new Headers(init.headers),
     };
     calls.push(req);

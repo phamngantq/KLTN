@@ -36,6 +36,7 @@ export const listPublicTuition = (db: D1Database) => repo.listTuition(db, true);
 export const listAdminTuition = (db: D1Database) => repo.listTuition(db, false);
 export const listPublicGuidance = (db: D1Database) => repo.listGuidance(db, true);
 export const listLearnerGuides = (db: D1Database) => repo.listLearnerGuides(db);
+export const listLearnerItems = (db: D1Database) => repo.listLearnerItems(db);
 export const listAdminGuidance = (db: D1Database) => repo.listGuidance(db, false);
 
 export async function createTuition(

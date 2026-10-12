@@ -1,137 +1,206 @@
 import { useQuery } from '@tanstack/react-query';
-import { BadgeCheck, BookOpen, GraduationCap, Info } from 'lucide-react';
-import type { ReactNode } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import { CircleCheck, GraduationCap, Info, School, Users } from 'lucide-react';
 import {
+  LEARNER_PRICE_GROUP_LABELS,
+  LEARNER_PRICE_GROUPS,
   TUTOR_TYPE_LABELS,
   TUTOR_TYPES,
   type LearnerPriceGuide,
+  type LearnerPriceItem,
+  type TutorType,
 } from '../../../shared/schemas/pricing';
-import {
-  EDUCATION_LEVEL_LABELS,
-  EDUCATION_LEVELS,
-  type EducationLevel,
-} from '../../../shared/schemas/requests';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { Skeleton } from '../../components/ui/Spinner';
 import { api } from '../../lib/api-client';
 
-function priceRange(guide: LearnerPriceGuide | undefined): string {
-  if (!guide) return '—';
-  const thousands = (value: number) => new Intl.NumberFormat('vi-VN').format(value / 1000);
-  return guide.minPriceMinor === guide.maxPriceMinor
-    ? `${thousands(guide.minPriceMinor)}k`
-    : `${thousands(guide.minPriceMinor)}k – ${thousands(guide.maxPriceMinor)}k`;
-}
+export const LEARNER_PRICE_NOTE =
+  'Học phí trên là mức tham khảo, có thể thay đổi tùy theo khu vực và yêu cầu cụ thể và người học tìm kiếm gia sư qua trung tâm không mất phí môi giới';
 
-type Row = { key: string; label: string; byLevel: Map<EducationLevel, LearnerPriceGuide> };
+/** Card copy per tutor type; prices come from D1. */
+const TUTOR_CARDS: Record<
+  TutorType,
+  { icon: LucideIcon; iconClass: string; description: string; points: string[] }
+> = {
+  university_student: {
+    icon: Users,
+    iconClass: 'bg-primary text-on-primary',
+    description: 'Sinh viên các trường đại học uy tín, nhiệt huyết và năng động',
+    points: [
+      'Sinh viên năm 2 trở lên',
+      'Hồ sơ được kiểm duyệt viên duyệt trước khi nhận lớp',
+      'Phù hợp kèm học sinh tiểu học và THCS',
+      'Phương pháp giảng dạy trẻ trung, gần gũi',
+    ],
+  },
+  pedagogy_student: {
+    icon: GraduationCap,
+    iconClass: 'bg-accent text-on-accent',
+    description: 'Sinh viên sư phạm được đào tạo nghiệp vụ giảng dạy bài bản',
+    points: [
+      'Được học phương pháp giảng dạy chính quy',
+      'Bám sát chương trình sách giáo khoa',
+      'Phù hợp từ tiểu học đến THPT',
+      'Chi phí hợp lý so với giáo viên',
+    ],
+  },
+  teacher: {
+    icon: School,
+    iconClass: 'bg-warning text-white',
+    description: 'Giáo viên có kinh nghiệm, chuyên môn cao',
+    points: [
+      'Đang hoặc từng giảng dạy tại các trường',
+      'Phù hợp tất cả các cấp học',
+      'Am hiểu chương trình học và đề thi',
+      'Phù hợp lớp ôn thi, luyện thi',
+    ],
+  },
+};
+const FEATURED: TutorType = 'pedagogy_student';
 
-function rows(guides: LearnerPriceGuide[], keyOf: (guide: LearnerPriceGuide) => string | null) {
-  const map = new Map<string, Row>();
-  for (const guide of guides) {
-    const key = keyOf(guide);
-    if (!key) continue;
-    const label =
-      guide.dimension === 'tutor_type'
-        ? TUTOR_TYPE_LABELS[guide.tutorType!]
-        : (guide.subjectName ?? key);
-    const row = map.get(key) ?? { key, label, byLevel: new Map() };
-    row.byLevel.set(guide.educationLevel, guide);
-    map.set(key, row);
-  }
-  return [...map.values()];
-}
+const vnd = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)}đ`;
+const range = (min: number, max: number) =>
+  min === max ? `${vnd(min)}/buổi` : `${vnd(min)} - ${vnd(max)}/buổi`;
 
 export function LearnerPricingPage() {
   const guides = useQuery({
     queryKey: ['learner-price-guides'],
     queryFn: ({ signal }) => api.get<LearnerPriceGuide[]>('/pricing/learner-guides', { signal }),
   });
-  const byTutorType = guides.data
-    ? rows(
-        guides.data.filter((guide) => guide.dimension === 'tutor_type'),
-        (guide) => guide.tutorType,
-      ).sort(
-        (a, b) =>
-          TUTOR_TYPES.indexOf(a.key as (typeof TUTOR_TYPES)[number]) -
-          TUTOR_TYPES.indexOf(b.key as (typeof TUTOR_TYPES)[number]),
-      )
-    : [];
-  const bySubject = guides.data
-    ? rows(
-        guides.data.filter((guide) => guide.dimension === 'subject'),
-        (guide) => guide.subjectId,
-      )
-    : [];
+  const items = useQuery({
+    queryKey: ['learner-price-items'],
+    queryFn: ({ signal }) => api.get<LearnerPriceItem[]>('/pricing/learner-items', { signal }),
+  });
+
+  const cards = TUTOR_TYPES.map((type) => {
+    const rows = (guides.data ?? []).filter(
+      (guide) => guide.dimension === 'tutor_type' && guide.tutorType === type,
+    );
+    return {
+      type,
+      min: rows.length ? Math.min(...rows.map((row) => row.minPriceMinor)) : null,
+      max: rows.length ? Math.max(...rows.map((row) => row.maxPriceMinor)) : null,
+    };
+  }).filter((card) => card.min !== null);
+  const groups = LEARNER_PRICE_GROUPS.map((group) => ({
+    group,
+    rows: (items.data ?? []).filter((item) => item.groupKey === group),
+  })).filter(({ rows }) => rows.length > 0);
+  const failed = guides.error ?? items.error;
 
   return (
-    <section className="flex min-w-0 flex-col gap-8">
-      <header className="text-center">
-        <h1 className="text-3xl font-bold text-primary md:text-4xl">Bảng giá tham khảo</h1>
-        <p className="mt-2 text-muted">
-          Học phí tham khảo cho mỗi buổi học (90 phút) theo đối tượng gia sư và theo môn học
-        </p>
-      </header>
+    <section className="flex min-w-0 flex-col gap-12">
+      <section aria-labelledby="tutor-type-prices" className="flex flex-col gap-8">
+        <header className="text-center">
+          <h1 id="tutor-type-prices" className="text-3xl font-semibold text-primary">
+            Giá Theo Đối Tượng Gia Sư
+          </h1>
+          <p className="mt-2 text-muted">Chọn loại gia sư phù hợp với nhu cầu và ngân sách</p>
+        </header>
+        {guides.isPending || items.isPending ? (
+          <div className="grid gap-6 md:grid-cols-3">
+            <Skeleton className="h-96" />
+            <Skeleton className="h-96" />
+            <Skeleton className="h-96" />
+          </div>
+        ) : failed ? (
+          <Alert
+            tone="danger"
+            title="Không tải được bảng giá"
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  void guides.refetch();
+                  void items.refetch();
+                }}
+              >
+                Thử lại
+              </Button>
+            }
+          >
+            {failed.message}
+          </Alert>
+        ) : cards.length === 0 && groups.length === 0 ? (
+          <EmptyState
+            title="Chưa có bảng giá tham khảo"
+            description="Liên hệ trung tâm để được tư vấn mức học phí phù hợp."
+          />
+        ) : (
+          <ul className="mx-auto grid w-full max-w-6xl items-start gap-6 md:grid-cols-3">
+            {cards.map((card) => (
+              <TutorCard
+                key={card.type}
+                type={card.type}
+                min={card.min!}
+                max={card.max!}
+                featured={card.type === FEATURED}
+              />
+            ))}
+          </ul>
+        )}
+      </section>
 
-      <div className="mx-auto flex w-full max-w-4xl items-start gap-4 rounded-xl border-2 border-accent bg-warning-surface p-5">
-        <BadgeCheck aria-hidden="true" className="mt-0.5 size-6 shrink-0 text-warning" />
-        <div className="text-sm">
-          <p className="font-semibold text-primary">Người học không mất phí dịch vụ tìm gia sư</p>
-          <p className="mt-1 text-muted">
-            Mức giá dưới đây chỉ để tham khảo. Học phí thực tế của từng lớp được thỏa thuận theo yêu
-            cầu, khu vực và gia sư được gán.
-          </p>
-        </div>
-      </div>
-
-      {guides.isPending ? (
-        <>
-          <Skeleton className="h-56" />
-          <Skeleton className="h-72" />
-        </>
-      ) : guides.isError ? (
-        <Alert
-          tone="danger"
-          title="Không tải được bảng giá"
-          action={
-            <Button variant="secondary" onClick={() => void guides.refetch()}>
-              Thử lại
-            </Button>
-          }
+      {groups.length > 0 && (
+        <section
+          aria-labelledby="detail-prices"
+          className="-mx-4 flex flex-col gap-8 bg-surface px-4 py-12"
         >
-          {guides.error.message}
-        </Alert>
-      ) : guides.data.length === 0 ? (
-        <EmptyState
-          title="Chưa có bảng giá tham khảo"
-          description="Liên hệ trung tâm để được tư vấn mức học phí phù hợp."
-        />
-      ) : (
-        <>
-          <PriceTable
-            id="tutor-type-prices"
-            icon={<GraduationCap aria-hidden="true" className="size-5" />}
-            title="Bảng giá tham khảo theo đối tượng gia sư"
-            description="Mức học phí phụ thuộc kinh nghiệm và chuyên môn của gia sư."
-            firstColumn="Đối tượng gia sư"
-            rows={byTutorType}
-          />
-          <PriceTable
-            id="subject-prices"
-            icon={<BookOpen aria-hidden="true" className="size-5" />}
-            title="Bảng giá tham khảo theo môn học"
-            description="Mức học phí tham khảo cho từng môn theo cấp học."
-            firstColumn="Môn học"
-            rows={bySubject}
-          />
-        </>
+          <header className="text-center">
+            <h2 id="detail-prices" className="text-3xl font-semibold text-primary">
+              Bảng Giá Chi Tiết Theo Cấp Học &amp; Môn Học
+            </h2>
+            <p className="mt-2 text-muted">Tham khảo mức giá cụ thể cho từng môn học</p>
+          </header>
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
+            {groups.map(({ group, rows }) => (
+              <section
+                key={group}
+                aria-labelledby={`price-group-${group}`}
+                className="overflow-hidden rounded-xl border border-border bg-bg shadow-card"
+              >
+                <h3
+                  id={`price-group-${group}`}
+                  className="bg-gradient-to-r from-primary to-primary-gradient-end px-6 py-4 text-lg font-semibold text-on-primary"
+                >
+                  {LEARNER_PRICE_GROUP_LABELS[group]}
+                </h3>
+                <ol className="divide-y divide-border">
+                  {rows.map((row, index) => (
+                    <li
+                      key={row.id}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-4 sm:px-6"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-accent font-semibold text-on-accent"
+                      >
+                        {index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 font-medium text-fg">{row.label}</span>
+                      <span className="font-semibold whitespace-nowrap text-primary">
+                        {range(row.minPriceMinor, row.maxPriceMinor)}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            ))}
+          </div>
+        </section>
       )}
 
-      <p className="mx-auto flex max-w-4xl items-start gap-2 text-xs text-muted">
-        <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        Đơn vị: nghìn đồng/buổi. “—” là chưa có mức tham khảo. Học online thường thấp hơn học tại
-        nhà; lớp luyện thi hoặc học sinh cần kèm sát có thể cao hơn khoảng tham khảo.
-      </p>
+      <aside
+        aria-label="Lưu ý về học phí"
+        className="mx-auto flex w-full max-w-5xl items-start gap-3 rounded-xl border-2 border-accent bg-warning-surface p-5"
+      >
+        <Info aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-warning" />
+        <p className="text-sm text-fg">
+          <strong className="text-primary">Lưu ý: </strong>
+          {LEARNER_PRICE_NOTE}
+        </p>
+      </aside>
 
       <aside className="mx-auto w-full max-w-5xl rounded-xl bg-surface px-6 py-10 text-center">
         <h2 className="text-2xl font-semibold text-primary">Muốn biết học phí cho lớp của bạn?</h2>
@@ -146,64 +215,51 @@ export function LearnerPricingPage() {
   );
 }
 
-function PriceTable({
-  id,
-  icon,
-  title,
-  description,
-  firstColumn,
-  rows,
+function TutorCard({
+  type,
+  min,
+  max,
+  featured,
 }: {
-  id: string;
-  icon: ReactNode;
-  title: string;
-  description: string;
-  firstColumn: string;
-  rows: Row[];
+  type: TutorType;
+  min: number;
+  max: number;
+  featured: boolean;
 }) {
+  const card = TUTOR_CARDS[type];
+  const Icon = card.icon;
   return (
-    <section aria-labelledby={id} className="mx-auto w-full max-w-5xl">
-      <h2 id={id} className="flex items-center gap-2 text-2xl font-semibold text-primary">
-        {icon}
-        {title}
-      </h2>
-      <p className="mt-1 text-sm text-muted">{description}</p>
-      {rows.length === 0 ? (
-        <p className="mt-4 rounded-xl border border-border p-4 text-sm text-muted">
-          Chưa có mức tham khảo cho mục này.
+    <li
+      className={`flex flex-col overflow-hidden rounded-xl border-2 bg-bg ${
+        featured ? 'border-accent shadow-card md:-mt-6' : 'border-border'
+      }`}
+    >
+      {featured && (
+        <p className="bg-accent py-2 text-center text-sm font-semibold tracking-wide text-on-accent uppercase">
+          Phổ biến nhất
         </p>
-      ) : (
-        <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-bg shadow-card">
-          <table className="w-full min-w-[640px] text-left text-sm">
-            <thead className="bg-primary text-on-primary">
-              <tr>
-                <th scope="col" className="px-4 py-3 font-semibold">
-                  {firstColumn}
-                </th>
-                {EDUCATION_LEVELS.map((level) => (
-                  <th key={level} scope="col" className="px-4 py-3 text-center font-semibold">
-                    {EDUCATION_LEVEL_LABELS[level]}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {rows.map((row) => (
-                <tr key={row.key} className="even:bg-surface">
-                  <th scope="row" className="px-4 py-3 font-semibold text-primary">
-                    {row.label}
-                  </th>
-                  {EDUCATION_LEVELS.map((level) => (
-                    <td key={level} className="px-4 py-3 text-center whitespace-nowrap">
-                      {priceRange(row.byLevel.get(level))}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
-    </section>
+      <div
+        className={`flex flex-col items-center gap-3 px-6 text-center ${featured ? 'pt-10' : 'pt-6'}`}
+      >
+        <span
+          aria-hidden="true"
+          className={`flex size-16 items-center justify-center rounded-xl ${card.iconClass}`}
+        >
+          <Icon className="size-8" />
+        </span>
+        <h2 className="text-2xl font-semibold text-primary">{TUTOR_TYPE_LABELS[type]}</h2>
+        <p className="text-2xl font-bold text-primary">{range(min, max)}</p>
+        <p className="text-muted">{card.description}</p>
+      </div>
+      <ul className="flex flex-col gap-3 px-6 pt-6 pb-8">
+        {card.points.map((point) => (
+          <li key={point} className="flex items-start gap-2 text-sm">
+            <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-warning" />
+            {point}
+          </li>
+        ))}
+      </ul>
+    </li>
   );
 }

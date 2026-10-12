@@ -9,7 +9,7 @@ import type {
 } from '../../src/shared/schemas/complaints';
 import type { PublishedContent } from '../../src/shared/schemas/content';
 import type { Page } from '../../src/shared/schemas/discovery';
-import type { LearnerPriceGuide } from '../../src/shared/schemas/pricing';
+import type { LearnerPriceGuide, LearnerPriceItem } from '../../src/shared/schemas/pricing';
 import { api, errorCode, jsonInit, register, type Session } from './helpers';
 
 const NOW = '2026-10-12T00:00:00.000Z';
@@ -303,5 +303,162 @@ describe('learner handbook and reference prices', () => {
     });
     expect(guides.some((guide) => guide.subjectId === 'subj_physics')).toBe(false);
     expect(guides.find((guide) => guide.tutorType === 'teacher')?.dimension).toBe('tutor_type');
+  });
+});
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+
+function upload(session: Session, complaintId: string, file: File) {
+  const form = new FormData();
+  form.set('file', file);
+  return api(`/complaints/${complaintId}/attachments`, {
+    method: 'POST',
+    body: form,
+    headers: { Cookie: session.cookie, 'X-CSRF-Token': session.csrfToken },
+  });
+}
+
+describe('complaint evidence attachments', () => {
+  it('accepts signed images or PDFs on own drafts and freezes them once sent', async () => {
+    const learner = await register('parent');
+    const other = await register('parent');
+    const admin = await moderator();
+    const draft = await data<ComplaintDetail>(
+      await create(learner, {
+        title: 'Lịch học bị đổi',
+        body: 'Lịch học bị đổi không báo.',
+        submit: false,
+      }),
+    );
+
+    // The declared type is ignored; the signature decides.
+    const fake = await upload(
+      learner,
+      draft.id,
+      new File(['<script>'], 'x.png', { type: 'image/png' }),
+    );
+    expect(fake.status).toBe(422);
+    expect(await errorCode(fake)).toBe('COMPLAINT_ATTACHMENT_INVALID');
+    const tooBig = await upload(
+      learner,
+      draft.id,
+      new File([PNG, new Uint8Array(1_600_000)], 'lon.png', { type: 'image/png' }),
+    );
+    expect([413, 422]).toContain(tooBig.status);
+    expect((await upload(other, draft.id, new File([PNG], 'a.png'))).status).toBe(404);
+    expect((await upload(learner, draft.id, new File([], 'a.png'))).status).toBe(422);
+    const noCsrf = await api(`/complaints/${draft.id}/attachments`, {
+      method: 'POST',
+      body: (() => {
+        const form = new FormData();
+        form.set('file', new File([PNG], 'a.png'));
+        return form;
+      })(),
+      headers: { Cookie: learner.cookie },
+    });
+    expect(noCsrf.status).toBe(403);
+
+    const first = await upload(
+      learner,
+      draft.id,
+      new File([PNG], '../../lich hoc.jpg', { type: 'image/jpeg' }),
+    );
+    expect(first.status).toBe(201);
+    const meta = await data<{ id: string; fileName: string; contentType: string }>(first);
+    expect(meta).toMatchObject({ fileName: 'lich hoc.png', contentType: 'image/png' });
+    const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+    expect((await upload(learner, draft.id, new File([pdf], 'bien-ban.pdf'))).status).toBe(201);
+    expect((await upload(learner, draft.id, new File([PNG], 'b.png'))).status).toBe(201);
+    expect((await upload(learner, draft.id, new File([PNG], 'c.png'))).status).toBe(422);
+
+    const detail = await data<ComplaintDetail>(
+      await api(`/complaints/${draft.id}`, { headers: { Cookie: learner.cookie } }),
+    );
+    expect(detail.attachments.map((item) => item.fileName)).toEqual([
+      'lich hoc.png',
+      'bien-ban.pdf',
+      'b.png',
+    ]);
+    const own = await api(`/complaints/${draft.id}/attachments/${meta.id}`, {
+      headers: { Cookie: learner.cookie },
+    });
+    expect(own.status).toBe(200);
+    expect(own.headers.get('Content-Type')).toBe('image/png');
+    expect(own.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(new Uint8Array(await own.arrayBuffer())).toEqual(PNG);
+    const pdfId = detail.attachments[1]!.id;
+    const pdfDownload = await api(`/complaints/${draft.id}/attachments/${pdfId}`, {
+      headers: { Cookie: learner.cookie },
+    });
+    expect(pdfDownload.headers.get('Content-Disposition')).toMatch(/^attachment;/);
+    expect(
+      (
+        await api(`/complaints/${draft.id}/attachments/${meta.id}`, {
+          headers: { Cookie: other.cookie },
+        })
+      ).status,
+    ).toBe(404);
+    // Moderators cannot open evidence of an unsent draft.
+    expect(
+      (
+        await api(`/admin/complaints/${draft.id}/attachments/${meta.id}`, {
+          headers: { Cookie: admin.cookie },
+        })
+      ).status,
+    ).toBe(404);
+
+    const removed = await api(
+      `/complaints/${draft.id}/attachments/${detail.attachments[2]!.id}`,
+      jsonInit('DELETE', {}, learner),
+    );
+    expect(removed.status).toBe(200);
+
+    await api(`/complaints/${draft.id}/submit`, jsonInit('POST', { version: 1 }, learner));
+    expect((await upload(learner, draft.id, new File([PNG], 'd.png'))).status).toBe(409);
+    expect(
+      (await api(`/complaints/${draft.id}/attachments/${meta.id}`, jsonInit('DELETE', {}, learner)))
+        .status,
+    ).toBe(409);
+    const adminDetail = await data<{ attachments: { id: string }[] }>(
+      await api(`/admin/complaints/${draft.id}`, { headers: { Cookie: admin.cookie } }),
+    );
+    expect(adminDetail.attachments).toHaveLength(2);
+    expect(
+      (
+        await api(`/admin/complaints/${draft.id}/attachments/${meta.id}`, {
+          headers: { Cookie: admin.cookie },
+        })
+      ).status,
+    ).toBe(200);
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO complaint_attachments (id, complaint_id, file_name, content_type, size_bytes, data, created_at)
+         VALUES (?, ?, 'x.png', 'image/png', 1, X'00', ?)`,
+      )
+        .bind(crypto.randomUUID(), draft.id, NOW)
+        .run(),
+    ).rejects.toThrow(/COMPLAINT_ATTACHMENT_INVALID/);
+  });
+});
+
+describe('grouped learner price items', () => {
+  it('serves published items ordered by group and position', async () => {
+    const insert = (group: string, label: string, order: number, status = 'published') =>
+      env.DB.prepare(
+        `INSERT INTO learner_price_items (id, group_key, label, min_price_minor, max_price_minor,
+           sort_order, status, created_at, updated_at) VALUES (?, ?, ?, 100000, 200000, ?, ?, ?, ?)`,
+      )
+        .bind(crypto.randomUUID(), group, label, order, status, NOW, NOW)
+        .run();
+    const tag = crypto.randomUUID().slice(0, 6);
+    await insert('language', `Tiếng Nhật ${tag}`, 1);
+    await insert('talent', `Piano ${tag}`, 2);
+    await insert('talent', `Vẽ ${tag}`, 1);
+    await insert('primary', `Ẩn ${tag}`, 1, 'draft');
+    await expect(insert('talent', `Vẽ ${tag}`, 3)).rejects.toThrow(/UNIQUE/);
+    await expect(insert('sports', `Bơi ${tag}`, 1)).rejects.toThrow(/CHECK/);
+    const items = await data<LearnerPriceItem[]>(await api('/pricing/learner-items'));
+    const mine = items.filter((item) => item.label.endsWith(tag)).map((item) => item.label);
+    expect(mine).toEqual([`Vẽ ${tag}`, `Piano ${tag}`, `Tiếng Nhật ${tag}`]);
   });
 });

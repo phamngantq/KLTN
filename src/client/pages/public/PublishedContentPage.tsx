@@ -612,3 +612,17 @@ export function PublishedBlogArticleRoute() {
   }
   return <PublishedContentPage kind="blog" slug={id} fallbackTitle="Không tìm thấy bài viết" />;
 }
+
+/** Tutor-area article: only "gia-su-" articles are reachable here. */
+export function TutorBlogArticleRoute() {
+  const { id } = useParams();
+  if (!id?.startsWith('gia-su-')) {
+    return (
+      <EmptyState
+        title="Không tìm thấy bài viết"
+        action={<ButtonLink to="/tutor/blog">Xem bài viết</ButtonLink>}
+      />
+    );
+  }
+  return <PublishedContentPage kind="blog" slug={id} fallbackTitle="Không tìm thấy bài viết" />;
+}

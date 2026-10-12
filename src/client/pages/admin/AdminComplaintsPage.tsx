@@ -18,6 +18,7 @@ import {
 } from '../../../shared/schemas/complaints';
 import type { Page } from '../../../shared/schemas/discovery';
 import { isReadOnlyPreview } from '../../app/preview';
+import { AttachmentLinks } from '../../components/domain/ComplaintAttachments';
 import { Button } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
 import { TextareaField, TextField } from '../../components/ui/Field';
@@ -390,6 +391,10 @@ export function AdminComplaintsPage() {
                     {detail.data.body}
                   </p>
                 </div>
+                <AttachmentLinks
+                  attachments={detail.data.attachments}
+                  basePath={`/admin/complaints/${encodeURIComponent(detail.data.id)}`}
+                />
                 {detail.data.triageReason && (
                   <div className="rounded-lg border border-border p-4 text-sm">
                     <p className="font-medium text-primary">Lý do tiếp nhận</p>

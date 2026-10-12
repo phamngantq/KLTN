@@ -103,3 +103,29 @@ export interface LearnerPriceGuide {
   minPriceMinor: number;
   maxPriceMinor: number;
 }
+
+/** Groups of "Bảng giá chi tiết theo cấp học & môn học". */
+export const LEARNER_PRICE_GROUPS = [
+  'primary',
+  'lower_secondary',
+  'upper_secondary',
+  'talent',
+  'language',
+] as const;
+export type LearnerPriceGroup = (typeof LEARNER_PRICE_GROUPS)[number];
+export const LEARNER_PRICE_GROUP_LABELS: Record<LearnerPriceGroup, string> = {
+  primary: 'Lớp 1-5 (Tiểu học)',
+  lower_secondary: 'Lớp 6-9 (THCS)',
+  upper_secondary: 'Lớp 10-12 (THPT)',
+  talent: 'Năng khiếu',
+  language: 'Ngoại ngữ',
+};
+
+export interface LearnerPriceItem {
+  id: string;
+  groupKey: LearnerPriceGroup;
+  label: string;
+  minPriceMinor: number;
+  maxPriceMinor: number;
+  sortOrder: number;
+}

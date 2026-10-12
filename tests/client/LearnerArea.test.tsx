@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { OwnComplaintSummary } from '../../src/shared/schemas/complaints';
 import type { PublishedContent } from '../../src/shared/schemas/content';
-import type { LearnerPriceGuide } from '../../src/shared/schemas/pricing';
+import type { LearnerPriceGuide, LearnerPriceItem } from '../../src/shared/schemas/pricing';
 import { mockApi, renderRoute, sessionOf } from './helpers';
 
 afterEach(() => {
@@ -67,25 +67,48 @@ describe('learner complaints page', () => {
     expect(await screen.findByText('Đã gửi khiếu nại KN-004 đến trung tâm.')).toBeTruthy();
   });
 
-  it('creates a draft from the dialog and confirms before deleting it', async () => {
+  it('creates a draft with evidence from the dialog and confirms before deleting it', async () => {
+    const created = { ...draft, id: 'c-2', code: 'KN-005', resolution: null, attachments: [] };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       if (req.path === '/complaints/counts') return { data: counts };
       if (req.path.startsWith('/complaints?')) return page([draft]);
       if (req.path === '/complaints' && req.method === 'POST')
-        return { status: 201, data: { ...draft, id: 'c-2', code: 'KN-005', resolution: null } };
+        return { status: 201, data: created };
+      if (req.path === '/complaints/c-2/attachments' && req.method === 'POST')
+        return {
+          status: 201,
+          data: {
+            id: 'f-1',
+            fileName: 'lich-hoc.png',
+            contentType: 'image/png',
+            sizeBytes: 4,
+            createdAt: created.createdAt,
+          },
+        };
+      if (req.path === '/complaints/c-2' && req.method === 'GET') return { data: created };
       if (req.path === '/complaints/c-1' && req.method === 'DELETE')
         return { data: { deleted: true } };
       return undefined;
     });
     renderRoute('/parent/khieu-nai');
-    const user = userEvent.setup();
+    const user = userEvent.setup({ applyAccept: false });
     await screen.findByText(draft.title);
 
     await user.click(screen.getByRole('button', { name: 'Tạo khiếu nại' }));
     const dialog = screen.getByRole('dialog', { name: 'Tạo khiếu nại' });
     await user.type(within(dialog).getByLabelText(/Tiêu đề/), 'Gia sư đến muộn');
     await user.type(within(dialog).getByLabelText(/Nội dung/), 'Gia sư đến muộn nhiều buổi.');
+    const evidence = within(dialog).getByLabelText('Đính kèm minh chứng');
+    await user.upload(evidence, new File(['%PDF'], 'ghi-chu.txt', { type: 'text/plain' }));
+    expect(within(dialog).getByRole('alert').textContent).toContain('chỉ nhận ảnh JPG');
+    await user.upload(
+      evidence,
+      new File([new Uint8Array([137, 80, 78, 71])], 'lich-hoc.png', {
+        type: 'image/png',
+      }),
+    );
+    expect(within(dialog).getByText('lich-hoc.png')).toBeTruthy();
     await user.click(within(dialog).getByRole('button', { name: 'Lưu nháp' }));
     await waitFor(() =>
       expect(
@@ -98,6 +121,10 @@ describe('learner complaints page', () => {
       }),
     );
     expect(await screen.findByText('Đã lưu bản nháp KN-005.')).toBeTruthy();
+    const upload = calls.find((call) => call.path === '/complaints/c-2/attachments');
+    expect(upload?.body).toBeInstanceOf(FormData);
+    expect(((upload?.body as FormData).get('file') as File).name).toBe('lich-hoc.png');
+    expect(upload?.headers.get('X-CSRF-Token')).toBe('csrf-test-token');
 
     await user.click(screen.getByRole('button', { name: 'Xóa KN-004' }));
     expect(calls.some((call) => call.method === 'DELETE')).toBe(false);
@@ -160,47 +187,75 @@ describe('learner handbook', () => {
 });
 
 describe('learner pricing', () => {
-  it('shows reference prices by tutor type and by subject per school stage', async () => {
+  it('shows tutor-type cards, grouped price lists and the reference note', async () => {
     const guides: LearnerPriceGuide[] = [
+      ['university_student', 'primary', 80_000, 100_000],
+      ['university_student', 'upper_secondary', 120_000, 150_000],
+      ['pedagogy_student', 'upper_secondary', 150_000, 200_000],
+      ['teacher', 'university_prep', 250_000, 300_000],
+    ].map(([tutorType, educationLevel, min, max], index) => ({
+      id: `g-${index}`,
+      dimension: 'tutor_type',
+      tutorType: tutorType as LearnerPriceGuide['tutorType'],
+      subjectId: null,
+      subjectName: null,
+      educationLevel: educationLevel as LearnerPriceGuide['educationLevel'],
+      minPriceMinor: min as number,
+      maxPriceMinor: max as number,
+    }));
+    const items: LearnerPriceItem[] = [
       {
-        id: 'g-1',
-        dimension: 'tutor_type',
-        tutorType: 'pedagogy_student',
-        subjectId: null,
-        subjectName: null,
-        educationLevel: 'upper_secondary',
-        minPriceMinor: 220_000,
-        maxPriceMinor: 260_000,
+        id: 'i-1',
+        groupKey: 'primary',
+        label: 'Toán, Tiếng Việt',
+        minPriceMinor: 80_000,
+        maxPriceMinor: 120_000,
+        sortOrder: 1,
       },
       {
-        id: 'g-2',
-        dimension: 'subject',
-        tutorType: null,
-        subjectId: 'subj_math',
-        subjectName: 'Toán',
-        educationLevel: 'primary',
+        id: 'i-2',
+        groupKey: 'talent',
+        label: 'Piano, Organ',
         minPriceMinor: 150_000,
-        maxPriceMinor: 250_000,
+        maxPriceMinor: 300_000,
+        sortOrder: 1,
+      },
+      {
+        id: 'i-3',
+        groupKey: 'language',
+        label: 'IELTS, TOEIC',
+        minPriceMinor: 250_000,
+        maxPriceMinor: 450_000,
+        sortOrder: 1,
       },
     ];
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       if (req.path === '/pricing/learner-guides') return { data: guides };
+      if (req.path === '/pricing/learner-items') return { data: items };
       return undefined;
     });
     renderRoute('/parent/bang-gia');
 
-    const byType = await screen.findByRole('region', {
-      name: 'Bảng giá tham khảo theo đối tượng gia sư',
-    });
-    const typeRow = within(byType).getByRole('row', { name: /Sinh viên sư phạm/ });
-    expect(within(typeRow).getByText('220k – 260k')).toBeTruthy();
-    const bySubject = screen.getByRole('region', { name: 'Bảng giá tham khảo theo môn học' });
-    const mathRow = within(bySubject).getByRole('row', { name: /Toán/ });
+    expect(await screen.findByRole('heading', { name: 'Giá Theo Đối Tượng Gia Sư' })).toBeTruthy();
+    const student = (await screen.findByRole('heading', { name: 'Sinh viên', level: 2 })).closest(
+      'li',
+    )!;
+    expect(within(student).getByText('80.000đ - 150.000đ/buổi')).toBeTruthy();
+    const pedagogy = screen.getByRole('heading', { name: 'Sinh viên sư phạm' }).closest('li')!;
+    expect(within(pedagogy).getByText('Phổ biến nhất')).toBeTruthy();
     expect(
-      within(mathRow)
-        .getAllByRole('cell')
-        .map((cell) => cell.textContent),
-    ).toEqual(['150k – 250k', '—', '—', '—']);
+      screen.getByRole('heading', { name: 'Bảng Giá Chi Tiết Theo Cấp Học & Môn Học' }),
+    ).toBeTruthy();
+    const talent = screen.getByRole('region', { name: 'Năng khiếu' });
+    expect(within(talent).getByText('Piano, Organ')).toBeTruthy();
+    expect(within(talent).getByText('150.000đ - 300.000đ/buổi')).toBeTruthy();
+    expect(screen.getByRole('region', { name: 'Ngoại ngữ' })).toBeTruthy();
+    expect(screen.queryByRole('region', { name: 'Lớp 6-9 (THCS)' })).toBeNull();
+    expect(
+      screen.getByText(
+        /Học phí trên là mức tham khảo, có thể thay đổi tùy theo khu vực và yêu cầu cụ thể và người học tìm kiếm gia sư qua trung tâm không mất phí môi giới/,
+      ),
+    ).toBeTruthy();
   });
 });
