@@ -14,6 +14,7 @@ import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from '
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
+import { learnerRequestStatements, SAMPLE_TUTOR } from './learner-demo-requests.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const WRANGLER_ROOT = join(ROOT, '.wrangler');
@@ -23,11 +24,13 @@ const TARGETS = {
   local: {
     adminId: '00000000-0000-4000-8000-000000000201',
     learnerId: '00000000-0000-4000-8000-000000000221',
+    tutorId: '00000000-0000-4000-8000-000000000231',
     folder: 'sample-local',
   },
   staging_v2: {
     adminId: '00000000-0000-4000-8000-000000000211',
     learnerId: '00000000-0000-4000-8000-000000000222',
+    tutorId: '00000000-0000-4000-8000-000000000232',
     folder: 'sample-staging-v2',
   },
 };
@@ -74,6 +77,28 @@ const COMPLAINTS = [
     body: 'Buổi học thứ Bảy tuần trước bị đổi giờ mà không có thông báo. Tôi gửi kèm ảnh lịch học đã thống nhất.',
     evidence: 'lich-hoc-da-thong-nhat.png',
     createdDaysAgo: 1,
+  },
+  {
+    status: 'in_review',
+    title: 'Gia sư nghỉ dạy không báo trước',
+    body: 'Gia sư nghỉ buổi học thứ Tư mà không báo, con chờ ở nhà hơn một tiếng. Tôi gửi kèm ảnh tin nhắn hẹn lịch.',
+    triage: 'Trung tâm đang xác minh với gia sư và sẽ đề xuất buổi học bù.',
+    evidence: 'tin-nhan-hen-lich.png',
+    createdDaysAgo: 3,
+  },
+  {
+    status: 'resolved',
+    title: 'Đề nghị cấp lại bản xác nhận lớp học',
+    body: 'Tôi làm mất bản xác nhận lớp học đã ký, mong trung tâm gửi lại bản điện tử.',
+    triage: 'Đã tiếp nhận yêu cầu cấp lại.',
+    resolution: 'Trung tâm đã gửi lại bản xác nhận lớp học qua email đăng ký của người học.',
+    createdDaysAgo: 30,
+  },
+  {
+    status: 'draft',
+    title: 'Góp ý về khung giờ học cuối tuần',
+    body: 'Mong trung tâm có thêm gia sư dạy buổi sáng Chủ nhật cho học sinh tiểu học.',
+    createdDaysAgo: 0,
   },
 ];
 
@@ -132,6 +157,60 @@ const ARTICLES = [
       'So sánh ưu nhược điểm của hai hình thức học, chi phí tham khảo và kiểu người học phù hợp với từng hình thức.',
     days: 41,
   },
+  {
+    slug: 'phu-huynh-lap-thoi-gian-bieu-hoc-tap',
+    category: 'study_methods',
+    author: 'Nguyễn Linh',
+    title: 'Lập Thời Gian Biểu Học Tập Khoa Học',
+    summary:
+      'Cách chia thời gian học, nghỉ và ôn bài trong tuần để học đều mà không quá tải, kèm mẫu thời gian biểu tham khảo.',
+    days: 46,
+  },
+  {
+    slug: 'phu-huynh-dau-hieu-gia-su-phu-hop',
+    category: 'choosing_tutor',
+    author: 'Đỗ Hằng',
+    title: '5 Dấu Hiệu Cho Thấy Gia Sư Phù Hợp',
+    summary:
+      'Sau vài buổi học đầu, những dấu hiệu nào cho thấy gia sư hiểu người học và phương pháp đang phát huy hiệu quả?',
+    days: 52,
+  },
+  {
+    slug: 'phu-huynh-khen-dung-cach',
+    category: 'motivation',
+    author: 'Phạm Thu',
+    title: 'Khen Đúng Cách Để Người Học Tự Tin Hơn',
+    summary:
+      'Khen nỗ lực thay vì chỉ khen điểm số, đặt mục tiêu nhỏ và ghi nhận tiến bộ để duy trì động lực lâu dài.',
+    days: 58,
+  },
+  {
+    slug: 'phu-huynh-on-thi-tot-nghiep-thpt',
+    category: 'exam_prep',
+    author: 'Trần Minh',
+    title: 'Chiến Lược Ôn Thi Tốt Nghiệp THPT',
+    summary:
+      'Phân bổ thời gian giữa các môn, luyện đề theo cấu trúc và cách giữ sức khỏe trong giai đoạn nước rút.',
+    days: 64,
+  },
+  {
+    slug: 'phu-huynh-ky-nang-tu-hoc',
+    category: 'skills',
+    author: 'Nguyễn Linh',
+    title: 'Rèn Kỹ Năng Tự Học Cho Học Sinh THCS',
+    summary:
+      'Hướng dẫn ghi chép, tự đặt câu hỏi và tự kiểm tra để người học chủ động hơn giữa các buổi học với gia sư.',
+    days: 70,
+  },
+  {
+    slug: 'phu-huynh-hoc-ngoai-ngu-tu-som',
+    category: 'study_methods',
+    author: 'Đỗ Hằng',
+    title: 'Học Ngoại Ngữ Từ Sớm: Bắt Đầu Thế Nào?',
+    summary:
+      'Độ tuổi phù hợp, cách tạo môi trường nghe nói tại nhà và khi nào nên tìm gia sư ngoại ngữ cho con.',
+    days: 78,
+  },
 ];
 
 function articleBody(article) {
@@ -141,6 +220,9 @@ function articleBody(article) {
     'Trước hết, hãy xác định rõ mục tiêu: củng cố kiến thức nền, nâng điểm trên lớp hay chuẩn bị cho một kỳ thi cụ thể. Mục tiêu rõ ràng giúp chọn đúng gia sư, đúng lịch học và đo được tiến bộ sau mỗi tháng.',
     'Tiếp theo, trao đổi thẳng thắn với gia sư về thói quen học, điểm mạnh và điểm cần cải thiện. Một buổi học thử là cơ hội tốt để hai bên thống nhất cách dạy, cách giao bài tập và cách báo cáo kết quả.',
     'Cuối cùng, duy trì nhịp học đều đặn và ghi nhận những tiến bộ nhỏ. Khi cần điều chỉnh lịch hoặc phương pháp, hãy liên hệ trung tâm qua hotline hoặc mục Khiếu nại để được hỗ trợ kịp thời.',
+    'Một số câu hỏi nên trao đổi trong buổi đầu: người học đang gặp khó ở phần nào, mỗi tuần dành bao nhiêu thời gian tự học, gia sư sẽ giao bài và nhận xét theo cách nào, và sau bao lâu thì hai bên cùng nhìn lại kết quả.',
+    'Hãy tạo góc học tập yên tĩnh, đủ ánh sáng, hạn chế thiết bị gây xao nhãng trong giờ học. Việc chuẩn bị sẵn sách vở, đề bài trước buổi học giúp tiết kiệm thời gian và để gia sư tập trung vào phần quan trọng nhất.',
+    'Sau mỗi tháng, gia đình và gia sư nên cùng nhìn lại: điểm kiểm tra trên lớp, mức độ tự tin khi làm bài và thái độ với môn học. Nếu tiến bộ chậm, điều chỉnh mục tiêu hoặc phương pháp thay vì chỉ tăng số buổi học.',
   ].join('\n\n');
 }
 
@@ -278,9 +360,11 @@ VALUES (${sql(learnerId)}, '0901234567', ${sql(now)}, ${sql(now)});`,
     out.push(`INSERT OR IGNORE INTO complaints (id, code, creator_user_id, class_id, title, body, status, version,
   triage_reason, resolution, handled_by, resolved_at, submitted_at, mutation_id, created_at, updated_at)
 VALUES (${sql(id)}, ${sql(`KN-DEMO${String(index + 1).padStart(8, '0')}`)}, ${sql(learnerId)}, NULL,
-  ${sql(item.title)}, ${sql(item.body)}, ${sql(startStatus)}, 1, ${sql(item.triage ?? null)},
-  ${sql(item.resolution ?? null)}, ${handled ? sql(adminId) : 'NULL'},
-  ${item.status === 'resolved' ? sql(ago(item.createdDaysAgo - 3)) : 'NULL'},
+  ${sql(item.title)}, ${sql(item.body)}, ${sql(startStatus)}, 1,
+  ${item.evidence ? 'NULL' : sql(item.triage ?? null)},
+  ${item.evidence ? 'NULL' : sql(item.resolution ?? null)},
+  ${handled && !item.evidence ? sql(adminId) : 'NULL'},
+  ${item.status === 'resolved' && !item.evidence ? sql(ago(item.createdDaysAgo - 3)) : 'NULL'},
   ${sent && !item.evidence ? sql(created) : 'NULL'}, ${sql(id)}, ${sql(created)}, ${sql(created)});`);
     if (item.evidence) {
       const png = samplePng();
@@ -289,8 +373,16 @@ SELECT ${sql(demoId(5, index + 1))}, ${sql(id)}, ${sql(item.evidence)}, 'image/p
   X'${png.toString('hex')}', ${sql(created)}
 WHERE NOT EXISTS (SELECT 1 FROM complaint_attachments WHERE id = ${sql(demoId(5, index + 1))})
   AND EXISTS (SELECT 1 FROM complaints WHERE id = ${sql(id)} AND status = 'draft');`);
-      out.push(`UPDATE complaints SET status = ${sql(item.status)}, submitted_at = ${sql(created)}
+      // Drafts may only move to "submitted"; later states follow in a second step.
+      out.push(`UPDATE complaints SET status = 'submitted', submitted_at = ${sql(created)}
 WHERE id = ${sql(id)} AND status = 'draft';`);
+      if (item.status !== 'submitted') {
+        out.push(`UPDATE complaints SET status = ${sql(item.status)},
+  triage_reason = ${sql(item.triage ?? null)}, resolution = ${sql(item.resolution ?? null)},
+  handled_by = ${handled ? sql(adminId) : 'NULL'},
+  resolved_at = ${item.status === 'resolved' ? sql(ago(item.createdDaysAgo - 3)) : 'NULL'}
+WHERE id = ${sql(id)} AND status = 'submitted';`);
+      }
     }
     out.push(
       audit(
@@ -397,21 +489,17 @@ function query(statement, options) {
   return result[0].results;
 }
 
-function learnerPassword(file) {
+function learnerPassword(file, email = LEARNER_EMAIL, prefix = 'SAMPLE_LEARNER') {
   const existing = existsSync(file)
-    ? parseEnv(readFileSync(file, 'utf8')).SAMPLE_LEARNER_PASSWORD
+    ? parseEnv(readFileSync(file, 'utf8'))[`${prefix}_PASSWORD`]
     : '';
   if (existing) return existing;
   const generated = randomBytes(18).toString('base64url');
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(
-    file,
-    `SAMPLE_LEARNER_EMAIL="${LEARNER_EMAIL}"\nSAMPLE_LEARNER_PASSWORD="${generated}"\n`,
-    {
-      encoding: 'utf8',
-      mode: 0o600,
-    },
-  );
+  writeFileSync(file, `${prefix}_EMAIL="${email}"\n${prefix}_PASSWORD="${generated}"\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
   return generated;
 }
 
@@ -440,9 +528,34 @@ function main() {
   const digest = pbkdf2Sync(password, salt, 100_000, 32, 'sha256');
   const hash = `pbkdf2-sha256$100000$${salt.toString('base64url')}$${digest.toString('base64url')}`;
 
+  const tutorFile = join(WRANGLER_ROOT, folder, 'tutor-credentials.vars');
+  const tutorPassword = learnerPassword(tutorFile, SAMPLE_TUTOR.email, 'SAMPLE_TUTOR');
+  const tutorSalt = randomBytes(16);
+  const tutorDigest = pbkdf2Sync(tutorPassword, tutorSalt, 100_000, 32, 'sha256');
+  const tutorHash = `pbkdf2-sha256$100000$${tutorSalt.toString('base64url')}$${tutorDigest.toString('base64url')}`;
+  const tutorOwner = query(
+    `SELECT id, role FROM users WHERE email_normalized = ${sql(SAMPLE_TUTOR.email)}`,
+    options,
+  )[0];
+  if (
+    tutorOwner &&
+    (tutorOwner.id !== TARGETS[options.target].tutorId || tutorOwner.role !== 'tutor')
+  ) {
+    throw new Error('Sample tutor email belongs to another account. Nothing changed.');
+  }
+  const all = [
+    ...statements(options.target, hash),
+    ...learnerRequestStatements({
+      sql,
+      adminId,
+      learnerId,
+      tutorId: TARGETS[options.target].tutorId,
+      tutorPasswordHash: tutorHash,
+    }),
+  ];
   const file = join(WRANGLER_ROOT, folder, `learner-demo-${Date.now()}.sql`);
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${statements(options.target, hash).join('\n')}\n`, {
+  writeFileSync(file, `${all.join('\n')}\n`, {
     encoding: 'utf8',
     mode: 0o600,
   });
@@ -458,7 +571,8 @@ function main() {
       (SELECT group_concat(status) FROM (SELECT status FROM complaints WHERE creator_user_id = ${sql(learnerId)} ORDER BY status)) AS complaints,
       (SELECT count(*) FROM content_revisions WHERE kind = 'blog' AND status = 'published' AND slug LIKE 'phu-huynh-%' AND category IS NOT NULL) AS articles,
       (SELECT count(*) FROM learner_price_guides WHERE status = 'published' AND dimension = 'tutor_type') AS tutorTypeRows,
-      (SELECT count(*) FROM learner_price_items WHERE status = 'published') AS itemRows`,
+      (SELECT count(*) FROM learner_price_items WHERE status = 'published') AS itemRows,
+      (SELECT group_concat(status) FROM (SELECT status FROM parent_requests WHERE parent_user_id = ${sql(learnerId)} ORDER BY status)) AS requests`,
     options,
   );
   if (
@@ -472,10 +586,13 @@ function main() {
   if (query('PRAGMA foreign_key_check', options).length)
     throw new Error('Foreign key check failed.');
   console.log(
-    `Learner demo ready (${options.target}): complaints [${counts.complaints}], ${counts.articles} categorised articles, ${counts.tutorTypeRows} tutor-type price rows and ${counts.itemRows} grouped price items.`,
+    `Learner demo ready (${options.target}): complaints [${counts.complaints}], ${counts.articles} categorised articles, ${counts.tutorTypeRows} tutor-type price rows, ${counts.itemRows} grouped price items, requests [${counts.requests}].`,
   );
   console.log(
     `Learner login: ${LEARNER_EMAIL}; password in ${relative(ROOT, credentialsFile)} (ignored by Git).`,
+  );
+  console.log(
+    `Tutor login: ${SAMPLE_TUTOR.email}; password in ${relative(ROOT, tutorFile)} (ignored by Git).`,
   );
 }
 
