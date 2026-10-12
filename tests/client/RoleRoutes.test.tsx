@@ -17,6 +17,8 @@ const parentPaths = [
   '/parent/bang-gia',
   '/parent/lop-hoc',
   '/parent/blog',
+  '/parent/cam-nang',
+  '/parent/dashboard',
   '/parent/lien-he',
   '/parent/request',
   '/parent/profile',
@@ -88,7 +90,7 @@ describe('Figma role route matrix', () => {
     expect(await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeTruthy();
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent/request'));
     expect(screen.getByRole('navigation', { name: 'Điều hướng Phụ huynh' })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Lưu bản nháp' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Gửi yêu cầu' })).toBeTruthy();
   });
 
   it('shows tutor pages only to tutors and does not offer a fake application', async () => {

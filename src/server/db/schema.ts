@@ -7,7 +7,7 @@ import { DEFAULT_TIMEZONE } from '../../shared/schemas/availability';
 import { BOOKING_STATUSES } from '../../shared/schemas/bookings';
 import { COMPLAINT_STATUSES } from '../../shared/schemas/complaints';
 import { CLASS_ASSIGNMENT_STATUSES } from '../../shared/schemas/admin-assignments';
-import { REQUEST_STATUSES } from '../../shared/schemas/requests';
+import { EDUCATION_LEVELS, REQUEST_STATUSES } from '../../shared/schemas/requests';
 import {
   CLASS_STATUSES,
   FEE_OPTION_KEYS,
@@ -92,6 +92,10 @@ export const parentRequests = sqliteTable(
     timezone: timezone(),
     discussLater: integer('discuss_later', { mode: 'boolean' }).notNull(),
     ...timestamps(),
+    educationLevel: text('education_level', { enum: EDUCATION_LEVELS }),
+    sessionsPerWeek: integer('sessions_per_week'),
+    tutorRequirements: text('tutor_requirements').notNull().default(''),
+    studentTraits: text('student_traits').notNull().default(''),
   },
   (t) => [
     uniqueIndex('parent_requests_code_uq').on(t.code),
@@ -108,6 +112,7 @@ export const parentRequestPrivate = sqliteTable('parent_request_private', {
   contactAddress: text('contact_address'),
   contactConsentAt: text('contact_consent_at'),
   contactConsentVersion: text('contact_consent_version'),
+  studentName: text('student_name'),
 });
 
 export const requestScheduleWindows = sqliteTable(

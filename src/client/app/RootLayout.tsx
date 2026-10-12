@@ -35,7 +35,7 @@ const CLASS_NAV = PUBLIC_NAV.filter(
 );
 
 const ROLE_PORTAL: Record<UserRole, NavItem> = {
-  student: { to: '/parent', label: 'Khu vực phụ huynh' },
+  student: { to: '/parent/dashboard', label: 'Khu vực phụ huynh' },
   tutor: { to: '/tutor', label: 'Khu vực gia sư' },
   admin: { to: '/admin', label: 'Khu vực kiểm duyệt' },
 };

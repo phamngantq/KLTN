@@ -19,6 +19,32 @@ export const REQUEST_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp
   'Ôn thi đại học',
 ]);
 
+/** School stage shown as "Cấp học"; each grade option belongs to exactly one stage. */
+export const EDUCATION_LEVELS = [
+  'primary',
+  'lower_secondary',
+  'upper_secondary',
+  'university_prep',
+] as const;
+export type EducationLevel = (typeof EDUCATION_LEVELS)[number];
+export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
+  primary: 'Tiểu học',
+  lower_secondary: 'THCS',
+  upper_secondary: 'THPT',
+  university_prep: 'Luyện thi đại học',
+};
+
+export function educationLevelForGrade(grade: string): EducationLevel | null {
+  const match = /^Lớp (\d{1,2})$/.exec(grade);
+  if (match) {
+    const value = Number(match[1]);
+    if (value >= 1 && value <= 5) return 'primary';
+    if (value >= 6 && value <= 9) return 'lower_secondary';
+    if (value >= 10 && value <= 12) return 'upper_secondary';
+  }
+  return grade === 'Ôn thi đại học' ? 'university_prep' : null;
+}
+
 const localTime = z.string().regex(/^([01][0-9]|2[0-3]):[0-5][0-9]$/);
 const timezone = z
   .string()
@@ -94,21 +120,47 @@ const requestFields = z.strictObject({
     .regex(/^\+?[0-9]{8,15}$/)
     .nullable(),
   contactAddress: z.string().trim().min(1).max(200).nullable(),
+  // Figma request details. Optional in drafts so older clients and saved drafts stay valid.
+  studentName: z.string().trim().min(1).max(100).nullable().default(null),
+  educationLevel: z.enum(EDUCATION_LEVELS).nullable().default(null),
+  sessionsPerWeek: z.number().int().min(1).max(14).nullable().default(null),
+  tutorRequirements: z.string().trim().max(500).default(''),
+  studentTraits: z.string().trim().max(500).default(''),
 });
 
-function validArea(value: { mode: 'online' | 'offline'; area: string | null }): boolean {
-  return value.mode === 'online' || value.area !== null;
+type RefinableRequest = {
+  mode: 'online' | 'offline';
+  area: string | null;
+  grade: string;
+  educationLevel: EducationLevel | null;
+};
+
+function refineRequest(value: RefinableRequest, ctx: z.RefinementCtx) {
+  if (value.mode === 'offline' && value.area === null) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['area'],
+      message: 'Cần khu vực chung cho hình thức học trực tiếp.',
+    });
+  }
+  if (
+    value.educationLevel !== null &&
+    value.educationLevel !== educationLevelForGrade(value.grade)
+  ) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['educationLevel'],
+      message: 'Cấp học không khớp với lớp đã chọn.',
+    });
+  }
 }
 
-export const createParentRequestSchema = requestFields.refine(validArea, {
-  path: ['area'],
-  message: 'Cần khu vực chung cho hình thức học trực tiếp.',
-});
+export const createParentRequestSchema = requestFields.superRefine(refineRequest);
 export type CreateParentRequestInput = z.infer<typeof createParentRequestSchema>;
 
 export const updateParentRequestSchema = requestFields
   .extend({ version: z.number().int().min(1) })
-  .refine(validArea, { path: ['area'], message: 'Cần khu vực chung cho hình thức học trực tiếp.' });
+  .superRefine(refineRequest);
 export type UpdateParentRequestInput = z.infer<typeof updateParentRequestSchema>;
 
 export const submitParentRequestSchema = z.strictObject({
@@ -116,8 +168,30 @@ export const submitParentRequestSchema = z.strictObject({
   consentToShareContact: z.literal(true),
 });
 
+/** Tabs on "Thuê Gia Sư"; each status belongs to exactly one group. */
+export const REQUEST_STATUS_GROUPS = {
+  searching: ['submitted', 'sourcing'],
+  found: ['assigned'],
+  confirmed: ['fulfilled'],
+  other: ['draft', 'cancelled'],
+} as const satisfies Record<string, readonly RequestStatus[]>;
+export type RequestStatusGroup = keyof typeof REQUEST_STATUS_GROUPS;
+export const REQUEST_STATUS_GROUP_KEYS = Object.keys(REQUEST_STATUS_GROUPS) as [
+  RequestStatusGroup,
+  ...RequestStatusGroup[],
+];
+
+const localDate = z.iso.date();
+
 export const parentRequestListSchema = z.strictObject({
   status: z.enum(REQUEST_STATUSES).optional(),
+  group: z.enum(REQUEST_STATUS_GROUP_KEYS).optional(),
+  q: z.string().trim().max(100).optional(),
+  subjectId: z.string().min(1).max(80).optional(),
+  mode: z.enum(['online', 'offline']).optional(),
+  /** Inclusive local dates (Asia/Ho_Chi_Minh) on the request creation time. */
+  from: localDate.optional(),
+  to: localDate.optional(),
   page: z.coerce.number().int().min(1).max(1000).default(1),
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
@@ -134,11 +208,21 @@ export interface ParentRequestSummary {
   area: string | null;
   expectedBudgetMinor: number | null;
   description: string;
+  educationLevel: EducationLevel | null;
+  sessionsPerWeek: number | null;
+  tutorRequirements: string;
+  studentTraits: string;
   status: RequestStatus;
   version: number;
   schedule: z.infer<typeof requestScheduleSchema>;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Parent's own list row: adds the parent's own private student name and phone. */
+export interface ParentRequestListItem extends ParentRequestSummary {
+  studentName: string | null;
+  contactPhone: string | null;
 }
 
 /** Returned only from an owner-authenticated detail/create/update endpoint. */
@@ -149,6 +233,7 @@ export interface OwnParentRequest extends ParentRequestSummary {
   /** Agreed VND per session for the current assignment; null before assignment or after revocation. */
   agreedTuitionPerSessionMinor: number | null;
   cancellationReason?: string | null;
+  studentName: string | null;
   contactPhone: string | null;
   contactAddress: string | null;
   contactConsentAt: string | null;

@@ -28,14 +28,17 @@ describe('role navigation', () => {
 
     await user.click(screen.getByRole('button', { name: 'Mở menu' }));
     const menu = screen.getByRole('navigation', { name: 'Điều hướng di động Phụ huynh' });
-    expect(within(menu).getByRole('link', { name: 'Thuê gia sư' })).toBeTruthy();
-    await user.click(within(menu).getByText('Lịch cũ'));
-    expect(within(menu).getByRole('link', { name: 'Lịch đã đặt' }).getAttribute('href')).toBe(
-      '/student/bookings',
+    expect(
+      within(menu)
+        .getAllByRole('link')
+        .map((link) => link.textContent),
+    ).toEqual(['Tổng quan', 'Tìm kiếm gia sư', 'Bảng giá', 'Cẩm nang', 'Khiếu nại']);
+    expect(within(menu).getByRole('link', { name: 'Tìm kiếm gia sư' }).className).toContain(
+      'bg-accent',
     );
     expect(within(menu).queryByRole('link', { name: 'Khu vực phụ huynh' })).toBeNull();
 
-    await user.click(within(menu).getByRole('link', { name: 'Thuê gia sư' }));
+    await user.click(within(menu).getByRole('link', { name: 'Tìm kiếm gia sư' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
     expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Phụ huynh' })).toBeNull();
   });

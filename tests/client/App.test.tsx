@@ -203,7 +203,7 @@ describe('safeNextPath', () => {
 
 describe('product home paths', () => {
   it('lands each trusted storage role in its product area', () => {
-    expect(homePathFor('student')).toBe('/parent');
+    expect(homePathFor('student')).toBe('/parent/dashboard');
     expect(homePathFor('tutor')).toBe('/tutor');
     expect(homePathFor('admin')).toBe('/admin');
   });

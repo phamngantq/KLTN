@@ -5,7 +5,7 @@ import {
   submitParentRequestSchema,
   updateParentRequestSchema,
   type OwnParentRequest,
-  type ParentRequestSummary,
+  type ParentRequestListItem,
 } from '../../../shared/schemas/requests';
 import type { Page } from '../../../shared/schemas/discovery';
 import { AppError } from '../../lib/errors';
@@ -49,7 +49,7 @@ parentRequestRoutes.post('/', async (c) => {
 
 parentRequestRoutes.get('/', async (c) => {
   const query = parseQuery(c, parentRequestListSchema);
-  return ok<Page<ParentRequestSummary>>(
+  return ok<Page<ParentRequestListItem>>(
     c,
     await service.listOwn(c.var.db, authOf(c).user.id, query),
   );

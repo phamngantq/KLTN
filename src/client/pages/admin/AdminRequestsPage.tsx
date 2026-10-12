@@ -9,7 +9,7 @@ import {
 } from '../../../shared/schemas/admin-requests';
 import type { AdminClass, CreateClassInput } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
-import type { RequestStatus } from '../../../shared/schemas/requests';
+import { EDUCATION_LEVEL_LABELS, type RequestStatus } from '../../../shared/schemas/requests';
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -345,6 +345,18 @@ export function AdminRequestsPage() {
               <dl className="grid min-w-0 gap-x-6 gap-y-2 text-sm sm:grid-cols-[minmax(9rem,auto)_minmax(0,1fr)]">
                 <dt className="font-medium text-muted">Phụ huynh</dt>
                 <dd>{detail.data.parentDisplayName}</dd>
+                <dt className="font-medium text-muted">Học sinh</dt>
+                <dd className="break-words">{detail.data.studentName ?? 'Chưa nhập'}</dd>
+                <dt className="font-medium text-muted">Cấp học · Số buổi/tuần</dt>
+                <dd>
+                  {detail.data.educationLevel
+                    ? EDUCATION_LEVEL_LABELS[detail.data.educationLevel]
+                    : '—'}
+                  {' · '}
+                  {detail.data.sessionsPerWeek === null
+                    ? 'Chưa nêu'
+                    : `${detail.data.sessionsPerWeek} buổi`}
+                </dd>
                 <dt className="font-medium text-muted">Trạng thái</dt>
                 <dd>{REQUEST_STATUS_LABELS[detail.data.status]}</dd>
                 <dt className="font-medium text-muted">Khu vực chung</dt>
@@ -373,8 +385,20 @@ export function AdminRequestsPage() {
                   {' · '}
                   {detail.data.schedule.timezone}
                 </dd>
-                <dt className="font-medium text-muted">Mô tả</dt>
-                <dd className="whitespace-pre-line break-words">{detail.data.description}</dd>
+                <dt className="font-medium text-muted">Yêu cầu đối với gia sư</dt>
+                <dd className="whitespace-pre-line break-words">
+                  {detail.data.tutorRequirements || 'Chưa nêu'}
+                </dd>
+                <dt className="font-medium text-muted">Đặc điểm học sinh</dt>
+                <dd className="whitespace-pre-line break-words">
+                  {detail.data.studentTraits || 'Chưa nêu'}
+                </dd>
+                {detail.data.description && (
+                  <>
+                    <dt className="font-medium text-muted">Mô tả</dt>
+                    <dd className="whitespace-pre-line break-words">{detail.data.description}</dd>
+                  </>
+                )}
               </dl>
               {detail.data.status === 'submitted' && detail.data.contactConsentAt && (
                 <div className="flex flex-wrap gap-2">

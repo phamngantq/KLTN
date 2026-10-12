@@ -31,6 +31,7 @@ async function openClass(parent: Session, admin: Session) {
         description: `Yêu cầu học tại nhà; liên hệ ${PRIVATE_MARKER}.`,
         schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
         contactPhone: PRIVATE_MARKER,
+        studentName: 'Học sinh mẫu',
         contactAddress: 'Số 12 đường riêng',
       },
       parent,

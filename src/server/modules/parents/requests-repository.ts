@@ -1,13 +1,28 @@
-import { and, asc, count, desc, eq, exists, inArray, isNotNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  exists,
+  gte,
+  inArray,
+  isNotNull,
+  lt,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import type { Page } from '../../../shared/schemas/discovery';
 import type {
   CreateParentRequestInput,
   OwnParentRequest,
+  ParentRequestListItem,
   ParentRequestListQuery,
   ParentRequestSummary,
   UpdateParentRequestInput,
 } from '../../../shared/schemas/requests';
+import { REQUEST_STATUS_GROUPS } from '../../../shared/schemas/requests';
 import type { Db } from '../../db/client';
 import {
   auditLogs,
@@ -30,6 +45,10 @@ const publicColumns = {
   area: parentRequests.area,
   expectedBudgetMinor: parentRequests.expectedBudgetMinor,
   description: parentRequests.description,
+  educationLevel: parentRequests.educationLevel,
+  sessionsPerWeek: parentRequests.sessionsPerWeek,
+  tutorRequirements: parentRequests.tutorRequirements,
+  studentTraits: parentRequests.studentTraits,
   status: parentRequests.status,
   version: parentRequests.version,
   timezone: parentRequests.timezone,
@@ -76,6 +95,10 @@ export async function insertRequest(
       area: input.area,
       expectedBudgetMinor: input.expectedBudgetMinor,
       description: input.description,
+      educationLevel: input.educationLevel,
+      sessionsPerWeek: input.sessionsPerWeek,
+      tutorRequirements: input.tutorRequirements,
+      studentTraits: input.studentTraits,
       status: 'draft',
       version: 1,
       mutationId: request.mutationId,
@@ -88,6 +111,7 @@ export async function insertRequest(
       requestId: request.id,
       contactPhone: input.contactPhone,
       contactAddress: input.contactAddress,
+      studentName: input.studentName,
     }),
     ...input.schedule.windows.map((window) =>
       db.insert(requestScheduleWindows).values({
@@ -124,6 +148,7 @@ export async function findOwnRequest(
       contactAddress: parentRequestPrivate.contactAddress,
       contactConsentAt: parentRequestPrivate.contactConsentAt,
       contactConsentVersion: parentRequestPrivate.contactConsentVersion,
+      studentName: parentRequestPrivate.studentName,
     })
     .from(parentRequests)
     .innerJoin(subjects, eq(subjects.id, parentRequests.subjectId))
@@ -164,13 +189,20 @@ export async function findOwnRequest(
       ),
     )
     .get();
-  const { contactPhone, contactAddress, contactConsentAt, contactConsentVersion, ...publicRow } =
-    row;
+  const {
+    contactPhone,
+    contactAddress,
+    contactConsentAt,
+    contactConsentVersion,
+    studentName,
+    ...publicRow
+  } = row;
   return {
     ...summary(publicRow, windows),
     publishedClassId: publishedClass?.id ?? null,
     publishedClassCode: publishedClass?.code ?? null,
     agreedTuitionPerSessionMinor: currentTuition?.agreedTuitionPerSessionMinor ?? null,
+    studentName,
     contactPhone,
     contactAddress,
     contactConsentAt,
@@ -183,22 +215,50 @@ export async function listOwnRequests(
   db: Db,
   parentId: string,
   query: ParentRequestListQuery,
-): Promise<Page<ParentRequestSummary>> {
+): Promise<Page<ParentRequestListItem>> {
+  const keyword = query.q ? `%${query.q.replace(/[!%_]/g, (char) => `!${char}`)}%` : null;
   const where = and(
     eq(parentRequests.parentUserId, parentId),
     query.status ? eq(parentRequests.status, query.status) : undefined,
+    query.group
+      ? inArray(parentRequests.status, [...REQUEST_STATUS_GROUPS[query.group]])
+      : undefined,
+    query.subjectId ? eq(parentRequests.subjectId, query.subjectId) : undefined,
+    query.mode ? eq(parentRequests.mode, query.mode) : undefined,
+    query.from ? gte(parentRequests.createdAt, localDayStartUtc(query.from)) : undefined,
+    query.to ? lt(parentRequests.createdAt, localDayStartUtc(query.to, 1)) : undefined,
+    keyword
+      ? or(
+          sql`${parentRequests.code} LIKE ${keyword} ESCAPE '!'`,
+          sql`${subjects.name} LIKE ${keyword} ESCAPE '!'`,
+          sql`${parentRequests.grade} LIKE ${keyword} ESCAPE '!'`,
+          sql`coalesce(${parentRequests.area}, '') LIKE ${keyword} ESCAPE '!'`,
+          sql`coalesce(${parentRequestPrivate.studentName}, '') LIKE ${keyword} ESCAPE '!'`,
+        )
+      : undefined,
   );
   const [rows, totals] = await Promise.all([
     db
-      .select(publicColumns)
+      .select({
+        ...publicColumns,
+        studentName: parentRequestPrivate.studentName,
+        contactPhone: parentRequestPrivate.contactPhone,
+      })
       .from(parentRequests)
       .innerJoin(subjects, eq(subjects.id, parentRequests.subjectId))
+      .innerJoin(parentRequestPrivate, eq(parentRequestPrivate.requestId, parentRequests.id))
       .where(where)
       .orderBy(desc(parentRequests.createdAt), asc(parentRequests.id))
       .limit(query.pageSize)
       .offset((query.page - 1) * query.pageSize)
       .all(),
-    db.select({ total: count() }).from(parentRequests).where(where).all(),
+    db
+      .select({ total: count() })
+      .from(parentRequests)
+      .innerJoin(subjects, eq(subjects.id, parentRequests.subjectId))
+      .innerJoin(parentRequestPrivate, eq(parentRequestPrivate.requestId, parentRequests.id))
+      .where(where)
+      .all(),
   ]);
   const ids = rows.map((row) => row.id);
   const windows = ids.length
@@ -221,11 +281,22 @@ export async function listOwnRequests(
     byRequest.set(requestId, list);
   }
   return {
-    items: rows.map((row) => summary(row, byRequest.get(row.id) ?? [])),
+    items: rows.map(({ studentName, contactPhone, ...row }) => ({
+      ...summary(row, byRequest.get(row.id) ?? []),
+      studentName,
+      contactPhone,
+    })),
     page: query.page,
     pageSize: query.pageSize,
     total: totals[0]?.total ?? 0,
   };
+}
+
+/** UTC instant of local midnight in Asia/Ho_Chi_Minh (UTC+7, no DST) for a YYYY-MM-DD date. */
+function localDayStartUtc(date: string, addDays = 0): string {
+  const start = new Date(`${date}T00:00:00.000+07:00`);
+  start.setUTCDate(start.getUTCDate() + addDays);
+  return start.toISOString();
 }
 
 function wasCommitted(db: Db, id: string, mutationId: string) {
@@ -256,6 +327,10 @@ export async function updateOwnRequest(
       area: input.area,
       expectedBudgetMinor: input.expectedBudgetMinor,
       description: input.description,
+      educationLevel: input.educationLevel,
+      sessionsPerWeek: input.sessionsPerWeek,
+      tutorRequirements: input.tutorRequirements,
+      studentTraits: input.studentTraits,
       timezone: input.schedule.timezone,
       discussLater: input.schedule.discussLater,
       version: sql`${parentRequests.version} + 1`,
@@ -273,7 +348,11 @@ export async function updateOwnRequest(
     .returning({ id: parentRequests.id });
   const privateUpdate = db
     .update(parentRequestPrivate)
-    .set({ contactPhone: input.contactPhone, contactAddress: input.contactAddress })
+    .set({
+      contactPhone: input.contactPhone,
+      contactAddress: input.contactAddress,
+      studentName: input.studentName,
+    })
     .where(and(eq(parentRequestPrivate.requestId, id), committed));
   const clearWindows = db
     .delete(requestScheduleWindows)

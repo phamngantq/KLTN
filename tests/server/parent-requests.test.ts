@@ -26,6 +26,7 @@ const VALID = {
     ],
   },
   contactPhone: '0912345678',
+  studentName: 'Học sinh mẫu',
   contactAddress: 'Số 10, đường thử nghiệm',
 } as const;
 
@@ -92,7 +93,12 @@ describe('parent find-tutor requests', () => {
     const page = (await list.json<ApiSuccess<Page<ParentRequestSummary>>>()).data;
     expect(page.total).toBe(1);
     expect(page.items[0]?.id).toBe(request.id);
-    expect(JSON.stringify(page.items)).not.toContain(VALID.contactPhone);
+    // The owner's own list shows the student name and phone; address stays detail-only.
+    expect(page.items[0]).toMatchObject({
+      studentName: VALID.studentName,
+      contactPhone: VALID.contactPhone,
+      educationLevel: 'upper_secondary',
+    });
     expect(JSON.stringify(page.items)).not.toContain(VALID.contactAddress);
     expect(JSON.stringify(page.items)).not.toContain('contactConsent');
     expect(JSON.stringify(page.items)).not.toContain('agreedTuitionPerSessionMinor');
@@ -501,5 +507,110 @@ describe('parent find-tutor requests', () => {
       .bind(parent.userId)
       .first<{ n: number }>();
     expect(count?.n).toBe(20);
+  });
+
+  it('stores Figma request details, derives the stage and keeps the student name private', async () => {
+    const parent = await register('parent');
+    const draft = await data(
+      await create(parent, {
+        ...VALID,
+        grade: 'Lớp 8',
+        sessionsPerWeek: 3,
+        tutorRequirements: 'Gia sư nữ, có kinh nghiệm luyện thi.',
+        studentTraits: 'Cần phương pháp giảng dạy sáng tạo.',
+      }),
+    );
+    expect(draft).toMatchObject({
+      studentName: VALID.studentName,
+      educationLevel: 'lower_secondary',
+      sessionsPerWeek: 3,
+      tutorRequirements: 'Gia sư nữ, có kinh nghiệm luyện thi.',
+      studentTraits: 'Cần phương pháp giảng dạy sáng tạo.',
+    });
+    const privateRow = await env.DB.prepare(
+      'SELECT student_name FROM parent_request_private WHERE request_id = ?',
+    )
+      .bind(draft.id)
+      .first<{ student_name: string }>();
+    expect(privateRow?.student_name).toBe(VALID.studentName);
+
+    for (const invalid of [
+      { ...VALID, educationLevel: 'primary' },
+      { ...VALID, sessionsPerWeek: 0 },
+      { ...VALID, sessionsPerWeek: 15 },
+      { ...VALID, tutorRequirements: 'x'.repeat(501) },
+      { ...VALID, studentName: 'x'.repeat(101) },
+    ]) {
+      const response = await create(parent, invalid);
+      expect(response.status).toBe(422);
+    }
+
+    const submitted = await data(
+      await api(
+        `${PATH}/${draft.id}/submit`,
+        jsonInit('POST', { version: draft.version, consentToShareContact: true }, parent),
+      ),
+    );
+    expect(submitted.status).toBe('sourcing');
+    const publicClass = await api(`/classes/${submitted.publishedClassId}`);
+    expect(publicClass.status).toBe(200);
+    expect(JSON.stringify(await publicClass.json())).not.toContain(VALID.studentName);
+  });
+
+  it('requires the student name before submit', async () => {
+    const parent = await register('parent');
+    const draft = await data(await create(parent, { ...VALID, studentName: null }));
+    const response = await api(
+      `${PATH}/${draft.id}/submit`,
+      jsonInit('POST', { version: draft.version, consentToShareContact: true }, parent),
+    );
+    expect(response.status).toBe(422);
+    expect(await errorCode(response)).toBe('STUDENT_NAME_REQUIRED');
+    const after = await data(
+      await api(`${PATH}/${draft.id}`, { headers: { Cookie: parent.cookie } }),
+    );
+    expect(after.status).toBe('draft');
+    expect(after.contactConsentAt).toBeNull();
+  });
+
+  it('filters the owner list by status group, keyword, subject, mode and local date', async () => {
+    const parent = await register('parent');
+    const other = await register('parent');
+    const math = await data(await create(parent, { ...VALID, studentName: 'Phạm Văn Bình' }));
+    await create(parent, {
+      ...VALID,
+      subjectId: 'subj_english',
+      mode: 'online',
+      area: null,
+      studentName: 'Trần Đức Anh',
+    });
+    await create(other, { ...VALID, studentName: 'Phạm Văn Bình' });
+    await api(
+      `${PATH}/${math.id}/submit`,
+      jsonInit('POST', { version: math.version, consentToShareContact: true }, parent),
+    );
+
+    async function list(query: string) {
+      const response = await api(`${PATH}?${query}`, { headers: { Cookie: parent.cookie } });
+      expect(response.status).toBe(200);
+      return (await response.json<ApiSuccess<Page<ParentRequestSummary>>>()).data;
+    }
+    expect((await list('group=searching')).items.map((item) => item.id)).toEqual([math.id]);
+    expect((await list('group=other')).total).toBe(1);
+    expect((await list('group=found')).total).toBe(0);
+    expect((await list(`q=${encodeURIComponent('Văn Bình')}`)).items.map((i) => i.id)).toEqual([
+      math.id,
+    ]);
+    expect((await list(`q=${encodeURIComponent(math.code)}`)).total).toBe(1);
+    expect((await list('q=%25')).total).toBe(0);
+    expect((await list('subjectId=subj_english')).total).toBe(1);
+    expect((await list('mode=online')).total).toBe(1);
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(
+      new Date(),
+    );
+    expect((await list(`from=${today}&to=${today}`)).total).toBe(2);
+    expect((await list('to=2020-01-01')).total).toBe(0);
+    const invalid = await api(`${PATH}?group=unknown`, { headers: { Cookie: parent.cookie } });
+    expect(invalid.status).toBe(422);
   });
 });

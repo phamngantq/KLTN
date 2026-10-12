@@ -10,7 +10,10 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
-import { CONTACT_SHARING_CONSENT_TEXT } from '../../../shared/schemas/requests';
+import {
+  CONTACT_SHARING_CONSENT_TEXT,
+  EDUCATION_LEVEL_LABELS,
+} from '../../../shared/schemas/requests';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
@@ -132,6 +135,20 @@ export function ParentRequestDetailPage() {
           </div>
           <dl className="grid gap-x-6 gap-y-5 p-5 text-sm sm:grid-cols-2 sm:p-6">
             <div>
+              <dt className="text-xs text-muted">Học sinh</dt>
+              <dd className="mt-1 break-words font-semibold text-primary">
+                {request.studentName ?? 'Chưa nhập'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-muted">Cấp học · Số buổi/tuần</dt>
+              <dd className="mt-1">
+                {request.educationLevel ? EDUCATION_LEVEL_LABELS[request.educationLevel] : '—'}
+                {' · '}
+                {request.sessionsPerWeek === null ? 'Chưa nêu' : `${request.sessionsPerWeek} buổi`}
+              </dd>
+            </div>
+            <div>
               <dt className="text-xs text-muted">Môn – Lớp</dt>
               <dd className="mt-1 break-words font-semibold text-primary">
                 {request.subjectName} · {request.grade}
@@ -140,7 +157,7 @@ export function ParentRequestDetailPage() {
             <div>
               <dt className="text-xs text-muted">Hình thức</dt>
               <dd className="mt-1 font-medium">
-                {request.mode === 'online' ? 'Trực tuyến' : 'Trực tiếp'}
+                {request.mode === 'online' ? 'Online' : 'Offline (Tại nhà)'}
               </dd>
             </div>
             <div>
@@ -151,7 +168,7 @@ export function ParentRequestDetailPage() {
             </div>
             <div>
               <dt className="flex items-center gap-1 text-xs text-muted">
-                <Wallet aria-hidden="true" className="size-3.5" /> Mức chi dự kiến
+                <Wallet aria-hidden="true" className="size-3.5" /> Học phí dự kiến (VNĐ/buổi)
               </dt>
               <dd className="mt-1">
                 {request.expectedBudgetMinor === null
@@ -193,12 +210,26 @@ export function ParentRequestDetailPage() {
                 <span className="mt-1 block text-xs text-muted">{request.schedule.timezone}</span>
               </dd>
             </div>
-            <div className="sm:col-span-2">
-              <dt className="text-xs text-muted">Mô tả nhu cầu</dt>
+            <div>
+              <dt className="text-xs text-muted">Yêu cầu đối với gia sư</dt>
               <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
-                {request.description || 'Chưa có mô tả'}
+                {request.tutorRequirements || 'Chưa nêu'}
               </dd>
             </div>
+            <div>
+              <dt className="text-xs text-muted">Đặc điểm học sinh</dt>
+              <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
+                {request.studentTraits || 'Chưa nêu'}
+              </dd>
+            </div>
+            {request.description && (
+              <div className="sm:col-span-2">
+                <dt className="text-xs text-muted">Mô tả nhu cầu</dt>
+                <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
+                  {request.description}
+                </dd>
+              </div>
+            )}
             <div className="sm:col-span-2">
               <dt className="flex items-center gap-1 text-xs text-muted">
                 <CalendarDays aria-hidden="true" className="size-3.5" /> Ngày tạo

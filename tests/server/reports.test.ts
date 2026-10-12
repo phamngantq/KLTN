@@ -35,6 +35,7 @@ async function submittedRequest(parent: Session): Promise<OwnParentRequest> {
         description: 'Cần gia sư Toán lớp 10.',
         schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
         contactPhone: '0912345678',
+        studentName: 'Học sinh mẫu',
         contactAddress: 'Thông tin riêng của phụ huynh',
       },
       parent,

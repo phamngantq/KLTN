@@ -10,6 +10,7 @@ import {
   Home,
   LayoutDashboard,
   MessageSquare,
+  Search,
   Settings,
   UserRound,
   Users,
@@ -23,6 +24,8 @@ interface MenuLink {
   to: string;
   label: string;
   icon: LucideIcon;
+  /** Extra routes (e.g. a create form) that belong to this top-level item. */
+  activePrefixes?: string[];
 }
 
 interface MenuGroup {
@@ -37,35 +40,16 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
   parent: {
     label: 'Phụ huynh',
     entries: [
-      { to: '/parent/trang-chu', label: 'Trang chủ', icon: Home },
-      { to: '/parent', label: 'Thuê gia sư', icon: ClipboardList },
-      { to: '/parent/profile', label: 'Hồ sơ', icon: UserRound },
+      { to: '/parent/dashboard', label: 'Tổng quan', icon: LayoutDashboard },
       {
-        label: 'Lớp học',
-        icon: GraduationCap,
-        items: [
-          { to: '/parent/lop-hoc', label: 'Lớp tìm gia sư', icon: GraduationCap },
-          { to: '/parent/lop-tim-hoc-vien', label: 'Lớp tìm học viên', icon: Users },
-          { to: '/parent/tutor-offer-joins', label: 'Yêu cầu tham gia lớp', icon: ClipboardList },
-        ],
+        to: '/parent',
+        label: 'Tìm kiếm gia sư',
+        icon: Search,
+        activePrefixes: ['/parent/request', '/parent/requests/'],
       },
       { to: '/parent/bang-gia', label: 'Bảng giá', icon: Wallet },
-      {
-        label: 'Thông tin',
-        icon: BookOpen,
-        items: [
-          { to: '/parent/gioi-thieu', label: 'Giới thiệu', icon: CircleHelp },
-          { to: '/parent/dich-vu', label: 'Dịch vụ', icon: BookOpen },
-          { to: '/parent/blog', label: 'Tin tức', icon: FileText },
-          { to: '/parent/lien-he', label: 'Liên hệ', icon: MessageSquare },
-        ],
-      },
+      { to: '/parent/cam-nang', label: 'Cẩm nang', icon: BookOpen },
       { to: '/parent/khieu-nai', label: 'Khiếu nại', icon: MessageSquare },
-      {
-        label: 'Lịch cũ',
-        icon: CalendarDays,
-        items: [{ to: '/student/bookings', label: 'Lịch đã đặt', icon: CalendarDays }],
-      },
     ],
   },
   tutor: {
@@ -217,7 +201,15 @@ export function RoleNavigation({
                 <NavLink
                   to={entry.to}
                   end={entry.to === '/parent' || entry.to === '/tutor' || entry.to === '/admin'}
-                  className={(state) => `${linkClass(state)} ${mobile ? 'w-full' : ''}`}
+                  className={({ isActive }) =>
+                    `${linkClass({
+                      isActive:
+                        isActive ||
+                        Boolean(
+                          entry.activePrefixes?.some((prefix) => pathname.startsWith(prefix)),
+                        ),
+                    })} ${mobile ? 'w-full' : ''}`
+                  }
                   onClick={onNavigate}
                 >
                   <MenuIcon icon={entry.icon} />

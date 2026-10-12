@@ -14,7 +14,7 @@ export const ME_KEY = ['me'] as const;
 export function homePathFor(role: UserRole): string {
   switch (role) {
     case 'student':
-      return '/parent';
+      return '/parent/dashboard';
     case 'tutor':
       return '/tutor';
     case 'admin':

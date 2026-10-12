@@ -3,11 +3,14 @@ import type { Page } from '../../../shared/schemas/discovery';
 import type {
   CreateParentRequestInput,
   OwnParentRequest,
+  ParentRequestListItem,
   ParentRequestListQuery,
-  ParentRequestSummary,
   UpdateParentRequestInput,
 } from '../../../shared/schemas/requests';
-import { CONTACT_SHARING_CONSENT_VERSION } from '../../../shared/schemas/requests';
+import {
+  CONTACT_SHARING_CONSENT_VERSION,
+  educationLevelForGrade,
+} from '../../../shared/schemas/requests';
 import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import * as repo from './requests-repository';
@@ -26,6 +29,11 @@ async function requireKnownSubject(db: Db, subjectId: string): Promise<void> {
   if (!(await repo.subjectExists(db, subjectId))) {
     throw new AppError(422, 'UNKNOWN_SUBJECT', 'Môn học không tồn tại.', [{ path: 'subjectId' }]);
   }
+}
+
+/** The stage is implied by the grade; clients may omit it. Schema refinement rejects a mismatch. */
+function withEducationLevel<T extends CreateParentRequestInput>(input: T): T {
+  return { ...input, educationLevel: input.educationLevel ?? educationLevelForGrade(input.grade) };
 }
 
 function serverCode(): string {
@@ -59,7 +67,7 @@ export async function createDraft(
           mutationId: crypto.randomUUID(),
           now: now.toISOString(),
         },
-        input,
+        withEducationLevel(input),
         extraStatements(id),
       );
       return getOwn(db, parentId, id);
@@ -84,7 +92,7 @@ export function listOwn(
   db: Db,
   parentId: string,
   query: ParentRequestListQuery,
-): Promise<Page<ParentRequestSummary>> {
+): Promise<Page<ParentRequestListItem>> {
   return repo.listOwnRequests(db, parentId, query);
 }
 
@@ -102,7 +110,10 @@ export async function updateOwn(
     throw new AppError(422, 'CONTACT_REQUIRED', 'Yêu cầu đã gửi cần số điện thoại liên hệ.');
   }
   await requireKnownSubject(db, input.subjectId);
-  if (!(await repo.updateOwnRequest(db, parentId, id, input, now.toISOString()))) throw stale();
+  if (
+    !(await repo.updateOwnRequest(db, parentId, id, withEducationLevel(input), now.toISOString()))
+  )
+    throw stale();
   return getOwn(db, parentId, id);
 }
 
@@ -118,8 +129,13 @@ export async function submitOwn(
   if (!current.contactPhone) {
     throw new AppError(422, 'CONTACT_REQUIRED', 'Cần số điện thoại liên hệ trước khi gửi yêu cầu.');
   }
-  if (current.description.trim().length === 0) {
-    throw new AppError(422, 'DESCRIPTION_REQUIRED', 'Cần mô tả yêu cầu trước khi gửi.');
+  if (!current.studentName) {
+    throw new AppError(
+      422,
+      'STUDENT_NAME_REQUIRED',
+      'Cần họ và tên học sinh trước khi gửi yêu cầu.',
+      [{ path: 'studentName' }],
+    );
   }
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

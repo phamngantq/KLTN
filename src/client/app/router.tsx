@@ -184,7 +184,28 @@ const parentRoutes: RouteObject[] = [
   { path: 'trang-chu', element: <HomePage /> },
   { path: 'gioi-thieu', element: <Navigate to="/gioi-thieu" replace /> },
   { path: 'dich-vu', element: <Navigate to="/dich-vu" replace /> },
-  { path: 'bang-gia', element: <Navigate to="/bang-gia" replace /> },
+  {
+    path: 'bang-gia',
+    ...page(async () => {
+      const { PublicPricingPage } = await import('../pages/public/PublicPricingPage');
+      return <PublicPricingPage />;
+    }),
+  },
+  {
+    path: 'cam-nang',
+    ...page(async () => {
+      const { PublishedContentCollectionPage } =
+        await import('../pages/public/PublishedContentPage');
+      return (
+        <PublishedContentCollectionPage
+          kind="blog"
+          slugPrefix="phu-huynh-"
+          title="Cẩm nang phụ huynh"
+          detailBase="/blog/phu-huynh"
+        />
+      );
+    }),
+  },
   {
     path: 'lop-hoc',
     ...page(async () => {

@@ -24,6 +24,7 @@ const INPUT = {
     windows: [{ weekday: 1, startLocal: '18:00', endLocal: '19:30' }],
   },
   contactPhone: CONTACT_PHONE,
+  studentName: 'Học sinh mẫu',
   contactAddress: CONTACT_ADDRESS,
 } as const;
 
@@ -106,6 +107,7 @@ describe('moderator find-tutor requests', () => {
       parentUserId: parent.userId,
       status: 'sourcing',
       contactPhone: CONTACT_PHONE,
+      studentName: 'Học sinh mẫu',
       contactAddress: CONTACT_ADDRESS,
       contactConsentVersion: submitted.contactConsentVersion,
       contactConsentAt: submitted.contactConsentAt,

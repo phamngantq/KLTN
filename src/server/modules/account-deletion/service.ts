@@ -112,6 +112,8 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
       .set({
         area: sql`CASE WHEN ${parentRequests.mode} = 'offline' THEN 'Đã ẩn khu vực' ELSE NULL END`,
         description: 'Nội dung đã xóa',
+        tutorRequirements: '',
+        studentTraits: '',
         discussLater: true,
         version: sql`${parentRequests.version} + 1`,
         mutationId: crypto.randomUUID(),

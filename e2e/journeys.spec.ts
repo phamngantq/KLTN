@@ -177,15 +177,20 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect((await legacyBooking.json()).error.code).toBe('LEGACY_BOOKING_CLOSED');
     expect((await parent.context().request.get('/api/v1/bookings')).status()).toBe(200);
     await parent.goto('/parent/request');
+    await parent.getByLabel('Họ và tên').fill('Học sinh E2E');
+    await parent.getByRole('textbox', { name: /^Khu vực/ }).fill('Cầu Giấy, Hà Nội');
     await parent.getByLabel('Môn học').selectOption('subj_math');
-    await parent.getByLabel('Lớp học').selectOption('Lớp 10');
-    await parent.getByLabel('Mô tả nhu cầu').fill('Cần gia sư Toán trực tuyến buổi tối.');
+    await parent.getByRole('combobox', { name: /^Lớp/ }).selectOption('Lớp 10');
+    await expect(parent.getByLabel('Cấp học')).toHaveValue('upper_secondary');
+    await parent.getByLabel('Online').check();
+    await parent.getByLabel('Số buổi/tuần').fill('2');
+    await parent.getByLabel('Yêu cầu đối với gia sư').fill('Cần gia sư Toán trực tuyến buổi tối.');
     await parent.getByRole('button', { name: 'Thứ Hai, 17:30–19:00' }).click();
     await parent.setViewportSize({ width: 320, height: 900 });
     await expectNoHorizontalOverflow(parent);
     await parent.setViewportSize({ width: 1280, height: 900 });
-    await parent.getByLabel('Số điện thoại liên hệ').fill(phone);
-    await parent.getByLabel('Địa chỉ liên hệ cụ thể').fill(address);
+    await parent.getByRole('textbox', { name: /^Số điện thoại/ }).fill(phone);
+    await parent.getByLabel('Địa chỉ cụ thể').fill(address);
     const send = parent.getByRole('button', { name: 'Gửi yêu cầu' });
     await expect(send).toBeDisabled();
     await parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/).check();
@@ -196,7 +201,9 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect(requests.total).toBe(1);
     const request = requests.items[0]!;
     expect(request).toBeDefined();
-    expect(JSON.stringify(requests)).not.toContain(phone);
+    // The owner's list shows the student name and phone; the exact address stays detail-only.
+    expect(request).toMatchObject({ studentName: 'Học sinh E2E', sessionsPerWeek: 2 });
+    expect(JSON.stringify(requests)).not.toContain(address);
     const confirmed = await getData<OwnRequest>(parent, `/parent/requests/${request.id}`);
     expect(confirmed).toMatchObject({
       status: 'sourcing',
@@ -218,6 +225,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     const publicClass = await getData<unknown>(guest, `/classes/${cls!.id}`);
     expect(JSON.stringify(publicClass)).not.toContain(phone);
     expect(JSON.stringify(publicClass)).not.toContain(address);
+    expect(JSON.stringify(publicClass)).not.toContain('Học sinh E2E');
 
     await tutor.goto(`/tutor/new-classes/${cls!.id}`);
     await expect(

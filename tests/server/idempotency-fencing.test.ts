@@ -132,6 +132,11 @@ describe('fenced idempotency attempts', () => {
       schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
       contactPhone: '0912345678',
       contactAddress: null,
+      studentName: null,
+      educationLevel: null,
+      sessionsPerWeek: null,
+      tutorRequirements: '',
+      studentTraits: '',
     };
     const { ctx, first, second } = await superseded(parent.userId, 'POST /parent/requests', body);
 
@@ -234,6 +239,11 @@ describe('fenced idempotency attempts', () => {
       schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
       contactPhone: '0912345678',
       contactAddress: null,
+      studentName: null,
+      educationLevel: null,
+      sessionsPerWeek: null,
+      tutorRequirements: '',
+      studentTraits: '',
     };
     const key = `lease-${crypto.randomUUID()}`;
     const create = () =>

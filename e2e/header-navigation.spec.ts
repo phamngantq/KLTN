@@ -157,7 +157,7 @@ test('public header stays on one line and both class lists remain reachable', as
 test('parent, tutor and moderator navigation stays compact and reachable', async ({ browser }) => {
   test.setTimeout(120_000);
   const roles = [
-    { role: 'parent', mobileLink: 'Lớp tìm học viên' },
+    { role: 'parent', mobileLink: 'Cẩm nang' },
     { role: 'tutor', mobileLink: 'Hồ sơ gia sư' },
     { role: 'admin', mobileLink: 'Người dùng' },
   ] as const;
