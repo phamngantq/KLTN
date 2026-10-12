@@ -1,5 +1,14 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Khu vực người học ngày 2026-10-12
+
+Commit `16b883e` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `9ddcf7a2-1ecc-458b-913e-6d1c5b0f9ae9`. Vai trò phụ huynh hiển thị là "Người học"; form yêu cầu mang tên "Tìm kiếm gia sư" và không còn khối thông báo chia sẻ (phiên bản đồng ý `2026-10-12-v3`); "Khiếu nại của tôi" có bản nháp riêng tư, sửa/gửi/xóa, thẻ trạng thái, tab và bộ lọc; "Cẩm nang dành cho người học" lọc theo danh mục và từ khóa; "Bảng giá" của người học hiển thị khoảng giá tham khảo theo đối tượng gia sư và theo môn.
+
+- Trước phát hành: lint, typecheck, format, secret scan, Vitest **475/475**, Playwright **4/4** và `git diff --check` PASS; ảnh chụp các trang mới trên D1 local có dữ liệu mẫu đã được xem.
+- Remote: mốc Time Travel trước migration lưu ngoài Git trong `.wrangler/`; migration `0025` (dựng lại bảng khiếu nại với trạng thái nháp), `0026` (danh mục, tác giả bài viết) và `0027` (bảng giá tham khảo người học) đã áp dụng. Trước: 5 user, 6 yêu cầu, 6 lớp, 0 khiếu nại, 6 bản nội dung.
+- Dữ liệu mẫu `seed:learner-demo:staging:v2`: tài khoản `nguoi-hoc-mau@example.test` (mật khẩu chỉ trong `.wrangler/sample-staging-v2/learner-credentials.vars`), 4 khiếu nại ở bốn trạng thái, 6 bài cẩm nang có danh mục, 12 dòng giá theo đối tượng gia sư và 32 dòng theo môn. Giá và bài viết là dữ liệu minh họa, chưa phải nội dung được duyệt.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS; `PRAGMA foreign_key_check` 0 hàng; API bảng giá trả 44 dòng, lọc cẩm nang theo danh mục hoạt động; người học mẫu đăng nhập được và thấy đúng số khiếu nại theo trạng thái.
+
 ## Địa chỉ học Hà Nội và thời gian có thể học ngày 2026-10-12
 
 Commit `bc9d03e` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `689b7b4a-6c26-44d1-b498-8a87bdc40335`. Phụ huynh không còn mục "Khu vực phụ huynh"; form yêu cầu có Địa chỉ học (Hà Nội cố định, 126 phường/xã theo Nghị quyết 1656/NQ-UBTVQH15, địa chỉ cụ thể không bắt buộc, học online được để trống), "Thời gian có thể học" không giới hạn 14 khung và thông báo chia sẻ thay cho ô đồng ý (phiên bản `2026-10-12-v2`).
