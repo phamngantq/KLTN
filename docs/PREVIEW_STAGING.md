@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Địa chỉ học Hà Nội và thời gian có thể học ngày 2026-10-12
+
+Commit `bc9d03e` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `689b7b4a-6c26-44d1-b498-8a87bdc40335`. Phụ huynh không còn mục "Khu vực phụ huynh"; form yêu cầu có Địa chỉ học (Hà Nội cố định, 126 phường/xã theo Nghị quyết 1656/NQ-UBTVQH15, địa chỉ cụ thể không bắt buộc, học online được để trống), "Thời gian có thể học" không giới hạn 14 khung và thông báo chia sẻ thay cho ô đồng ý (phiên bản `2026-10-12-v2`).
+
+- Trước phát hành: lint, typecheck, format, secret scan, build staging V2, Vitest **463/463**, Playwright **4/4** và `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git trong `.wrangler/`; migration `0024` thay trigger khung giờ (giữ kiểm tra chồng lấn, trần 168). Trước và sau: 5 user, 6 yêu cầu, 6 lớp, 14 khung giờ.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS; `PRAGMA foreign_key_check` 0 hàng; `/parent`, `/parent/request`, `/parent/dashboard` trả 200. Không tạo dữ liệu thử trên staging.
+
 ## Menu phụ huynh và form yêu cầu theo Figma ngày 2026-10-12
 
 Commit `d61d9cf` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `abb10452-e636-44c9-bf04-19238eb0265f`. Menu phụ huynh còn Tổng quan, Tìm kiếm gia sư, Bảng giá, Cẩm nang, Khiếu nại; trang Thuê Gia Sư có thẻ thống kê, tab trạng thái và bộ lọc; form yêu cầu theo export Figma.
