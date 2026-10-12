@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Tạo mới trên tài khoản Cloudflare hiện tại ngày 2026-10-12
+
+Commit `7d3dd54` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `5695d8be-6078-42f8-a88b-0a9d9aa9a06d`, `APP_ENV=staging`, trên tài khoản Cloudflare đang đăng nhập ở máy phát hành. Tài khoản này chưa có Worker/D1 V2 nên D1 `tutor-matching-staging-v2` được tạo mới ở APAC; ID không ghi vào Git. D1 `tutor-matching-staging` cũ có trên tài khoản không bị thay đổi.
+
+- Trước phát hành: secret scan, lint, typecheck, format, build staging V2, Vitest **456/456** (`--maxWorkers=2`; chạy song song mặc định có test client timeout, chạy riêng PASS) và Playwright **4/4** trên D1 local cô lập PASS.
+- Remote: migration `0001`–`0022` đã áp dụng; seed DEC-017 từ `.wrangler/sample-staging-v2/config.vars` (sao chép `.env.example`) xác nhận 3 phương án phí published, 6 lớp mẫu open, 6 mức học phí, 2 khoảng phí tham khảo và 1 admin mẫu. Bookmark D1 trước seed và mật khẩu admin mẫu chỉ nằm trong `.wrangler/` bị Git bỏ qua.
+- Sau phát hành: smoke chỉ đọc PASS; `PRAGMA foreign_key_check` trả 0 hàng.
+
 ## Sửa header ngày 2026-10-12
 
 Commit `24a1f80` đã được fast-forward và push lên `main`, rồi triển khai tới [Worker staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev), version `5dc5377c-b91f-4b33-be02-8c52c73a8fdd`. Menu công khai gom hai danh sách lớp dưới “Lớp học”; menu phụ huynh gom các tác vụ lớp; tài khoản đăng nhập dùng một menu gọn. Các nhãn điều hướng giữ một dòng và dropdown không đẩy chiều cao header ở desktop. Menu di động có lối vào “Lớp tìm học viên”.
@@ -68,6 +76,6 @@ Trước lần phát hành này, cùng URL phục vụ bản `env.preview` chỉ
 1. Xác minh tài khoản Wrangler, Worker và D1 V2 bằng inventory chỉ đọc. Không suy quyền quản trị từ URL công khai.
 2. Hoàn thành cổng local và các mục trong [DEPLOYMENT.md](DEPLOYMENT.md), [RELEASE_CHECKLIST.md](RELEASE_CHECKLIST.md). So sánh `npx wrangler d1 migrations list DB --env staging_v2 --remote` với source và kiểm kê D1. Với migration mới và D1 đã có dữ liệu, lưu bookmark/backup theo runbook trước khi chạy `npm run db:migrate:staging:v2`.
 3. Chạy `npm run build:staging:v2` **sau E2E**. Kiểm tra `dist/tutor_matching/wrangler.json`: Worker/D1 cùng tên `tutor-matching-staging-v2`, `APP_ENV=staging`, `workers_dev=true`, `preview_urls=false`, không có route/custom domain. Build UI phải có `VITE_PREVIEW_READ_ONLY=false`. Sau dry-run đúng đích mới chạy `npm run deploy:staging:v2`.
-4. Chạy `npm run smoke -- https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev`, kiểm tra migration, binding, health và trạng thái dữ liệu từ xa. Smoke là kiểm tra chỉ đọc; hành trình ghi được kiểm bằng E2E trên D1 local. Ghi kết quả mới cho từng lần phát hành.
+4. Chạy `npm run smoke -- https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev`, kiểm tra migration, binding, health và trạng thái dữ liệu từ xa. Smoke là kiểm tra chỉ đọc; hành trình ghi được kiểm bằng E2E trên D1 local. Ghi kết quả mới cho từng lần phát hành.
 
 Staging cũ `tutor-matching-staging` thuộc lịch sử MVP và lần kiểm tra trước không hiện trong tài khoản Wrangler. Tài nguyên đó tách khỏi V2. Production cần quyết định phát hành riêng.

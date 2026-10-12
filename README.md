@@ -7,7 +7,7 @@ Cloudflare-native modular monolith: React + Vite SPA và Hono API chạy trong *
 
 Theo [DEC-020](TASK_DECISIONS.md), phiếu phụ huynh đã xác nhận xuất bản **Lớp tìm gia sư** ngay; **Lớp tìm học viên** do gia sư đăng là danh sách riêng, chỉ công khai sau khi gia sư xác nhận hợp đồng đăng lớp và kiểm duyệt viên duyệt. Phụ huynh gửi yêu cầu tham gia trong hệ thống; kiểm duyệt viên chấp nhận kèm học phí đã chốt. Gia sư thấy dữ liệu học tập/khu vực chung trước khi được chấp nhận; sau đó hai bên mới được xem số điện thoại của nhau theo consent và quyền riêng. Luồng thứ hai là yêu cầu nghiệp vụ bổ sung ngoài export Figma.
 
-Worker [staging V2](https://tutor-matching-staging-v2.zhaduchanhzz.workers.dev) đang chạy bản giao diện và luồng mới cùng 3 phương án phí và 6 lớp mẫu đã công bố. Xem [hồ sơ phát hành](docs/PREVIEW_STAGING.md) để biết kiểm thử và các điểm còn khác export Figma; bản Make trực tiếp chưa được đối chiếu từng frame.
+Worker [staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev) (tài khoản Cloudflare hiện tại, tạo mới ngày 2026-10-12) đang chạy bản giao diện và luồng mới cùng 3 phương án phí và 6 lớp mẫu đã công bố. Xem [hồ sơ phát hành](docs/PREVIEW_STAGING.md) để biết kiểm thử và các điểm còn khác export Figma; bản Make trực tiếp chưa được đối chiếu từng frame.
 
 `./figma` là nguồn tham chiếu **chỉ có trên máy** và được Git bỏ qua vì export chứa ảnh chụp và thông tin cá nhân mẫu chưa được rà quyền công bố. Mã được chọn lọc và kiểm thử sẽ được tích hợp vào `src/` trước khi push/deploy (DEC-008).
 
