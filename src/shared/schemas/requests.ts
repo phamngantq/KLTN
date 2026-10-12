@@ -18,7 +18,7 @@ export type RequestStatus = (typeof REQUEST_STATUSES)[number];
  */
 export const CONTACT_SHARING_CONSENT_VERSION = '2026-10-12-v2';
 export const CONTACT_SHARING_CONSENT_TEXT =
-  'Khi bạn gửi yêu cầu, môn học, lớp, hình thức, học phí dự kiến và lịch mong muốn sẽ hiển thị trong danh sách lớp tìm gia sư. Họ tên, số điện thoại, khu vực và các ghi chú không được công khai; gia sư chỉ xem số điện thoại sau khi được kiểm duyệt viên gán.';
+  'Khi bạn gửi yêu cầu, môn học, lớp, hình thức, học phí dự kiến và lịch mong muốn sẽ hiển thị trong danh sách lớp tìm gia sư. Họ tên, số điện thoại, khu vực và các ghi chú không được công khai; gia sư chỉ xem số điện thoại và địa chỉ cụ thể (nếu có) sau khi được kiểm duyệt viên gán.';
 /** Anti-abuse bound only; the form itself does not limit how many slots a parent picks. */
 export const REQUEST_MAX_WINDOWS = 168;
 export const REQUEST_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp ${i + 1}`).concat([
