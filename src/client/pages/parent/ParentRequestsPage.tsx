@@ -1,13 +1,13 @@
 import { useState, type FormEvent } from 'react';
-import { CircleCheck, Eye, Filter, Phone, RefreshCw, Search, UserCheck } from 'lucide-react';
-import { Link, useSearchParams } from 'react-router';
+import { CircleCheck, Eye, Filter, Phone, Plus, RefreshCw, Search, UserCheck } from 'lucide-react';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router';
 import {
   EDUCATION_LEVEL_LABELS,
   LEARNER_REQUEST_STAGES,
   type LearnerRequestStage,
   type ParentRequestListItem,
 } from '../../../shared/schemas/requests';
-import { Button } from '../../components/ui/Button';
+import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { SelectField, TextField } from '../../components/ui/Field';
 import { ListFooter, StatusTabs, SummaryCard } from '../../components/ui/ListControls';
@@ -20,7 +20,7 @@ import {
 import { requestDate } from '../../features/parent-requests/format';
 import { useSubjects } from '../../features/tutor-profile/api';
 import { formatVnd } from '../../lib/format';
-import { ParentRequestFormPage } from './ParentRequestFormPage';
+import type { RequestSentState } from './ParentRequestFormPage';
 import { STAGE_LABELS, StageBadge } from './RequestStage';
 
 const PAGE_SIZES = [10, 20, 40] as const;
@@ -38,6 +38,9 @@ type Draft = { q: string; subjectId: string; mode: '' | 'online' | 'offline' };
 
 export function ParentRequestsPage() {
   const [params, setParams] = useSearchParams();
+  const location = useLocation();
+  const goTo = useNavigate();
+  const sentCode = (location.state as RequestSentState | null)?.sentRequestCode ?? null;
   const subjects = useSubjects();
   const counts = useParentRequestCounts();
 
@@ -110,16 +113,38 @@ export function ParentRequestsPage() {
             Gửi yêu cầu để chúng tôi tìm gia sư phù hợp cho bạn
           </p>
         </div>
-        <a
-          href="tel:0394618480"
-          className="inline-flex min-h-11 items-center gap-2 self-start rounded-xl bg-primary px-4 py-2.5 text-sm text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus sm:self-auto"
-        >
-          <Phone aria-hidden="true" className="size-4 text-accent" />
-          Hotline: <strong className="text-accent">0394 618 480</strong>
-        </a>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="tel:0394618480"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-primary px-4 py-2.5 text-sm text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+          >
+            <Phone aria-hidden="true" className="size-4" />
+            Hotline: <strong>0394 618 480</strong>
+          </a>
+          <ButtonLink to="/parent/request" className="gap-2">
+            <Plus aria-hidden="true" className="size-4" />
+            Tạo yêu cầu tìm gia sư
+          </ButtonLink>
+        </div>
       </div>
 
-      <ParentRequestFormPage embedded />
+      {sentCode && (
+        <Alert
+          tone="success"
+          title="Gửi yêu cầu thành công"
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => void goTo(location, { replace: true, state: null })}
+            >
+              Đóng
+            </Button>
+          }
+        >
+          Yêu cầu {sentCode} đã được tiếp nhận và hiển thị trong tab “{STAGE_LABELS.searching}”.
+          Trung tâm sẽ sớm liên hệ để hỗ trợ bạn.
+        </Alert>
+      )}
 
       <section aria-labelledby="my-requests" className="flex min-w-0 flex-col gap-6">
         <h2 id="my-requests" className="text-2xl font-semibold text-primary">
@@ -236,7 +261,7 @@ export function ParentRequestsPage() {
                 title="Chưa có yêu cầu phù hợp"
                 description={
                   total === 0
-                    ? 'Điền form phía trên để gửi yêu cầu tìm gia sư đầu tiên.'
+                    ? 'Bấm “Tạo yêu cầu tìm gia sư” để gửi yêu cầu đầu tiên.'
                     : 'Không có yêu cầu nào khớp với tab và bộ lọc hiện tại.'
                 }
               />

@@ -41,6 +41,7 @@ const ownRequest: OwnParentRequest = {
   updatedAt: '2026-10-11T00:00:00.000Z',
   stage: 'other',
   tutor: null,
+  proposals: [],
 };
 
 const subjects = [{ id: 'math', slug: 'math', name: 'Toán' }];
@@ -78,8 +79,11 @@ describe('parent requests', () => {
     expect(await screen.findByText('5')).toBeTruthy();
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
     expect(tabs).toEqual(['Đang tìm gia sư2', 'Đã tìm được gia sư2', 'Đã xác nhận1']);
-    // The request form is shown directly on the page, and there is no date filter.
-    expect(await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeTruthy();
+    // Only the list is shown; the form opens from "+ Tạo yêu cầu tìm gia sư". No date filter.
+    expect(screen.queryByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Tạo yêu cầu tìm gia sư' }).getAttribute('href')).toBe(
+      '/parent/request',
+    );
     expect(screen.queryByLabelText('Từ ngày')).toBeNull();
     expect(screen.queryByLabelText('Đến ngày')).toBeNull();
     expect(calls.some((call) => call.path === '/parent/requests?group=searching&pageSize=10')).toBe(
@@ -168,6 +172,13 @@ describe('parent requests', () => {
         return { data: current };
       }
       if (req.path === '/parent/requests/req-1' && req.method === 'GET') return { data: current };
+      if (req.path === '/parent/requests/stage-counts')
+        return { data: { searching: 1, found: 0, confirmed: 0 } };
+      if (req.path.startsWith('/parent/requests?')) {
+        const group = new URLSearchParams(req.path.split('?')[1]).get('group');
+        const items = group === 'searching' && current.status === 'sourcing' ? [current] : [];
+        return { data: { items, total: items.length, page: 1, pageSize: 10 } };
+      }
       return undefined;
     });
     const { router } = renderRoute('/parent/request');
@@ -189,8 +200,14 @@ describe('parent requests', () => {
     await user.click(screen.getByRole('checkbox', { name: 'Trao đổi thời gian sau' }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
 
-    await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
-    expect(await screen.findByText(/Đang tìm gia sư/)).toBeTruthy();
+    await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
+    expect(await screen.findByText('Gửi yêu cầu thành công')).toBeTruthy();
+    expect(screen.getByText(/Yêu cầu YC-0001 đã được tiếp nhận/)).toBeTruthy();
+    expect(await screen.findByRole('link', { name: 'YC-0001' })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /Đang tìm gia sư/ }).getAttribute('aria-selected')).toBe(
+      'true',
+    );
+    expect(screen.queryByRole('button', { name: 'Gửi yêu cầu' })).toBeNull();
     const created = calls.find(
       (call) => call.path === '/parent/requests' && call.method === 'POST',
     );
@@ -261,7 +278,7 @@ describe('parent requests', () => {
     await user.keyboard('{Enter}');
     expect(slot.getAttribute('aria-pressed')).toBe('true');
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
     const create = calls.find((call) => call.path === '/parent/requests' && call.method === 'POST');
     expect(create?.body).toMatchObject({
       studentName: 'Phạm Văn Bình',
@@ -399,7 +416,7 @@ describe('parent requests', () => {
 
     await user.click(screen.getByRole('radio', { name: 'Online' }));
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe('/parent/requests/req-1'));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/parent'));
     expect(
       calls.find((call) => call.path === '/parent/requests' && call.method === 'POST')?.body,
     ).toMatchObject({ mode: 'online', area: null, contactAddress: null });
@@ -476,5 +493,101 @@ describe('parent requests', () => {
     expect(await screen.findByRole('complementary', { name: 'Gia sư đã xác nhận' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Xác nhận thuê gia sư' })).toBeNull();
     expect(screen.getAllByText('Đã xác nhận').length).toBeGreaterThan(0);
+  });
+
+  it('lists proposals above 80 by score and hires one only after the dialog', async () => {
+    const card = (id: string, displayName: string, fitScore: number) => ({
+      id,
+      displayName,
+      fitScore,
+      status: 'proposed' as const,
+      selectedAt: null,
+      tutorType: 'teacher' as const,
+      school: `Trường ${displayName}`,
+      specialization: 'Toán THCS',
+      experienceYears: 4,
+      experienceSummary: null,
+      bio: 'Giới thiệu.',
+      subjects: ['Toán'],
+      teachesOnline: true,
+      teachesOffline: true,
+      hasPhoto: false,
+    });
+    let current: OwnParentRequest = {
+      ...ownRequest,
+      status: 'sourcing',
+      stage: 'found',
+      version: 3,
+      proposals: [
+        card('p-1', 'Gia sư Một', 96),
+        card('p-2', 'Gia sư Hai', 91),
+        card('p-3', 'Gia sư Ba', 85),
+      ],
+    };
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/parent/requests/req-1' && req.method === 'GET') return { data: current };
+      if (req.path === '/parent/requests/req-1/proposals/p-2/select') {
+        current = {
+          ...current,
+          stage: 'confirmed',
+          version: 4,
+          proposals: current.proposals.map((item) =>
+            item.id === 'p-2'
+              ? { ...item, status: 'selected' as const, selectedAt: '2026-10-12T02:00:00.000Z' }
+              : { ...item, status: 'declined' as const },
+          ),
+        };
+        return { data: current };
+      }
+      return undefined;
+    });
+    renderRoute('/parent/requests/req-1');
+    const user = userEvent.setup();
+
+    const list = await screen.findByRole('region', { name: 'Danh sách gia sư được đề xuất' });
+    expect(
+      within(list)
+        .getAllByRole('article')
+        .map((item) => item.getAttribute('aria-label')),
+    ).toEqual(['Gia sư Gia sư Một', 'Gia sư Gia sư Hai', 'Gia sư Gia sư Ba']);
+    expect(within(list).getByLabelText('Điểm phù hợp 91/100')).toBeTruthy();
+    expect(within(list).getByText('Trường Gia sư Hai')).toBeTruthy();
+    expect(
+      within(list).getByRole('link', { name: 'Xem hồ sơ Gia sư Hai' }).getAttribute('href'),
+    ).toBe('/parent/requests/req-1/de-xuat/p-2');
+
+    await user.click(within(list).getByRole('button', { name: 'Xác nhận thuê Gia sư Hai' }));
+    const dialog = screen.getByRole('dialog', { name: 'Xác nhận thuê gia sư' });
+    await user.click(within(dialog).getByRole('button', { name: 'Để sau' }));
+    expect(calls.some((call) => call.path.endsWith('/select'))).toBe(false);
+    expect(screen.getByRole('region', { name: 'Danh sách gia sư được đề xuất' })).toBeTruthy();
+
+    await user.click(within(list).getByRole('button', { name: 'Xác nhận thuê Gia sư Hai' }));
+    await user.click(screen.getByRole('button', { name: 'Đồng ý thuê' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.path.endsWith('/p-2/select'))?.body).toEqual({ version: 3 }),
+    );
+    const hired = await screen.findByRole('region', { name: 'Gia sư đã xác nhận' });
+    expect(within(hired).getAllByRole('article')).toHaveLength(1);
+    expect(within(hired).getByText('Gia sư Hai')).toBeTruthy();
+    expect(within(hired).getByText('Đã xác nhận thuê')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^Xác nhận thuê / })).toBeNull();
+  });
+
+  it('shows the no-suitable-tutor message when no proposal clears 80', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/parent/requests/req-1')
+        return { data: { ...ownRequest, status: 'sourcing', stage: 'found', proposals: [] } };
+      return undefined;
+    });
+    renderRoute('/parent/requests/req-1');
+    expect(
+      await screen.findByText(
+        'Hiện chưa có gia sư phù hợp với yêu cầu của bạn. Trung tâm sẽ tiếp tục hỗ trợ tìm kiếm.',
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Xác nhận thuê/ })).toBeNull();
   });
 });

@@ -12,7 +12,11 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
-import { EDUCATION_LEVEL_LABELS, type OwnParentRequest } from '../../../shared/schemas/requests';
+import {
+  EDUCATION_LEVEL_LABELS,
+  type OwnParentRequest,
+  type TutorProposal,
+} from '../../../shared/schemas/requests';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, EmptyState } from '../../components/ui/Feedback';
@@ -20,12 +24,21 @@ import { PageLoading } from '../../components/ui/Spinner';
 import {
   useConfirmTutor,
   useOwnParentRequest,
+  useSelectProposal,
   useSubmitParentRequest,
 } from '../../features/parent-requests/api';
 import { requestDate, weekdayLabel } from '../../features/parent-requests/format';
 import { isApiError } from '../../lib/api-client';
 import { formatVnd } from '../../lib/format';
-import { StageBadge, TutorFitMeter, TutorSummary } from './RequestStage';
+import { FitScore, StageBadge, TutorFitMeter, TutorSummary, tutorPhotoSrc } from './RequestStage';
+
+export const NO_PROPOSAL_MESSAGE =
+  'Hiện chưa có gia sư phù hợp với yêu cầu của bạn. Trung tâm sẽ tiếp tục hỗ trợ tìm kiếm.';
+
+/** Whether the request shows the proposal list instead of the single assigned-tutor panel. */
+function usesProposals(request: OwnParentRequest): boolean {
+  return request.proposals.length > 0 || (request.stage === 'found' && !request.tutor);
+}
 
 /** Loads the owner's request with the shared not-found and error states. */
 export function useRequestPage() {
@@ -65,6 +78,8 @@ export function ParentRequestDetailPage() {
   const request = detail.data;
   const canEdit = request.status === 'draft' || request.status === 'submitted';
   const tutor = request.tutor;
+  const proposalView = usesProposals(request);
+  const selected = request.proposals.find((proposal) => proposal.status === 'selected');
 
   function send() {
     if (!id || submit.isPending) return;
@@ -108,7 +123,7 @@ export function ParentRequestDetailPage() {
           trợ bạn.
         </Alert>
       )}
-      {request.stage === 'found' && tutor && (
+      {request.stage === 'found' && (tutor || request.proposals.length > 0) && (
         <Alert tone="info" title="Trung tâm đã tìm được gia sư cho bạn">
           Xem hồ sơ gia sư được đề xuất bên dưới và xác nhận nếu bạn đồng ý thuê.
         </Alert>
@@ -117,9 +132,11 @@ export function ParentRequestDetailPage() {
         <Alert tone="success" title="Đã xác nhận thuê gia sư">
           {request.status === 'fulfilled'
             ? 'Lớp học của yêu cầu này đã hoàn tất.'
-            : tutor?.learnerConfirmedAt
-              ? `Bạn đã xác nhận thuê gia sư ${tutor.displayName} ngày ${requestDate(tutor.learnerConfirmedAt)}.`
-              : 'Bạn đã xác nhận thuê gia sư cho yêu cầu này.'}
+            : selected?.selectedAt
+              ? `Bạn đã xác nhận thuê gia sư ${selected.displayName} ngày ${requestDate(selected.selectedAt)}.`
+              : tutor?.learnerConfirmedAt
+                ? `Bạn đã xác nhận thuê gia sư ${tutor.displayName} ngày ${requestDate(tutor.learnerConfirmedAt)}.`
+                : 'Bạn đã xác nhận thuê gia sư cho yêu cầu này.'}
         </Alert>
       )}
       {request.status === 'cancelled' && request.cancellationReason && (
@@ -129,13 +146,14 @@ export function ParentRequestDetailPage() {
       )}
 
       <div
-        className={`grid min-w-0 gap-6 ${tutor ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]' : ''}`}
+        className={`grid min-w-0 gap-6 ${tutor && !proposalView ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]' : ''}`}
       >
         <RequestDetails request={request} />
-        {tutor && (
+        {tutor && !proposalView && (
           <ProposedTutorPanel request={request} onConfirmed={() => void detail.refetch()} />
         )}
       </div>
+      {proposalView && <ProposalList request={request} onSelected={() => void detail.refetch()} />}
 
       {request.status === 'draft' && (
         <div className="flex max-w-2xl flex-col gap-4 rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
@@ -293,7 +311,7 @@ function ProposedTutorPanel({
       <h2 id="proposed-tutor" className="text-lg font-semibold text-primary">
         {request.stage === 'confirmed' ? 'Gia sư đã xác nhận' : 'Gia sư được đề xuất'}
       </h2>
-      <TutorSummary tutor={tutor} requestId={request.id} />
+      <TutorSummary tutor={tutor} photoSrc={tutorPhotoSrc(request.id)} />
       {request.agreedTuitionPerSessionMinor !== null && (
         <p className="flex items-center gap-2 rounded-lg bg-info-surface px-3 py-2 text-sm">
           <Wallet aria-hidden="true" className="size-4 text-primary" />
@@ -375,6 +393,155 @@ export function TutorActions({
               onSuccess: () => {
                 setOpen(false);
                 onConfirmed();
+              },
+              onError: () => setOpen(false),
+            },
+          )
+        }
+      />
+    </div>
+  );
+}
+
+/** Part B for proposals: "Danh sách gia sư được đề xuất", or the hired tutor once chosen. */
+function ProposalList({
+  request,
+  onSelected,
+}: {
+  request: OwnParentRequest;
+  onSelected: () => void;
+}) {
+  const selected = request.proposals.find((proposal) => proposal.status === 'selected');
+  const shown = selected ? [selected] : request.proposals;
+  return (
+    <section aria-labelledby="proposal-list" className="flex min-w-0 flex-col gap-4">
+      <div>
+        <h2 id="proposal-list" className="text-xl font-semibold text-primary">
+          {selected ? 'Gia sư đã xác nhận' : 'Danh sách gia sư được đề xuất'}
+        </h2>
+        {!selected && shown.length > 0 && (
+          <p className="mt-1 text-sm text-muted">
+            {shown.length} gia sư phù hợp nhất với yêu cầu, sắp xếp theo điểm phù hợp.
+          </p>
+        )}
+      </div>
+      {shown.length === 0 ? (
+        <EmptyState title="Chưa có gia sư phù hợp" description={NO_PROPOSAL_MESSAGE} />
+      ) : (
+        <ul className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {shown.map((proposal) => (
+            <li key={proposal.id} className="min-w-0">
+              <ProposalCard request={request} proposal={proposal} onSelected={onSelected} />
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function ProposalCard({
+  request,
+  proposal,
+  onSelected,
+}: {
+  request: OwnParentRequest;
+  proposal: TutorProposal;
+  onSelected: () => void;
+}) {
+  return (
+    <article
+      aria-label={`Gia sư ${proposal.displayName}`}
+      className={`flex h-full min-w-0 flex-col gap-4 rounded-xl border bg-bg p-5 shadow-card ${proposal.status === 'selected' ? 'border-success' : 'border-border'}`}
+    >
+      <TutorSummary
+        tutor={proposal}
+        photoSrc={tutorPhotoSrc(request.id, proposal.id)}
+        aside={<FitScore score={proposal.fitScore} />}
+      />
+      <div className="mt-auto">
+        <ProposalActions request={request} proposal={proposal} onSelected={onSelected} />
+      </div>
+    </article>
+  );
+}
+
+/** "Xem hồ sơ" and "Xác nhận thuê" (with confirmation) for one proposal. */
+export function ProposalActions({
+  request,
+  proposal,
+  onSelected,
+  showProfileLink = true,
+}: {
+  request: OwnParentRequest;
+  proposal: TutorProposal;
+  onSelected: () => void;
+  showProfileLink?: boolean;
+}) {
+  const select = useSelectProposal();
+  const [open, setOpen] = useState(false);
+  const canSelect =
+    proposal.status === 'proposed' &&
+    request.stage === 'found' &&
+    !request.proposals.some((item) => item.status === 'selected');
+  return (
+    <div className="flex flex-col gap-3">
+      {select.isError && (
+        <Alert tone="danger" title="Chưa xác nhận được">
+          {select.error.message}
+        </Alert>
+      )}
+      <div className="flex flex-wrap gap-3">
+        {showProfileLink && (
+          <ButtonLink
+            to={`/parent/requests/${encodeURIComponent(request.id)}/de-xuat/${encodeURIComponent(proposal.id)}`}
+            variant="secondary"
+            aria-label={`Xem hồ sơ ${proposal.displayName}`}
+          >
+            <UserRound aria-hidden="true" className="size-4" />
+            Xem hồ sơ
+          </ButtonLink>
+        )}
+        {canSelect ? (
+          <Button
+            onClick={() => setOpen(true)}
+            className="gap-2"
+            aria-label={`Xác nhận thuê ${proposal.displayName}`}
+          >
+            <CircleCheck aria-hidden="true" className="size-4" />
+            Xác nhận thuê
+          </Button>
+        ) : (
+          proposal.status === 'selected' && (
+            <span className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-success">
+              <CircleCheck aria-hidden="true" className="size-4" />
+              Đã xác nhận thuê
+            </span>
+          )
+        )}
+      </div>
+      <ConfirmDialog
+        open={open}
+        title="Xác nhận thuê gia sư"
+        description={
+          <>
+            Bạn xác nhận thuê <strong>{proposal.displayName}</strong> (độ phù hợp{' '}
+            {proposal.fitScore}/100) cho yêu cầu {request.code} ({request.subjectName} ·{' '}
+            {request.grade})? Sau khi xác nhận, yêu cầu chuyển sang “Đã xác nhận” và không thể chọn
+            lại gia sư khác.
+          </>
+        }
+        confirmLabel="Đồng ý thuê"
+        cancelLabel="Để sau"
+        loading={select.isPending}
+        onCancel={() => setOpen(false)}
+        onConfirm={() =>
+          select.mutate(
+            { id: request.id, version: request.version, proposalId: proposal.id },
+            {
+              onSuccess: () => {
+                setOpen(false);
+                onSelected();
               },
               onError: () => setOpen(false),
             },

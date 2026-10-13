@@ -5,14 +5,16 @@ import {
   CircleCheck,
   CircleHelp,
   GraduationCap,
+  Laptop,
+  MapPin,
   School,
 } from 'lucide-react';
 import type {
   LearnerRequestStage,
-  ProposedTutor,
   ProposedTutorFit,
   RequestStage,
   RequestStatus,
+  TutorProfileCard,
 } from '../../../shared/schemas/requests';
 import { TUTOR_TYPE_LABELS } from '../../../shared/schemas/pricing';
 import { Badge } from '../../components/ui/Feedback';
@@ -152,14 +154,46 @@ function Fact({ icon, label, children }: { icon: ReactNode; label: string; child
   );
 }
 
-/** Avatar, name and teaching facts of the proposed tutor. */
-export function TutorSummary({ tutor, requestId }: { tutor: ProposedTutor; requestId: string }) {
+/** Photo URL of the request's assigned tutor or of one proposal (owner-only endpoints). */
+export function tutorPhotoSrc(requestId: string, proposalId?: string): string {
+  const base = `/api/v1/parent/requests/${encodeURIComponent(requestId)}`;
+  return proposalId
+    ? `${base}/proposals/${encodeURIComponent(proposalId)}/photo`
+    : `${base}/tutor-photo`;
+}
+
+/** Highlighted "96/100" fit score of a proposal. */
+export function FitScore({ score }: { score: number }) {
+  return (
+    <p
+      aria-label={`Điểm phù hợp ${score}/100`}
+      className="inline-flex shrink-0 flex-col items-center rounded-xl bg-success-surface px-3 py-1.5 text-success"
+    >
+      <span className="text-2xl leading-none font-bold">
+        {score}
+        <span className="text-sm font-semibold">/100</span>
+      </span>
+      <span className="mt-0.5 text-xs font-medium">Độ phù hợp</span>
+    </p>
+  );
+}
+
+/** Avatar, name and teaching facts of a proposed or assigned tutor. */
+export function TutorSummary({
+  tutor,
+  photoSrc,
+  aside,
+}: {
+  tutor: TutorProfileCard;
+  photoSrc: string;
+  aside?: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-4">
         {tutor.hasPhoto ? (
           <img
-            src={`/api/v1/parent/requests/${encodeURIComponent(requestId)}/tutor-photo`}
+            src={photoSrc}
             alt={`Ảnh đại diện của ${tutor.displayName}`}
             className="size-16 shrink-0 rounded-full border border-border object-cover"
           />
@@ -171,12 +205,13 @@ export function TutorSummary({ tutor, requestId }: { tutor: ProposedTutor; reque
             {initials(tutor.displayName)}
           </span>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-xl font-semibold text-primary">{tutor.displayName}</p>
           <p className="text-sm text-muted">
             {tutor.tutorType ? TUTOR_TYPE_LABELS[tutor.tutorType] : 'Gia sư của trung tâm'}
           </p>
         </div>
+        {aside}
       </div>
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         <Fact icon={<GraduationCap className="size-4" />} label="Trình độ">
@@ -194,5 +229,46 @@ export function TutorSummary({ tutor, requestId }: { tutor: ProposedTutor; reque
       </dl>
       {tutor.experienceSummary && <p className="text-sm text-muted">{tutor.experienceSummary}</p>}
     </div>
+  );
+}
+
+/** "Giới thiệu" plus subjects and teaching modes, for the full profile view. */
+export function TutorAbout({ tutor }: { tutor: TutorProfileCard }) {
+  return (
+    <>
+      <section aria-labelledby="tutor-about" className="flex flex-col gap-2">
+        <h2 id="tutor-about" className="text-lg font-semibold text-primary">
+          Giới thiệu
+        </h2>
+        <p className="whitespace-pre-line text-sm">{tutor.bio || 'Gia sư chưa viết giới thiệu.'}</p>
+      </section>
+      <section aria-labelledby="tutor-teaching" className="flex flex-col gap-3">
+        <h2 id="tutor-teaching" className="text-lg font-semibold text-primary">
+          Môn và hình thức dạy
+        </h2>
+        <ul className="flex flex-wrap gap-2">
+          {tutor.subjects.map((subject) => (
+            <li
+              key={subject}
+              className="rounded-full bg-info-surface px-3 py-1 text-sm font-medium text-primary"
+            >
+              {subject}
+            </li>
+          ))}
+        </ul>
+        <p className="flex flex-wrap gap-4 text-sm text-muted">
+          {tutor.teachesOnline && (
+            <span className="inline-flex items-center gap-1">
+              <Laptop aria-hidden="true" className="size-4" /> Dạy online
+            </span>
+          )}
+          {tutor.teachesOffline && (
+            <span className="inline-flex items-center gap-1">
+              <MapPin aria-hidden="true" className="size-4" /> Dạy tại nhà
+            </span>
+          )}
+        </p>
+      </section>
+    </>
   );
 }

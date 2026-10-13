@@ -4,6 +4,8 @@
  * completion) so every D1 trigger still validates them. Assigned/fulfilled samples need a
  * tutor who passed the responsibility quiz and three published fee options; when the target
  * lacks either, those steps are skipped and only open/draft requests are created.
+ * Fit-scored proposals ("Danh sách gia sư được đề xuất") use the sample tutor plus three
+ * profile-only tutors without a login; scores are demo snapshots, not live matching.
  * Every statement is guarded, so re-running the seed changes nothing.
  */
 
@@ -17,6 +19,65 @@ export const SAMPLE_TUTOR = {
   name: 'Gia sư mẫu',
   slug: 'gia-su-mau-demo',
 };
+
+/** Profile-only tutors proposed alongside the sample tutor. `ref` is used by REQUESTS. */
+const PROPOSAL_TUTORS = [
+  {
+    ref: 'B',
+    id: sampleId(9, 1),
+    email: 'gia-su-de-xuat-1@example.test',
+    name: 'Trần Thu Trang',
+    slug: 'gia-su-de-xuat-tran-thu-trang',
+    type: 'teacher',
+    school: 'Trường THCS Nghĩa Tân',
+    specialization: 'Toán THCS, luyện thi vào lớp 10',
+    years: 6,
+    summary:
+      'Giáo viên Toán THCS sáu năm, chủ nhiệm lớp chọn, nhiều học sinh đạt 9+ thi vào lớp 10.',
+    bio: 'Giáo viên Toán đang công tác tại Hà Nội. Dạy chắc kiến thức nền, luyện đề theo cấu trúc Sở và theo dõi tiến bộ qua bài kiểm tra định kỳ.',
+    subjects: ['subj_math', 'subj_physics'],
+    palette: [
+      [120, 30, 60],
+      [160, 60, 20],
+    ],
+  },
+  {
+    ref: 'C',
+    id: sampleId(9, 2),
+    email: 'gia-su-de-xuat-2@example.test',
+    name: 'Đỗ Quang Minh',
+    slug: 'gia-su-de-xuat-do-quang-minh',
+    type: 'university_student',
+    school: 'Trường Đại học Bách khoa Hà Nội',
+    specialization: 'Toán, Vật lý THCS',
+    years: 2,
+    summary: 'Hai năm dạy kèm Toán, Lý cho học sinh lớp 7–9; thủ khoa đầu vào khoa Toán - Tin.',
+    bio: 'Sinh viên năm ba Bách khoa, dạy bằng ví dụ thực tế, giao bài tập vừa sức và nhắn tiến độ sau mỗi buổi.',
+    subjects: ['subj_math', 'subj_physics', 'subj_english'],
+    palette: [
+      [20, 90, 60],
+      [40, 120, 40],
+    ],
+  },
+  {
+    ref: 'D',
+    id: sampleId(9, 3),
+    email: 'gia-su-de-xuat-3@example.test',
+    name: 'Ngô Hải Yến',
+    slug: 'gia-su-de-xuat-ngo-hai-yen',
+    type: 'university_student',
+    school: 'Trường Đại học Ngoại ngữ - ĐHQGHN',
+    specialization: 'Tiếng Anh giao tiếp, Toán tiểu học',
+    years: 1,
+    summary: 'Một năm kèm Tiếng Anh và Toán cho học sinh tiểu học.',
+    bio: 'Sinh viên năm hai Ngoại ngữ, phù hợp học sinh nhỏ tuổi, ưu tiên học qua trò chơi.',
+    subjects: ['subj_english', 'subj_math'],
+    palette: [
+      [90, 40, 110],
+      [60, 60, 140],
+    ],
+  },
+];
 
 const TERMS_ID = sampleId(1, 1);
 const CONTRACT_CONTENT_ID = sampleId(1, 4);
@@ -95,6 +156,7 @@ const REQUESTS = [
     ],
     tutorRequirements: 'Có kinh nghiệm ôn thi vào lớp 10.',
     studentTraits: 'Học khá, cần luyện đề nâng cao.',
+    proposals: [['A', 94]],
     days: 12,
   },
   {
@@ -117,6 +179,7 @@ const REQUESTS = [
     tutorRequirements: 'Gia sư nữ, hướng dẫn viết văn nghị luận.',
     learnerConfirmed: true,
     studentTraits: 'Thích đọc truyện, viết còn lan man.',
+    proposals: [['A', 90, 'selected']],
     days: 15,
   },
   {
@@ -141,6 +204,79 @@ const REQUESTS = [
     days: 40,
   },
   {
+    key: 7,
+    state: 'sourcing',
+    studentName: 'Vũ Ngọc Lan',
+    subjectId: 'subj_math',
+    grade: 'Lớp 9',
+    level: 'lower_secondary',
+    mode: 'offline',
+    area: 'Phường Nghĩa Đô, Hà Nội',
+    publicArea: 'Nghĩa Đô, Hà Nội',
+    budget: 220_000,
+    sessions: 3,
+    windows: [
+      [1, '19:30', '21:00'],
+      [3, '19:30', '21:00'],
+      [6, '15:00', '16:30'],
+    ],
+    tutorRequirements: 'Có kinh nghiệm luyện thi vào lớp 10, kiên nhẫn.',
+    studentTraits: 'Học chăm, hình học còn yếu.',
+    // 96, 91, 85 are shown best first; 76 is at or below 80 and stays hidden.
+    proposals: [
+      ['A', 96],
+      ['B', 91],
+      ['C', 85],
+      ['D', 76],
+    ],
+    days: 3,
+  },
+  {
+    key: 8,
+    state: 'sourcing',
+    studentName: 'Bùi Khánh Linh',
+    subjectId: 'subj_physics',
+    grade: 'Lớp 8',
+    level: 'lower_secondary',
+    mode: 'online',
+    area: null,
+    publicArea: null,
+    budget: 180_000,
+    sessions: 2,
+    windows: [
+      [2, '20:00', '21:30'],
+      [4, '20:00', '21:30'],
+    ],
+    tutorRequirements: 'Giải thích dễ hiểu, có bài tập về nhà.',
+    studentTraits: 'Thích thí nghiệm, ngại làm bài tập tính toán.',
+    // Already hired from the list: "Đã xác nhận" with the chosen tutor.
+    proposals: [
+      ['C', 93, 'selected'],
+      ['B', 88],
+      ['A', 84],
+    ],
+    days: 9,
+  },
+  {
+    key: 9,
+    state: 'sourcing',
+    studentName: 'Phạm Văn Bình',
+    subjectId: 'subj_chemistry',
+    grade: 'Lớp 10',
+    level: 'upper_secondary',
+    mode: 'offline',
+    area: 'Phường Hoàng Mai, Hà Nội',
+    publicArea: 'Hoàng Mai, Hà Nội',
+    budget: 200_000,
+    sessions: 2,
+    windows: [[7, '14:00', '15:30']],
+    tutorRequirements: 'Gia sư chuyên Hóa, dạy cuối tuần.',
+    studentTraits: 'Cần củng cố phần cân bằng phương trình.',
+    // Only low scores: "Hiện chưa có gia sư phù hợp…".
+    proposals: [['D', 72]],
+    days: 2,
+  },
+  {
     key: 6,
     state: 'draft',
     studentName: 'Phạm Văn Bình',
@@ -160,7 +296,13 @@ const REQUESTS = [
 ];
 
 /** Sample avatar: a soft gradient disc on white, 256×256 PNG. */
-function sampleAvatarPng(size = 256) {
+function sampleAvatarPng(
+  size = 256,
+  palette = [
+    [14, 47, 95],
+    [30, 60, 80],
+  ],
+) {
   const table = Array.from({ length: 256 }, (_, n) => {
     let c = n;
     for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
@@ -197,7 +339,7 @@ function sampleAvatarPng(size = 256) {
           ? [255, 255, 255]
           : head || body
             ? [250, 214, 120]
-            : [Math.round(14 + 30 * t), Math.round(47 + 60 * t), Math.round(95 + 80 * t)];
+            : palette[0].map((base, channel) => Math.round(base + palette[1][channel] * t));
       row.set([r, g, b], 1 + x * 3);
     }
     rows.push(row);
@@ -300,9 +442,65 @@ WHERE EXISTS (SELECT 1 FROM terms_quiz_attempts WHERE id = ${sql(ATTEMPT_ID)})
   ];
 }
 
+function proposalTutorStatements(sql, now) {
+  return PROPOSAL_TUTORS.flatMap((tutor) => {
+    const png = sampleAvatarPng(256, tutor.palette);
+    return [
+      `INSERT OR IGNORE INTO users (id, email, email_normalized, display_name, role, status, created_at, updated_at)
+VALUES (${sql(tutor.id)}, ${sql(tutor.email)}, ${sql(tutor.email)}, ${sql(tutor.name)}, 'tutor', 'active', ${sql(now)}, ${sql(now)});`,
+      `INSERT OR IGNORE INTO tutor_profiles (user_id, slug, bio, currency, teaches_online, teaches_offline,
+  approval_status, visibility, created_at, updated_at, tutor_type, school, specialization, experience_years, experience_summary)
+SELECT id, ${sql(tutor.slug)}, ${sql(tutor.bio)}, 'VND', 1, 1, 'approved', 'private', ${sql(now)}, ${sql(now)},
+  ${sql(tutor.type)}, ${sql(tutor.school)}, ${sql(tutor.specialization)}, ${tutor.years}, ${sql(tutor.summary)}
+FROM users WHERE id = ${sql(tutor.id)} AND role = 'tutor';`,
+      `INSERT OR IGNORE INTO profile_photos (user_id, content_type, size_bytes, data, updated_at)
+SELECT id, 'image/png', ${png.length}, X'${png.toString('hex')}', ${sql(now)} FROM users WHERE id = ${sql(tutor.id)} AND role = 'tutor';`,
+      ...tutor.subjects.map(
+        (subjectId) =>
+          `INSERT OR IGNORE INTO tutor_subjects (tutor_id, subject_id)
+SELECT ${sql(tutor.id)}, ${sql(subjectId)} WHERE EXISTS (SELECT 1 FROM tutor_profiles WHERE user_id = ${sql(tutor.id)});`,
+      ),
+    ];
+  });
+}
+
+/** Proposals for one request; a selected one is recorded through the proposed → selected path. */
+function proposalStatements(sql, item, requestId, tutorIds, adminId) {
+  if (!item.proposals) return [];
+  const out = [];
+  const selectedAt = ago(item.days * 1440 - 600);
+  item.proposals.forEach(([ref, score], index) => {
+    const id = sampleId(10, item.key * 10 + index);
+    out.push(`INSERT INTO request_tutor_proposals (id, request_id, tutor_user_id, fit_score, proposed_by, created_at)
+SELECT ${sql(id)}, ${sql(requestId)}, ${sql(tutorIds[ref])}, ${score}, ${sql(adminId)}, ${sql(ago(item.days * 1440 - 300))}
+WHERE NOT EXISTS (SELECT 1 FROM request_tutor_proposals WHERE id = ${sql(id)}
+    OR (request_id = ${sql(requestId)} AND tutor_user_id = ${sql(tutorIds[ref])}))
+  AND EXISTS (SELECT 1 FROM parent_requests WHERE id = ${sql(requestId)} AND status IN ('sourcing', 'assigned'))
+  AND EXISTS (SELECT 1 FROM tutor_profiles WHERE user_id = ${sql(tutorIds[ref])});`);
+  });
+  item.proposals.forEach(([, , state], index) => {
+    if (state !== 'selected') return;
+    const id = sampleId(10, item.key * 10 + index);
+    out.push(`UPDATE request_tutor_proposals SET status = 'selected', selected_at = ${sql(selectedAt)}
+WHERE id = ${sql(id)} AND status = 'proposed'
+  AND NOT EXISTS (SELECT 1 FROM request_tutor_proposals WHERE request_id = ${sql(requestId)} AND status = 'selected');`);
+    out.push(`UPDATE request_tutor_proposals SET status = 'declined'
+WHERE request_id = ${sql(requestId)} AND status = 'proposed'
+  AND EXISTS (SELECT 1 FROM request_tutor_proposals WHERE id = ${sql(id)} AND status = 'selected');`);
+  });
+  return out;
+}
+
 export function learnerRequestStatements({ sql, adminId, learnerId, tutorId, tutorPasswordHash }) {
   const now = new Date().toISOString();
-  const out = tutorStatements(sql, tutorId, adminId, tutorPasswordHash, now);
+  const out = [
+    ...tutorStatements(sql, tutorId, adminId, tutorPasswordHash, now),
+    ...proposalTutorStatements(sql, now),
+  ];
+  const tutorIds = {
+    A: tutorId,
+    ...Object.fromEntries(PROPOSAL_TUTORS.map((tutor) => [tutor.ref, tutor.id])),
+  };
   const tutorReady = `EXISTS (SELECT 1 FROM terms_acknowledgements WHERE tutor_user_id = ${sql(tutorId)})
   AND (SELECT count(DISTINCT option_key) FROM fee_option_versions WHERE status = 'published' AND published_at <= ${sql(now)}) = 3`;
 
@@ -345,7 +543,11 @@ WHERE NOT EXISTS (SELECT 1 FROM class_listings WHERE id = ${sql(classId)})
     out.push(`UPDATE parent_requests SET status = 'sourcing', version = 3, updated_at = ${sql(created)}
 WHERE id = ${sql(requestId)} AND status = 'submitted'
   AND EXISTS (SELECT 1 FROM class_listings WHERE id = ${sql(classId)} AND status = 'open');`);
-    if (item.state === 'sourcing') continue;
+    const proposals = proposalStatements(sql, item, requestId, tutorIds, adminId);
+    if (item.state === 'sourcing') {
+      out.push(...proposals);
+      continue;
+    }
 
     const appliedAt = ago(120 - item.key);
     const assignedAt = ago(90 - item.key);
@@ -397,7 +599,11 @@ WHERE id = ${sql(contractId)} AND status = 'issued';`);
 WHERE id = ${sql(assignmentId)} AND placement_fee_paid_at IS NULL
   AND EXISTS (SELECT 1 FROM class_contract_records WHERE id = ${sql(contractId)} AND status = 'acknowledged');`);
     }
-    if (item.state === 'assigned') continue;
+    if (item.state === 'assigned') {
+      // Proposals of an assigned request name its assigned tutor, added once assigned.
+      out.push(...proposals);
+      continue;
+    }
 
     // Completion: class, request and assignment share one mutation ID with the lifecycle event.
     const doneAt = ago(30);

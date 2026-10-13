@@ -195,6 +195,11 @@ export type LearnerRequestStage = (typeof LEARNER_REQUEST_STAGES)[number];
 export type RequestStage = LearnerRequestStage | 'other';
 export type LearnerStageCounts = Record<LearnerRequestStage, number>;
 
+/** Only proposals scoring above this are shown to the learner. */
+export const PROPOSAL_MIN_FIT = 80;
+
+export const selectProposalSchema = z.strictObject({ version: z.number().int().min(1) });
+
 export const confirmTutorSchema = z.strictObject({
   version: z.number().int().min(1),
   assignmentId: z.uuid(),
@@ -258,9 +263,8 @@ export interface ProposedTutorFit {
   }[];
 }
 
-/** Tutor proposed by the centre for an assigned or completed request (owner view only). */
-export interface ProposedTutor {
-  assignmentId: string;
+/** Learner-facing profile of a tutor (proposal card or assigned tutor). */
+export interface TutorProfileCard {
   displayName: string;
   tutorType: 'university_student' | 'pedagogy_student' | 'teacher' | null;
   school: string | null;
@@ -271,10 +275,23 @@ export interface ProposedTutor {
   subjects: string[];
   teachesOnline: boolean;
   teachesOffline: boolean;
+  hasPhoto: boolean;
+}
+
+/** Tutor proposed by the centre for an assigned or completed request (owner view only). */
+export interface ProposedTutor extends TutorProfileCard {
+  assignmentId: string;
   assignedAt: string;
   learnerConfirmedAt: string | null;
-  hasPhoto: boolean;
   fit: ProposedTutorFit;
+}
+
+/** One of the centre's proposals for a request; only scores above PROPOSAL_MIN_FIT are sent. */
+export interface TutorProposal extends TutorProfileCard {
+  id: string;
+  fitScore: number;
+  status: 'proposed' | 'selected' | 'declined';
+  selectedAt: string | null;
 }
 
 /** Returned only from an owner-authenticated detail/create/update endpoint. */
@@ -292,4 +309,6 @@ export interface OwnParentRequest extends ParentRequestSummary {
   contactConsentVersion: string | null;
   stage: RequestStage;
   tutor: ProposedTutor | null;
+  /** Proposals scoring above PROPOSAL_MIN_FIT, best first. */
+  proposals: TutorProposal[];
 }

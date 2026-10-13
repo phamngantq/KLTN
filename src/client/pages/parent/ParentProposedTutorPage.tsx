@@ -1,26 +1,88 @@
-import { ArrowLeft, Laptop, MapPin } from 'lucide-react';
-import { Link } from 'react-router';
+import type { ReactNode } from 'react';
+import { ArrowLeft } from 'lucide-react';
+import { Link, useParams } from 'react-router';
+import type { OwnParentRequest } from '../../../shared/schemas/requests';
 import { ButtonLink } from '../../components/ui/Button';
 import { EmptyState } from '../../components/ui/Feedback';
-import { TutorActions, useRequestPage } from './ParentRequestDetailPage';
-import { StageBadge, TutorFitMeter, TutorSummary } from './RequestStage';
+import { ProposalActions, TutorActions, useRequestPage } from './ParentRequestDetailPage';
+import {
+  FitScore,
+  StageBadge,
+  TutorAbout,
+  TutorFitMeter,
+  TutorSummary,
+  tutorPhotoSrc,
+} from './RequestStage';
 
-/** "Xem hồ sơ gia sư": full profile of the tutor proposed for one of the learner's requests. */
+/**
+ * "Xem hồ sơ gia sư": full profile of the tutor assigned to one of the learner's requests
+ * (`requests/:id/gia-su`) or of one proposal (`requests/:id/de-xuat/:proposalId`).
+ */
 export function ParentProposedTutorPage() {
+  const { proposalId } = useParams();
   const { detail, fallback } = useRequestPage();
   if (fallback || !detail.data) return fallback;
   const request = detail.data;
-  const tutor = request.tutor;
   const back = `/parent/requests/${encodeURIComponent(request.id)}`;
-  if (!tutor) {
+  const refetch = () => void detail.refetch();
+
+  if (proposalId) {
+    const proposal = request.proposals.find((item) => item.id === proposalId);
+    if (!proposal) return <Missing back={back} />;
     return (
-      <EmptyState
-        title="Chưa có gia sư được đề xuất"
-        description="Trung tâm chưa đề xuất gia sư cho yêu cầu này."
-        action={<ButtonLink to={back}>Về chi tiết yêu cầu</ButtonLink>}
-      />
+      <ProfileLayout request={request} back={back}>
+        <TutorSummary
+          tutor={proposal}
+          photoSrc={tutorPhotoSrc(request.id, proposal.id)}
+          aside={<FitScore score={proposal.fitScore} />}
+        />
+        <TutorAbout tutor={proposal} />
+        <ProposalActions
+          request={request}
+          proposal={proposal}
+          onSelected={refetch}
+          showProfileLink={false}
+        />
+      </ProfileLayout>
     );
   }
+
+  const tutor = request.tutor;
+  if (!tutor) return <Missing back={back} />;
+  return (
+    <ProfileLayout request={request} back={back}>
+      <TutorSummary tutor={tutor} photoSrc={tutorPhotoSrc(request.id)} />
+      <TutorAbout tutor={tutor} />
+      <TutorFitMeter fit={tutor.fit} />
+      <TutorActions
+        request={request}
+        canConfirm={request.stage === 'found' && tutor.learnerConfirmedAt === null}
+        onConfirmed={refetch}
+        showProfileLink={false}
+      />
+    </ProfileLayout>
+  );
+}
+
+function Missing({ back }: { back: string }) {
+  return (
+    <EmptyState
+      title="Chưa có gia sư được đề xuất"
+      description="Trung tâm chưa đề xuất gia sư này cho yêu cầu của bạn."
+      action={<ButtonLink to={back}>Về chi tiết yêu cầu</ButtonLink>}
+    />
+  );
+}
+
+function ProfileLayout({
+  request,
+  back,
+  children,
+}: {
+  request: OwnParentRequest;
+  back: string;
+  children: ReactNode;
+}) {
   return (
     <section className="mx-auto flex w-full max-w-4xl min-w-0 flex-col gap-6">
       <Link
@@ -35,49 +97,7 @@ export function ParentProposedTutorPage() {
         <StageBadge stage={request.stage} status={request.status} />
       </div>
       <article className="flex flex-col gap-6 rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
-        <TutorSummary tutor={tutor} requestId={request.id} />
-        <section aria-labelledby="tutor-about" className="flex flex-col gap-2">
-          <h2 id="tutor-about" className="text-lg font-semibold text-primary">
-            Giới thiệu
-          </h2>
-          <p className="whitespace-pre-line text-sm">
-            {tutor.bio || 'Gia sư chưa viết giới thiệu.'}
-          </p>
-        </section>
-        <section aria-labelledby="tutor-teaching" className="flex flex-col gap-3">
-          <h2 id="tutor-teaching" className="text-lg font-semibold text-primary">
-            Môn và hình thức dạy
-          </h2>
-          <ul className="flex flex-wrap gap-2">
-            {tutor.subjects.map((subject) => (
-              <li
-                key={subject}
-                className="rounded-full bg-info-surface px-3 py-1 text-sm font-medium text-primary"
-              >
-                {subject}
-              </li>
-            ))}
-          </ul>
-          <p className="flex flex-wrap gap-4 text-sm text-muted">
-            {tutor.teachesOnline && (
-              <span className="inline-flex items-center gap-1">
-                <Laptop aria-hidden="true" className="size-4" /> Dạy online
-              </span>
-            )}
-            {tutor.teachesOffline && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin aria-hidden="true" className="size-4" /> Dạy tại nhà
-              </span>
-            )}
-          </p>
-        </section>
-        <TutorFitMeter fit={tutor.fit} />
-        <TutorActions
-          request={request}
-          canConfirm={request.stage === 'found' && tutor.learnerConfirmedAt === null}
-          onConfirmed={() => void detail.refetch()}
-          showProfileLink={false}
-        />
+        {children}
       </article>
     </section>
   );

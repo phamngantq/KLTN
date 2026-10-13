@@ -1240,4 +1240,60 @@ describe('learner confirmation of the proposed tutor', () => {
       .first<{ n: number }>();
     expect(audit?.n).toBe(1);
   });
+
+  it('lets the learner hire only the assigned tutor from proposals, confirming the assignment', async () => {
+    const state = await fixture();
+    const assigned = await api(
+      `/admin/classes/${state.cls.id}/assign`,
+      jsonInit(
+        'POST',
+        assignmentBody(state.cls, state.request, state.applicationA),
+        state.moderator,
+      ),
+    );
+    const assignment = (await assigned.json<ApiSuccess<AdminAssignment>>()).data;
+    const ids: Record<string, string> = {};
+    for (const [tutor, score] of [
+      [state.tutorA, 95],
+      [state.tutorB, 90],
+    ] as const) {
+      ids[tutor.userId] = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO request_tutor_proposals (id, request_id, tutor_user_id, fit_score, proposed_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          ids[tutor.userId],
+          state.request.id,
+          tutor.userId,
+          score,
+          state.moderator.userId,
+          assignment.assignedAt,
+        )
+        .run();
+    }
+    const read = async () =>
+      (
+        await (
+          await api(`/parent/requests/${state.request.id}`, {
+            headers: { Cookie: state.parent.cookie },
+          })
+        ).json<ApiSuccess<OwnParentRequest>>()
+      ).data;
+    const found = await read();
+    expect(found.stage).toBe('found');
+    expect(found.proposals.map((item) => item.fitScore)).toEqual([95, 90]);
+    const select = (tutorId: string, version: number) =>
+      api(
+        `/parent/requests/${state.request.id}/proposals/${ids[tutorId]}/select`,
+        jsonInit('POST', { version }, state.parent),
+      );
+    expect((await select(state.tutorB.userId, found.version)).status).toBe(409);
+    const hired = await select(state.tutorA.userId, found.version);
+    expect(hired.status).toBe(200);
+    const after = (await hired.json<ApiSuccess<OwnParentRequest>>()).data;
+    expect(after.stage).toBe('confirmed');
+    expect(after.tutor?.learnerConfirmedAt).toBeTruthy();
+    expect(after.proposals.map((item) => item.status)).toEqual(['selected', 'declined']);
+  });
 });

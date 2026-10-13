@@ -47,6 +47,7 @@ const detail: AdminRequestDetail = {
   contactConsentVersion: '2026-10-11-v1',
   stage: 'searching',
   tutor: null,
+  proposals: [],
 };
 const createdClass: AdminClass = {
   id: '00000000-0000-4000-8000-000000000002',

@@ -108,8 +108,12 @@ function toInput(form: FormState): CreateParentRequestInput {
   };
 }
 
-/** `embedded` renders only the form card, for the top of "Tìm kiếm gia sư". */
-export function ParentRequestFormPage({ embedded = false }: { embedded?: boolean }) {
+/** Navigation state "Tìm kiếm gia sư" reads to confirm a newly sent request. */
+export interface RequestSentState {
+  sentRequestCode: string;
+}
+
+export function ParentRequestFormPage() {
   const { id } = useParams();
   const detail = useOwnParentRequest(id);
   const subjects = useSubjects();
@@ -173,20 +177,11 @@ export function ParentRequestFormPage({ embedded = false }: { embedded?: boolean
       key={id ?? 'new'}
       request={id ? detail.data : undefined}
       subjects={subjects.data}
-      embedded={embedded}
     />
   );
 }
 
-function RequestEditor({
-  request,
-  subjects,
-  embedded = false,
-}: {
-  request?: OwnParentRequest;
-  subjects: Subject[];
-  embedded?: boolean;
-}) {
+function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subjects: Subject[] }) {
   const navigate = useNavigate();
   const create = useCreateParentRequest();
   const update = useUpdateParentRequest();
@@ -253,6 +248,12 @@ function RequestEditor({
     return result.success && Object.keys(nextErrors).length === 0 ? result.data : null;
   }
 
+  function sent(confirmed: OwnParentRequest) {
+    if (confirmed.status !== 'sourcing' && confirmed.status !== 'submitted') return;
+    const state: RequestSentState = { sentRequestCode: confirmed.code };
+    navigate('/parent', { state });
+  }
+
   async function persist(intent: 'save' | 'send') {
     if (busy) return;
     const input = localValidation(intent);
@@ -270,9 +271,7 @@ function RequestEditor({
       const created = await create.mutateAsync({ input, idempotencyKey: createKey.current });
       savedDraft = created;
       setCreatedDraft(created);
-      const confirmed = await submit.mutateAsync({ id: created.id, version: created.version });
-      if (confirmed.status === 'sourcing' || confirmed.status === 'submitted')
-        navigate(`/parent/requests/${encodeURIComponent(confirmed.id)}`);
+      sent(await submit.mutateAsync({ id: created.id, version: created.version }));
     } catch {
       // A lost submit response may mean the server accepted the request. Recheck before offering retry.
       if (savedDraft) await reconcileCreatedDraft(savedDraft);
@@ -285,8 +284,7 @@ function RequestEditor({
         `/parent/requests/${encodeURIComponent(draft.id)}`,
       );
       setCreatedDraft(current);
-      if (current.status === 'sourcing' || current.status === 'submitted')
-        navigate(`/parent/requests/${encodeURIComponent(current.id)}`);
+      sent(current);
     } catch {
       // The detail link remains available if the status check cannot be completed.
     }
@@ -295,12 +293,7 @@ function RequestEditor({
   async function retrySubmission() {
     if (!createdDraft || busy) return;
     try {
-      const confirmed = await submit.mutateAsync({
-        id: createdDraft.id,
-        version: createdDraft.version,
-      });
-      if (confirmed.status === 'sourcing' || confirmed.status === 'submitted')
-        navigate(`/parent/requests/${encodeURIComponent(confirmed.id)}`);
+      sent(await submit.mutateAsync({ id: createdDraft.id, version: createdDraft.version }));
     } catch {
       await reconcileCreatedDraft(createdDraft);
     }
@@ -334,13 +327,8 @@ function RequestEditor({
   }
 
   return (
-    <section
-      className={`flex w-full min-w-0 flex-col gap-6 ${embedded ? '' : 'mx-auto max-w-5xl'}`}
-    >
-      <header
-        hidden={embedded}
-        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-      >
+    <section className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-semibold text-primary">Tìm kiếm gia sư</h1>
           <p className="mt-1 text-sm text-muted">
@@ -668,19 +656,9 @@ function RequestEditor({
               type="button"
               variant="secondary"
               disabled={busy}
-              onClick={() => {
-                if (!embedded) {
-                  navigate(backTo);
-                  return;
-                }
-                setForm(toForm(request));
-                setLocalErrors({});
-                create.reset();
-                update.reset();
-                createKey.current = crypto.randomUUID();
-              }}
+              onClick={() => navigate(backTo)}
             >
-              {embedded ? 'Nhập lại' : 'Hủy'}
+              Hủy
             </Button>
             <Button type="submit" loading={busy}>
               {request ? 'Lưu thay đổi' : 'Gửi yêu cầu'}

@@ -197,6 +197,7 @@ describe('agreed tuition UI', () => {
           ],
         },
       },
+      proposals: [],
     };
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });

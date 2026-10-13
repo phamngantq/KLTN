@@ -135,3 +135,24 @@ export function useConfirmTutor() {
     onSuccess: cache,
   });
 }
+
+/** Learner hires one of the centre's proposed tutors. */
+export function useSelectProposal() {
+  const cache = useRequestCache();
+  return useMutation({
+    mutationFn: ({
+      id,
+      version,
+      proposalId,
+    }: {
+      id: string;
+      version: number;
+      proposalId: string;
+    }) =>
+      api.post<OwnParentRequest>(
+        `/parent/requests/${encodeURIComponent(id)}/proposals/${encodeURIComponent(proposalId)}/select`,
+        { version },
+      ),
+    onSuccess: cache,
+  });
+}

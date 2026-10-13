@@ -53,7 +53,7 @@ describe('learner complaints page', () => {
     expect(screen.getByText(draft.body)).toBeTruthy();
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
       'Chưa gửi1',
-      'Đang xử lý2',
+      'Đã gửi2',
       'Đã xử lý1',
     ]);
     expect(calls.some((call) => call.path === '/complaints?group=draft&pageSize=10')).toBe(true);
@@ -65,6 +65,34 @@ describe('learner complaints page', () => {
       }),
     );
     expect(await screen.findByText('Đã gửi khiếu nại KN-004 đến trung tâm.')).toBeTruthy();
+  });
+
+  it('labels every sent complaint "Đã gửi" in its tab, row and detail', async () => {
+    const sent = { ...draft, id: 'c-3', code: 'KN-006', status: 'submitted' as const, version: 2 };
+    const reviewing = { ...draft, id: 'c-4', code: 'KN-007', status: 'in_review' as const };
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/complaints/counts') return { data: counts };
+      if (req.path.startsWith('/complaints?')) {
+        const group = new URLSearchParams(req.path.split('?')[1]).get('group');
+        return page(group === 'processing' ? [sent, reviewing] : []);
+      }
+      if (req.path === '/complaints/c-4')
+        return { data: { ...reviewing, resolution: null, attachments: [] } };
+      return undefined;
+    });
+    renderRoute('/parent/khieu-nai?group=processing');
+    const user = userEvent.setup();
+    const table = await screen.findByRole('table');
+    await within(table).findByText('KN-007');
+    const rows = within(table).getAllByRole('row').slice(1);
+    expect(rows.map((row) => within(row).getAllByText(/^Đã gửi$/).length)).toEqual([1, 1]);
+    expect(within(table).queryByText('Đang xử lý')).toBeNull();
+
+    await user.click(screen.getByRole('button', { name: 'Xem KN-007' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Chi tiết khiếu nại' });
+    expect(await within(dialog).findByText('Đã gửi')).toBeTruthy();
+    expect(within(dialog).queryByText('Đang xử lý')).toBeNull();
   });
 
   it('creates a draft with evidence from the dialog and confirms before deleting it', async () => {

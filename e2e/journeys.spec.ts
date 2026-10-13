@@ -176,7 +176,10 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect(legacyBooking.status()).toBe(410);
     expect((await legacyBooking.json()).error.code).toBe('LEGACY_BOOKING_CLOSED');
     expect((await parent.context().request.get('/api/v1/bookings')).status()).toBe(200);
-    await parent.goto('/parent/request');
+    await parent.goto('/parent');
+    await expect(parent.getByRole('button', { name: 'Gửi yêu cầu' })).toHaveCount(0);
+    await parent.getByRole('link', { name: 'Tạo yêu cầu tìm gia sư' }).click();
+    await expect(parent).toHaveURL(/\/parent\/request$/);
     await parent.getByLabel('Họ và tên').fill('Học sinh E2E');
     await expect(parent.getByRole('textbox', { name: 'Khu vực' })).toHaveValue('Hà Nội');
     await expect(parent.getByRole('textbox', { name: 'Khu vực' })).not.toBeEditable();
@@ -197,7 +200,14 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(parent.getByText('Đồng ý trước khi gửi')).toHaveCount(0);
     await expect(parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/)).toHaveCount(0);
     await send.click();
-    await expect(parent).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
+    // Back on the list with a confirmation; the new request sits in "Đang tìm gia sư".
+    await expect(parent).toHaveURL(/\/parent$/);
+    await expect(parent.getByText('Gửi yêu cầu thành công')).toBeVisible();
+    await expect(parent.getByRole('tab', { name: /Đang tìm gia sư/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await parent.getByRole('link', { name: /^Xem chi tiết YC-/ }).click();
     await expect(
       parent.getByText(/Yêu cầu tìm gia sư của bạn đã được tiếp nhận thành công/),
     ).toBeVisible();

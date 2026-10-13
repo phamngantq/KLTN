@@ -968,6 +968,36 @@ export const profilePhotos = sqliteTable('profile_photos', {
   updatedAt: text('updated_at').notNull(),
 });
 
+/** "Danh sách gia sư được đề xuất": the centre's fit-scored proposals for one request. */
+export const requestTutorProposals = sqliteTable(
+  'request_tutor_proposals',
+  {
+    id: text('id').primaryKey(),
+    requestId: text('request_id')
+      .notNull()
+      .references(() => parentRequests.id, { onDelete: 'cascade' }),
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    fitScore: integer('fit_score').notNull(),
+    status: text('status', { enum: ['proposed', 'selected', 'declined'] })
+      .notNull()
+      .default('proposed'),
+    proposedBy: text('proposed_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    createdAt: text('created_at').notNull(),
+    selectedAt: text('selected_at'),
+  },
+  (t) => [
+    uniqueIndex('request_tutor_proposals_pair_uq').on(t.requestId, t.tutorUserId),
+    uniqueIndex('request_tutor_proposals_one_selected_uq')
+      .on(t.requestId)
+      .where(sql`${t.status} = 'selected'`),
+    index('request_tutor_proposals_request_idx').on(t.requestId, desc(t.fitScore)),
+  ],
+);
+
 export const accountDeletions = sqliteTable('account_deletions', {
   userId: text('user_id')
     .primaryKey()

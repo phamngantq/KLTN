@@ -43,21 +43,22 @@ import { PageLoading } from '../../components/ui/Spinner';
 import { requestDate } from '../../features/parent-requests/format';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
 
+// Learners see every sent, unresolved complaint as "Đã gửi"; review progress is moderator-side.
 const STATUS_LABELS: Record<ComplaintStatus, string> = {
   draft: 'Chưa gửi',
   submitted: 'Đã gửi',
-  in_review: 'Đang xử lý',
+  in_review: 'Đã gửi',
   resolved: 'Đã xử lý',
 };
 const STATUS_TONES: Record<ComplaintStatus, 'neutral' | 'info' | 'warning' | 'success'> = {
   draft: 'neutral',
   submitted: 'info',
-  in_review: 'warning',
+  in_review: 'info',
   resolved: 'success',
 };
 const GROUP_LABELS: Record<ComplaintGroup, string> = {
   draft: 'Chưa gửi',
-  processing: 'Đang xử lý',
+  processing: 'Đã gửi',
   resolved: 'Đã xử lý',
 };
 const PAGE_SIZES = [10, 20, 40] as const;

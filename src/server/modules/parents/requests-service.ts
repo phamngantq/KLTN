@@ -208,3 +208,61 @@ export async function confirmTutor(
   }
   return getOwn(db, parentId, id);
 }
+
+/**
+ * Learner hires one of the centre's proposals. While a tutor is already assigned, only that
+ * tutor's proposal can be chosen, and choosing it also confirms the assignment.
+ */
+export async function selectProposal(
+  db: Db,
+  parentId: string,
+  id: string,
+  version: number,
+  proposalId: string,
+  now = new Date(),
+): Promise<OwnParentRequest> {
+  const current = await getOwn(db, parentId, id);
+  const proposal = current.proposals.find((item) => item.id === proposalId);
+  if (!proposal) {
+    throw new AppError(404, 'PROPOSAL_NOT_FOUND', 'Không tìm thấy gia sư được đề xuất.');
+  }
+  if (
+    current.version !== version ||
+    proposal.status !== 'proposed' ||
+    current.proposals.some((item) => item.status === 'selected')
+  ) {
+    throw stale();
+  }
+  let confirmAssignmentId: string | null = null;
+  if (current.status === 'assigned') {
+    const [assignedTutorId, proposalTutorId] = await Promise.all([
+      repo.proposedTutorId(db, parentId, id),
+      repo.proposalTutorId(db, parentId, id, proposalId),
+    ]);
+    if (!current.tutor || !assignedTutorId || assignedTutorId !== proposalTutorId) throw stale();
+    if (current.tutor.learnerConfirmedAt === null) confirmAssignmentId = current.tutor.assignmentId;
+  }
+  try {
+    const selected = await repo.selectProposal(
+      db,
+      parentId,
+      id,
+      version,
+      proposalId,
+      confirmAssignmentId,
+      now.toISOString(),
+    );
+    if (!selected) throw stale();
+  } catch (error) {
+    const message = rootErrorMessage(error);
+    if (
+      message.includes('PROPOSAL_TRANSITION_INVALID') ||
+      message.includes('LEARNER_CONFIRMATION_INVALID') ||
+      isUniqueViolation(error, 'request_tutor_proposals.request_id')
+    ) {
+      throw stale();
+    }
+    throw error;
+  }
+  return getOwn(db, parentId, id);
+}

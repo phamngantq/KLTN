@@ -175,6 +175,13 @@ const parentRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'requests/:id/de-xuat/:proposalId',
+    ...page(async () => {
+      const { ParentProposedTutorPage } = await import('../pages/parent/ParentProposedTutorPage');
+      return <ParentProposedTutorPage />;
+    }),
+  },
+  {
     path: 'requests/:id/edit',
     ...page(async () => {
       const { ParentRequestFormPage } = await import('../pages/parent/ParentRequestFormPage');

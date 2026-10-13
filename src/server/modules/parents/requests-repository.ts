@@ -26,7 +26,9 @@ import type {
   LearnerStageCounts,
   ProposedTutor,
   RequestStage,
+  TutorProposal,
 } from '../../../shared/schemas/requests';
+import { PROPOSAL_MIN_FIT } from '../../../shared/schemas/requests';
 import { assignedTutorFit } from '../classes/matching';
 import type { Db } from '../../db/client';
 import {
@@ -37,6 +39,7 @@ import {
   parentRequestPrivate,
   parentRequests,
   requestScheduleWindows,
+  requestTutorProposals,
   subjects,
   tutorProfiles,
   tutorSubjects,
@@ -68,9 +71,16 @@ const publicColumns = {
 /** Learner tab of a request; see LEARNER_REQUEST_STAGES. Kept in SQL so lists filter and page on it. */
 // Fully qualified on purpose: Drizzle may emit bare column names, which the correlated
 // subquery would resolve against class_assignments/class_listings instead.
+// A selected proposal confirms the request; open proposals (any score: the learner then sees
+// "no suitable tutor yet" when none clears PROPOSAL_MIN_FIT) mean the centre found tutors.
 const stageExpression = sql<RequestStage>`CASE
-  WHEN parent_requests.status IN ('submitted', 'sourcing') THEN 'searching'
   WHEN parent_requests.status = 'fulfilled' THEN 'confirmed'
+  WHEN parent_requests.status IN ('submitted', 'sourcing', 'assigned') AND EXISTS (
+    SELECT 1 FROM request_tutor_proposals p
+    WHERE p.request_id = parent_requests.id AND p.status = 'selected') THEN 'confirmed'
+  WHEN parent_requests.status IN ('submitted', 'sourcing') AND EXISTS (
+    SELECT 1 FROM request_tutor_proposals p WHERE p.request_id = parent_requests.id) THEN 'found'
+  WHEN parent_requests.status IN ('submitted', 'sourcing') THEN 'searching'
   WHEN parent_requests.status = 'assigned' AND EXISTS (
     SELECT 1 FROM class_assignments a JOIN class_listings c ON c.id = a.class_id
     WHERE c.source_request_id = parent_requests.id AND a.status = 'active'
@@ -224,6 +234,7 @@ export async function findOwnRequest(
     publicRow.status === 'assigned' || publicRow.status === 'fulfilled'
       ? await proposedTutor(db, id)
       : null;
+  const proposals = await listProposals(db, id);
   return {
     ...summary(publicRow, windows),
     publishedClassId: publishedClass?.id ?? null,
@@ -236,6 +247,7 @@ export async function findOwnRequest(
     contactConsentVersion,
     stage,
     tutor,
+    proposals,
     cancellationReason: cancellation?.reason ?? null,
   };
 }
@@ -680,6 +692,168 @@ export async function proposedTutorId(
         eq(parentRequests.id, requestId),
         eq(parentRequests.parentUserId, parentId),
         eq(classAssignments.status, 'active'),
+      ),
+    )
+    .get();
+  return row?.tutorId ?? null;
+}
+
+const profileColumns = {
+  displayName: users.displayName,
+  tutorType: tutorProfiles.tutorType,
+  school: tutorProfiles.school,
+  specialization: tutorProfiles.specialization,
+  experienceYears: tutorProfiles.experienceYears,
+  experienceSummary: tutorProfiles.experienceSummary,
+  bio: tutorProfiles.bio,
+  teachesOnline: tutorProfiles.teachesOnline,
+  teachesOffline: tutorProfiles.teachesOffline,
+};
+
+/** Proposals the learner may see (score above PROPOSAL_MIN_FIT), best first. */
+async function listProposals(db: Db, requestId: string): Promise<TutorProposal[]> {
+  const rows = await db
+    .select({
+      id: requestTutorProposals.id,
+      tutorId: requestTutorProposals.tutorUserId,
+      fitScore: requestTutorProposals.fitScore,
+      status: requestTutorProposals.status,
+      selectedAt: requestTutorProposals.selectedAt,
+      ...profileColumns,
+      hasPhoto: sql<number>`EXISTS (SELECT 1 FROM profile_photos p WHERE p.user_id = ${requestTutorProposals.tutorUserId})`,
+    })
+    .from(requestTutorProposals)
+    .innerJoin(users, eq(users.id, requestTutorProposals.tutorUserId))
+    .innerJoin(tutorProfiles, eq(tutorProfiles.userId, requestTutorProposals.tutorUserId))
+    .where(
+      and(
+        eq(requestTutorProposals.requestId, requestId),
+        sql`${requestTutorProposals.fitScore} > ${PROPOSAL_MIN_FIT}`,
+      ),
+    )
+    .orderBy(desc(requestTutorProposals.fitScore), asc(requestTutorProposals.id))
+    .all();
+  if (rows.length === 0) return [];
+  const subjectRows = await db
+    .select({ tutorId: tutorSubjects.tutorId, name: subjects.name })
+    .from(tutorSubjects)
+    .innerJoin(subjects, eq(subjects.id, tutorSubjects.subjectId))
+    .where(
+      inArray(
+        tutorSubjects.tutorId,
+        rows.map((row) => row.tutorId),
+      ),
+    )
+    .orderBy(asc(subjects.name))
+    .all();
+  return rows.map(({ tutorId, hasPhoto, ...row }) => ({
+    ...row,
+    hasPhoto: Boolean(hasPhoto),
+    subjects: subjectRows.filter((item) => item.tutorId === tutorId).map((item) => item.name),
+  }));
+}
+
+/**
+ * Learner hires one proposed tutor: the proposal becomes selected, the others declined, and,
+ * when that tutor already holds the active assignment, the assignment is confirmed too. One
+ * D1 batch guarded by the request version; D1 triggers keep a selection final.
+ */
+export async function selectProposal(
+  db: Db,
+  parentId: string,
+  requestId: string,
+  version: number,
+  proposalId: string,
+  confirmAssignmentId: string | null,
+  now: string,
+): Promise<boolean> {
+  const mutationId = crypto.randomUUID();
+  const bumped = db
+    .update(parentRequests)
+    .set({ version: sql`${parentRequests.version} + 1`, mutationId, updatedAt: now })
+    .where(
+      and(
+        eq(parentRequests.id, requestId),
+        eq(parentRequests.parentUserId, parentId),
+        inArray(parentRequests.status, ['submitted', 'sourcing', 'assigned']),
+        eq(parentRequests.version, version),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(requestTutorProposals)
+            .where(
+              and(
+                eq(requestTutorProposals.id, proposalId),
+                eq(requestTutorProposals.requestId, requestId),
+                eq(requestTutorProposals.status, 'proposed'),
+                sql`${requestTutorProposals.fitScore} > ${PROPOSAL_MIN_FIT}`,
+              ),
+            ),
+        ),
+        sql`NOT EXISTS (SELECT 1 FROM request_tutor_proposals p
+          WHERE p.request_id = ${requestId} AND p.status = 'selected')`,
+      ),
+    )
+    .returning({ id: parentRequests.id });
+  const committed = wasCommitted(db, requestId, mutationId);
+  const statements: BatchItem<'sqlite'>[] = [
+    db
+      .update(requestTutorProposals)
+      .set({ status: 'selected', selectedAt: now })
+      .where(and(eq(requestTutorProposals.id, proposalId), committed)),
+    db
+      .update(requestTutorProposals)
+      .set({ status: 'declined' })
+      .where(
+        and(
+          eq(requestTutorProposals.requestId, requestId),
+          eq(requestTutorProposals.status, 'proposed'),
+          committed,
+        ),
+      ),
+  ];
+  if (confirmAssignmentId) {
+    statements.push(
+      db
+        .update(classAssignments)
+        .set({ learnerConfirmedAt: now, learnerConfirmedBy: parentId })
+        .where(
+          and(
+            eq(classAssignments.id, confirmAssignmentId),
+            sql`${classAssignments.learnerConfirmedAt} IS NULL`,
+            committed,
+          ),
+        ),
+    );
+  }
+  statements.push(
+    db.insert(auditLogs).select(
+      sql`SELECT ${crypto.randomUUID()}, ${parentId}, 'parent_request.proposal_selected', 'parent_request',
+        ${requestId}, ${JSON.stringify({ proposalId, version: version + 1 })}, ${now}
+        WHERE EXISTS (SELECT 1 FROM parent_requests WHERE id = ${requestId} AND mutation_id = ${mutationId})`,
+    ),
+  );
+  const [result] = await db.batch([bumped, ...statements]);
+  return result.length === 1;
+}
+
+/** Tutor behind one of the owner's visible proposals, for the proposal photo and matching. */
+export async function proposalTutorId(
+  db: Db,
+  parentId: string,
+  requestId: string,
+  proposalId: string,
+): Promise<string | null> {
+  const row = await db
+    .select({ tutorId: requestTutorProposals.tutorUserId })
+    .from(requestTutorProposals)
+    .innerJoin(parentRequests, eq(parentRequests.id, requestTutorProposals.requestId))
+    .where(
+      and(
+        eq(requestTutorProposals.id, proposalId),
+        eq(parentRequests.id, requestId),
+        eq(parentRequests.parentUserId, parentId),
+        sql`${requestTutorProposals.fitScore} > ${PROPOSAL_MIN_FIT}`,
       ),
     )
     .get();
