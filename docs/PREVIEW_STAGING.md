@@ -1,5 +1,14 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Danh sách gia sư được đề xuất và luồng danh sách yêu cầu ngày 2026-10-13
+
+Commit `8c5b89b` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `584634e9-4ce5-419e-b3a1-95fe03e80f06`. "Tìm kiếm gia sư" chỉ hiện danh sách yêu cầu với nút "+ Tạo yêu cầu tìm gia sư"; gửi xong quay về danh sách ở tab "Đang tìm gia sư" kèm thông báo. Chi tiết yêu cầu ở tab "Đã tìm được gia sư" hiện "Danh sách gia sư được đề xuất" (chỉ điểm trên 80, xếp giảm dần; không có thì hiện thông báo chưa có gia sư phù hợp), "Xem hồ sơ" và "Xác nhận thuê" qua hộp thoại. Khiếu nại đã gửi của người học đều hiện "Đã gửi".
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **498/498**, Playwright **4/4**, `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0032` (đề xuất gia sư theo yêu cầu) đã áp dụng.
+- Dữ liệu mẫu: thêm ba gia sư chỉ có hồ sơ (không đăng nhập) có ảnh; YC-D…07 có đề xuất 96/91/85 (76 bị ẩn), YC-D…08 đã thuê gia sư 93 điểm, YC-D…09 chỉ có đề xuất 72 điểm. Điểm là số mẫu cố định.
+- Sau phát hành: smoke chỉ đọc PASS; `PRAGMA foreign_key_check` 0 hàng; người học mẫu thấy 2/3/3 yêu cầu theo tab, ba đề xuất của YC-D…07 trả ảnh 200; `/parent`, `/parent/request`, `/parent/khieu-nai` trả 200.
+
 ## Xác nhận thuê gia sư, cổng liên hệ và hồ sơ gia sư ngày 2026-10-13
 
 Commit `5ff63b3` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `c7d6cebd-c208-42c6-9d98-60f1ceb83bcc`. Trang "Tìm kiếm gia sư" hiện form tạo yêu cầu ngay đầu trang, ba tab theo giai đoạn (đang tìm, đã tìm được, đã xác nhận); người học xem hồ sơ, ảnh và độ phù hợp của gia sư được đề xuất rồi xác nhận thuê. Gia sư chỉ xem được liên hệ người học sau khi người học xác nhận thuê, gia sư xác nhận hợp đồng và kiểm duyệt viên ghi nhận đã thu phí môi giới (không có cổng thanh toán; đây là xác nhận thu ngoài hệ thống). Hồ sơ gia sư có trình độ, trường, chuyên môn, kinh nghiệm và ảnh đại diện lưu trong D1.
