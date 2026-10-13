@@ -1,5 +1,14 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Xác nhận thuê gia sư, cổng liên hệ và hồ sơ gia sư ngày 2026-10-13
+
+Commit `5ff63b3` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `c7d6cebd-c208-42c6-9d98-60f1ceb83bcc`. Trang "Tìm kiếm gia sư" hiện form tạo yêu cầu ngay đầu trang, ba tab theo giai đoạn (đang tìm, đã tìm được, đã xác nhận); người học xem hồ sơ, ảnh và độ phù hợp của gia sư được đề xuất rồi xác nhận thuê. Gia sư chỉ xem được liên hệ người học sau khi người học xác nhận thuê, gia sư xác nhận hợp đồng và kiểm duyệt viên ghi nhận đã thu phí môi giới (không có cổng thanh toán; đây là xác nhận thu ngoài hệ thống). Hồ sơ gia sư có trình độ, trường, chuyên môn, kinh nghiệm và ảnh đại diện lưu trong D1.
+
+- Trước phát hành: lint, typecheck, format, secret scan, Vitest **490/490**, Playwright **4/4** (gồm xác nhận thuê, ghi nhận phí và mở liên hệ), `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0030` (xác nhận thuê, thông tin hồ sơ gia sư) và `0031` (phí môi giới, ảnh hồ sơ) đã áp dụng. Trước: 7 user, 12 yêu cầu, 11 lớp, 3 lần gán, 8 khiếu nại.
+- Dữ liệu mẫu: gia sư mẫu có ảnh, trình độ, trường và ưu tiên dạy; một yêu cầu đã xác nhận có hợp đồng mẫu "Hợp đồng nhận lớp (mẫu)" đã xác nhận và phí đã thu, nên gia sư mẫu xem được liên hệ; yêu cầu còn lại ở "Đã tìm được gia sư" chờ người học xác nhận.
+- Sau phát hành: smoke chỉ đọc **16/16** PASS; `PRAGMA foreign_key_check` 0 hàng; người học mẫu thấy 2/1/2 yêu cầu theo tab, độ phù hợp 100% và ảnh gia sư; liên hệ trả 200 cho lớp đủ ba bước, 404 cho lớp chưa đủ.
+
 ## Bảng giá, minh chứng khiếu nại và dữ liệu mẫu người học ngày 2026-10-12
 
 Commit `776ea6f` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `f0d2c51a-3e16-4290-bce5-b00e21c11dbb`. Trang "Bảng giá" của người học có thẻ theo đối tượng gia sư, bảng chi tiết theo Cấp 1/2/3, Năng khiếu, Ngoại ngữ và ghi chú học phí tham khảo; form khiếu nại nhận minh chứng (ảnh/PDF, tối đa 3 tệp 1,5 MB, chỉ khi chưa gửi); người đã đăng nhập mở trang khách được chuyển về trang tương ứng trong khu vực của mình.
