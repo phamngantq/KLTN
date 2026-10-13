@@ -1,44 +1,46 @@
+import { useState, type ReactNode } from 'react';
 import {
   ArrowLeft,
   CalendarDays,
+  CircleCheck,
   Clock3,
-  LockKeyhole,
   MapPin,
   Pencil,
   Phone,
+  ShieldCheck,
+  UserRound,
   Wallet,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
-import { EDUCATION_LEVEL_LABELS } from '../../../shared/schemas/requests';
+import { EDUCATION_LEVEL_LABELS, type OwnParentRequest } from '../../../shared/schemas/requests';
 import { Button, ButtonLink } from '../../components/ui/Button';
-import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
+import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
-import { useOwnParentRequest, useSubmitParentRequest } from '../../features/parent-requests/api';
 import {
-  REQUEST_STATUS_LABELS,
-  requestDate,
-  weekdayLabel,
-} from '../../features/parent-requests/format';
+  useConfirmTutor,
+  useOwnParentRequest,
+  useSubmitParentRequest,
+} from '../../features/parent-requests/api';
+import { requestDate, weekdayLabel } from '../../features/parent-requests/format';
 import { isApiError } from '../../lib/api-client';
 import { formatVnd } from '../../lib/format';
+import { StageBadge, TutorFitMeter, TutorSummary } from './RequestStage';
 
-export function ParentRequestDetailPage() {
+/** Loads the owner's request with the shared not-found and error states. */
+export function useRequestPage() {
   const { id } = useParams();
   const detail = useOwnParentRequest(id);
-  const submit = useSubmitParentRequest();
-
-  if (detail.isPending) return <PageLoading label="Đang tải chi tiết yêu cầu…" />;
-  if (detail.isError) {
-    if (isApiError(detail.error, 'REQUEST_NOT_FOUND')) {
-      return (
-        <EmptyState
-          title="Không tìm thấy yêu cầu"
-          description="Yêu cầu này không tồn tại hoặc bạn không có quyền xem."
-          action={<ButtonLink to="/parent">Về danh sách yêu cầu</ButtonLink>}
-        />
-      );
-    }
-    return (
+  let fallback: ReactNode = null;
+  if (detail.isPending) fallback = <PageLoading label="Đang tải chi tiết yêu cầu…" />;
+  else if (detail.isError) {
+    fallback = isApiError(detail.error, 'REQUEST_NOT_FOUND') ? (
+      <EmptyState
+        title="Không tìm thấy yêu cầu"
+        description="Yêu cầu này không tồn tại hoặc bạn không có quyền xem."
+        action={<ButtonLink to="/parent">Về danh sách yêu cầu</ButtonLink>}
+      />
+    ) : (
       <Alert
         tone="danger"
         title="Không tải được yêu cầu"
@@ -52,17 +54,17 @@ export function ParentRequestDetailPage() {
       </Alert>
     );
   }
+  return { id, detail, fallback };
+}
+
+export function ParentRequestDetailPage() {
+  const { id, detail, fallback } = useRequestPage();
+  const submit = useSubmitParentRequest();
+  if (fallback || !detail.data) return fallback;
 
   const request = detail.data;
   const canEdit = request.status === 'draft' || request.status === 'submitted';
-  const statusTone =
-    request.status === 'assigned' || request.status === 'fulfilled'
-      ? 'success'
-      : request.status === 'sourcing'
-        ? 'warning'
-        : request.status === 'submitted'
-          ? 'info'
-          : 'neutral';
+  const tutor = request.tutor;
 
   function send() {
     if (!id || submit.isPending) return;
@@ -72,7 +74,7 @@ export function ParentRequestDetailPage() {
   return (
     <section className="flex min-w-0 flex-col gap-6">
       <Link
-        to="/parent"
+        to={`/parent${request.stage === 'searching' || request.stage === 'other' ? '' : `?group=${request.stage}`}`}
         className="inline-flex min-h-11 items-center gap-2 self-start text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />
@@ -80,9 +82,12 @@ export function ParentRequestDetailPage() {
       </Link>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-primary">Yêu cầu {request.code}</h1>
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-3xl font-bold text-primary">Yêu cầu {request.code}</h1>
+            <StageBadge stage={request.stage} status={request.status} />
+          </div>
           <p className="mt-1 text-sm text-muted">
-            Chi tiết yêu cầu tìm gia sư của bạn · Tạo ngày {requestDate(request.createdAt)}
+            Chi tiết yêu cầu tìm gia sư của bạn · Gửi ngày {requestDate(request.createdAt)}
           </p>
         </div>
         {canEdit && (
@@ -96,178 +101,45 @@ export function ParentRequestDetailPage() {
           </ButtonLink>
         )}
       </div>
+
+      {request.stage === 'searching' && (
+        <Alert tone="success" title="Đã tiếp nhận yêu cầu">
+          Yêu cầu tìm gia sư của bạn đã được tiếp nhận thành công. Trung tâm sẽ sớm liên hệ để hỗ
+          trợ bạn.
+        </Alert>
+      )}
+      {request.stage === 'found' && tutor && (
+        <Alert tone="info" title="Trung tâm đã tìm được gia sư cho bạn">
+          Xem hồ sơ gia sư được đề xuất bên dưới và xác nhận nếu bạn đồng ý thuê.
+        </Alert>
+      )}
+      {request.stage === 'confirmed' && (
+        <Alert tone="success" title="Đã xác nhận thuê gia sư">
+          {request.status === 'fulfilled'
+            ? 'Lớp học của yêu cầu này đã hoàn tất.'
+            : tutor?.learnerConfirmedAt
+              ? `Bạn đã xác nhận thuê gia sư ${tutor.displayName} ngày ${requestDate(tutor.learnerConfirmedAt)}.`
+              : 'Bạn đã xác nhận thuê gia sư cho yêu cầu này.'}
+        </Alert>
+      )}
       {request.status === 'cancelled' && request.cancellationReason && (
         <Alert tone="warning" title="Yêu cầu đã hủy">
           Lý do: {request.cancellationReason}
         </Alert>
       )}
-      {request.publishedClassId && request.status === 'sourcing' && (
-        <Alert
-          tone="success"
-          title="Lớp đang tìm gia sư"
-          action={
-            <ButtonLink
-              to={`/lop-hoc/${encodeURIComponent(request.publishedClassId)}`}
-              variant="secondary"
-            >
-              Xem lớp {request.publishedClassCode ?? ''}
-            </ButtonLink>
-          }
-        >
-          Yêu cầu đã được công bố trong danh sách lớp tìm gia sư.
-        </Alert>
-      )}
 
-      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,0.38fr)]">
-        <article className="min-w-0 overflow-hidden rounded-xl border border-border bg-bg shadow-card">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4 sm:px-6">
-            <div>
-              <h2 className="text-lg font-semibold text-primary">Chi tiết yêu cầu</h2>
-              <p className="mt-1 font-mono text-xs text-muted">{request.code}</p>
-            </div>
-            <Badge tone={statusTone}>{REQUEST_STATUS_LABELS[request.status]}</Badge>
-          </div>
-          <dl className="grid gap-x-6 gap-y-5 p-5 text-sm sm:grid-cols-2 sm:p-6">
-            <div>
-              <dt className="text-xs text-muted">Học sinh</dt>
-              <dd className="mt-1 break-words font-semibold text-primary">
-                {request.studentName ?? 'Chưa nhập'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Cấp học · Số buổi/tuần</dt>
-              <dd className="mt-1">
-                {request.educationLevel ? EDUCATION_LEVEL_LABELS[request.educationLevel] : '—'}
-                {' · '}
-                {request.sessionsPerWeek === null ? 'Chưa nêu' : `${request.sessionsPerWeek} buổi`}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Môn – Lớp</dt>
-              <dd className="mt-1 break-words font-semibold text-primary">
-                {request.subjectName} · {request.grade}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Hình thức</dt>
-              <dd className="mt-1 font-medium">
-                {request.mode === 'online' ? 'Online' : 'Offline (Tại nhà)'}
-              </dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-1 text-xs text-muted">
-                <MapPin aria-hidden="true" className="size-3.5" /> Khu vực chung
-              </dt>
-              <dd className="mt-1 break-words">{request.area ?? 'Không áp dụng'}</dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-1 text-xs text-muted">
-                <Wallet aria-hidden="true" className="size-3.5" /> Học phí dự kiến (VNĐ/buổi)
-              </dt>
-              <dd className="mt-1">
-                {request.expectedBudgetMinor === null
-                  ? 'Chưa xác định'
-                  : formatVnd(request.expectedBudgetMinor)}
-              </dd>
-            </div>
-            {(request.status === 'assigned' || request.status === 'fulfilled') && (
-              <div>
-                <dt className="flex items-center gap-1 text-xs text-muted">
-                  <Wallet aria-hidden="true" className="size-3.5" /> Học phí đã chốt
-                </dt>
-                <dd className="mt-1 font-semibold text-primary">
-                  {request.agreedTuitionPerSessionMinor === null
-                    ? 'Chưa ghi nhận'
-                    : `${formatVnd(request.agreedTuitionPerSessionMinor)}/buổi`}
-                </dd>
-              </div>
-            )}
-            <div className="sm:col-span-2">
-              <dt className="flex items-center gap-1 text-xs text-muted">
-                <Clock3 aria-hidden="true" className="size-3.5" /> Lịch học mong muốn
-              </dt>
-              <dd className="mt-2">
-                {request.schedule.discussLater ? (
-                  <span>Trao đổi lịch sau</span>
-                ) : (
-                  <ul className="flex flex-wrap gap-2">
-                    {request.schedule.windows.map((window, index) => (
-                      <li
-                        key={`${window.weekday}-${window.startLocal}-${index}`}
-                        className="rounded-md border border-primary/20 bg-info-surface px-2.5 py-1 text-xs font-medium text-primary"
-                      >
-                        {weekdayLabel(window.weekday)} {window.startLocal}–{window.endLocal}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <span className="mt-1 block text-xs text-muted">{request.schedule.timezone}</span>
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Yêu cầu đối với gia sư</dt>
-              <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
-                {request.tutorRequirements || 'Chưa nêu'}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-xs text-muted">Đặc điểm học sinh</dt>
-              <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
-                {request.studentTraits || 'Chưa nêu'}
-              </dd>
-            </div>
-            {request.description && (
-              <div className="sm:col-span-2">
-                <dt className="text-xs text-muted">Mô tả nhu cầu</dt>
-                <dd className="mt-1 min-w-0 whitespace-pre-line break-words">
-                  {request.description}
-                </dd>
-              </div>
-            )}
-            <div className="sm:col-span-2">
-              <dt className="flex items-center gap-1 text-xs text-muted">
-                <CalendarDays aria-hidden="true" className="size-3.5" /> Ngày tạo
-              </dt>
-              <dd className="mt-1">{requestDate(request.createdAt)}</dd>
-            </div>
-          </dl>
-        </article>
-
-        <aside className="min-w-0 self-start rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
-          <h2 className="flex items-center gap-2 font-semibold text-primary">
-            <LockKeyhole aria-hidden="true" className="size-5 text-accent" />
-            Liên hệ riêng tư
-          </h2>
-          <dl className="mt-5 space-y-4 text-sm">
-            <div>
-              <dt className="flex items-center gap-1.5 text-xs text-muted">
-                <Phone aria-hidden="true" className="size-3.5" /> Số điện thoại
-              </dt>
-              <dd className="mt-1 break-all font-medium">
-                {request.contactPhone ?? 'Chưa cung cấp'}
-              </dd>
-            </div>
-            <div>
-              <dt className="flex items-center gap-1.5 text-xs text-muted">
-                <MapPin aria-hidden="true" className="size-3.5" /> Địa chỉ
-              </dt>
-              <dd className="mt-1 break-words">{request.contactAddress ?? 'Chưa cung cấp'}</dd>
-            </div>
-          </dl>
-          <p className="mt-5 rounded-lg bg-info-surface p-3 text-xs text-muted">
-            Chỉ bạn và kiểm duyệt viên được xem thông tin này trước khi gán gia sư.
-          </p>
-          {request.contactConsentAt && (
-            <p className="mt-3 text-xs text-muted">
-              Đã ghi nhận đồng ý chia sẻ liên hệ · {requestDate(request.contactConsentAt)}
-            </p>
-          )}
-        </aside>
+      <div
+        className={`grid min-w-0 gap-6 ${tutor ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)]' : ''}`}
+      >
+        <RequestDetails request={request} />
+        {tutor && (
+          <ProposedTutorPanel request={request} onConfirmed={() => void detail.refetch()} />
+        )}
       </div>
 
       {request.status === 'draft' && (
         <div className="flex max-w-2xl flex-col gap-4 rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
-          <h2 className="text-lg font-semibold text-primary">Gửi yêu cầu cho kiểm duyệt viên</h2>
+          <h2 className="text-lg font-semibold text-primary">Gửi yêu cầu cho trung tâm</h2>
           <p className="text-sm text-muted">
             Cần họ và tên, số điện thoại và lịch mong muốn hợp lệ trước khi gửi.
           </p>
@@ -282,5 +154,233 @@ export function ParentRequestDetailPage() {
         </div>
       )}
     </section>
+  );
+}
+
+function Item({
+  label,
+  icon,
+  wide = false,
+  children,
+}: {
+  label: string;
+  icon?: ReactNode;
+  wide?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className={wide ? 'sm:col-span-2' : undefined}>
+      <dt className="flex items-center gap-1 text-xs text-muted">
+        {icon}
+        {label}
+      </dt>
+      <dd className="mt-1 min-w-0 break-words">{children}</dd>
+    </div>
+  );
+}
+
+/** Part A: every request fact, with private contact merged into the same block. */
+function RequestDetails({ request }: { request: OwnParentRequest }) {
+  return (
+    <article
+      aria-labelledby="request-details"
+      className="min-w-0 self-start overflow-hidden rounded-xl border border-border bg-bg shadow-card"
+    >
+      <div className="border-b border-border px-5 py-4 sm:px-6">
+        <h2 id="request-details" className="text-lg font-semibold text-primary">
+          Chi tiết yêu cầu tìm gia sư
+        </h2>
+        <p className="mt-1 font-mono text-xs text-muted">{request.code}</p>
+      </div>
+      <dl className="grid gap-x-6 gap-y-5 p-5 text-sm sm:grid-cols-2 sm:p-6">
+        <Item label="Học sinh" icon={<UserRound aria-hidden="true" className="size-3.5" />}>
+          <span className="font-semibold text-primary">{request.studentName ?? 'Chưa nhập'}</span>
+        </Item>
+        <Item label="Môn – Lớp">
+          <span className="font-semibold text-primary">
+            {request.subjectName} · {request.grade}
+          </span>
+        </Item>
+        <Item label="Cấp học · Số buổi/tuần">
+          {request.educationLevel ? EDUCATION_LEVEL_LABELS[request.educationLevel] : '—'}
+          {' · '}
+          {request.sessionsPerWeek === null ? 'Chưa nêu' : `${request.sessionsPerWeek} buổi`}
+        </Item>
+        <Item label="Hình thức">{request.mode === 'online' ? 'Online' : 'Offline (Tại nhà)'}</Item>
+        <Item label="Khu vực" icon={<MapPin aria-hidden="true" className="size-3.5" />}>
+          {request.area ?? (request.mode === 'online' ? 'Học online' : 'Chưa nêu')}
+        </Item>
+        <Item
+          label="Học phí dự kiến (VNĐ/buổi)"
+          icon={<Wallet aria-hidden="true" className="size-3.5" />}
+        >
+          {request.expectedBudgetMinor === null
+            ? 'Chưa xác định'
+            : formatVnd(request.expectedBudgetMinor)}
+        </Item>
+        <Item
+          label="Lịch học mong muốn"
+          icon={<Clock3 aria-hidden="true" className="size-3.5" />}
+          wide
+        >
+          {request.schedule.discussLater ? (
+            'Trao đổi lịch sau'
+          ) : (
+            <ul className="mt-1 flex flex-wrap gap-2">
+              {request.schedule.windows.map((window, index) => (
+                <li
+                  key={`${window.weekday}-${window.startLocal}-${index}`}
+                  className="rounded-md border border-primary/20 bg-info-surface px-2.5 py-1 text-xs font-medium text-primary"
+                >
+                  {weekdayLabel(window.weekday)} {window.startLocal}–{window.endLocal}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Item>
+        <Item label="Yêu cầu đối với gia sư">
+          <span className="whitespace-pre-line">{request.tutorRequirements || 'Chưa nêu'}</span>
+        </Item>
+        <Item label="Đặc điểm học sinh">
+          <span className="whitespace-pre-line">{request.studentTraits || 'Chưa nêu'}</span>
+        </Item>
+        {request.description && (
+          <Item label="Mô tả nhu cầu" wide>
+            <span className="whitespace-pre-line">{request.description}</span>
+          </Item>
+        )}
+        <Item
+          label="Số điện thoại liên hệ"
+          icon={<Phone aria-hidden="true" className="size-3.5" />}
+        >
+          <span className="font-medium">{request.contactPhone ?? 'Chưa cung cấp'}</span>
+        </Item>
+        <Item label="Địa chỉ cụ thể" icon={<MapPin aria-hidden="true" className="size-3.5" />}>
+          {request.contactAddress ?? 'Chưa cung cấp'}
+        </Item>
+        <Item
+          label="Chia sẻ liên hệ"
+          icon={<ShieldCheck aria-hidden="true" className="size-3.5" />}
+          wide
+        >
+          {request.contactConsentAt
+            ? `Đã đồng ý chia sẻ với gia sư được trung tâm gán · ${requestDate(request.contactConsentAt)}`
+            : 'Chưa đồng ý chia sẻ'}
+        </Item>
+        <Item label="Ngày gửi" icon={<CalendarDays aria-hidden="true" className="size-3.5" />}>
+          {requestDate(request.createdAt)}
+        </Item>
+      </dl>
+    </article>
+  );
+}
+
+/** Part B: the proposed tutor, fit, and the learner's hire confirmation. */
+function ProposedTutorPanel({
+  request,
+  onConfirmed,
+}: {
+  request: OwnParentRequest;
+  onConfirmed: () => void;
+}) {
+  const tutor = request.tutor!;
+  const canConfirm = request.stage === 'found' && tutor.learnerConfirmedAt === null;
+  return (
+    <aside
+      aria-labelledby="proposed-tutor"
+      className="flex min-w-0 flex-col gap-5 self-start rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6"
+    >
+      <h2 id="proposed-tutor" className="text-lg font-semibold text-primary">
+        {request.stage === 'confirmed' ? 'Gia sư đã xác nhận' : 'Gia sư được đề xuất'}
+      </h2>
+      <TutorSummary tutor={tutor} />
+      {request.agreedTuitionPerSessionMinor !== null && (
+        <p className="flex items-center gap-2 rounded-lg bg-info-surface px-3 py-2 text-sm">
+          <Wallet aria-hidden="true" className="size-4 text-primary" />
+          Học phí đã thống nhất:{' '}
+          <strong className="text-primary">
+            {formatVnd(request.agreedTuitionPerSessionMinor)}/buổi
+          </strong>
+        </p>
+      )}
+      <TutorFitMeter fit={tutor.fit} />
+      <TutorActions request={request} canConfirm={canConfirm} onConfirmed={onConfirmed} />
+    </aside>
+  );
+}
+
+export function TutorActions({
+  request,
+  canConfirm,
+  onConfirmed,
+  showProfileLink = true,
+}: {
+  request: OwnParentRequest;
+  canConfirm: boolean;
+  onConfirmed: () => void;
+  showProfileLink?: boolean;
+}) {
+  const tutor = request.tutor!;
+  const confirm = useConfirmTutor();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="flex flex-col gap-3">
+      {confirm.isError && (
+        <Alert tone="danger" title="Chưa xác nhận được">
+          {confirm.error.message}
+        </Alert>
+      )}
+      <div className="flex flex-wrap gap-3">
+        {showProfileLink && (
+          <ButtonLink
+            to={`/parent/requests/${encodeURIComponent(request.id)}/gia-su`}
+            variant="secondary"
+          >
+            <UserRound aria-hidden="true" className="size-4" />
+            Xem hồ sơ gia sư
+          </ButtonLink>
+        )}
+        {canConfirm ? (
+          <Button onClick={() => setOpen(true)} className="gap-2">
+            <CircleCheck aria-hidden="true" className="size-4" />
+            Xác nhận thuê gia sư
+          </Button>
+        ) : (
+          request.stage === 'confirmed' && (
+            <span className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-success">
+              <CircleCheck aria-hidden="true" className="size-4" />
+              Đã xác nhận
+            </span>
+          )
+        )}
+      </div>
+      <ConfirmDialog
+        open={open}
+        title="Xác nhận thuê gia sư"
+        description={
+          <>
+            Bạn xác nhận thuê <strong>{tutor.displayName}</strong> cho yêu cầu {request.code} (
+            {request.subjectName} · {request.grade})? Sau khi xác nhận, yêu cầu chuyển sang “Đã xác
+            nhận” và không thể chọn lại.
+          </>
+        }
+        confirmLabel="Xác nhận thuê"
+        cancelLabel="Để sau"
+        loading={confirm.isPending}
+        onCancel={() => setOpen(false)}
+        onConfirm={() =>
+          confirm.mutate(
+            { id: request.id, version: request.version, assignmentId: tutor.assignmentId },
+            {
+              onSuccess: () => {
+                setOpen(false);
+                onConfirmed();
+              },
+              onError: () => setOpen(false),
+            },
+          )
+        }
+      />
+    </div>
   );
 }

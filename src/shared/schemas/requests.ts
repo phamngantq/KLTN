@@ -184,24 +184,27 @@ export const submitParentRequestSchema = z.strictObject({
   consentToShareContact: z.literal(true),
 });
 
-/** Tabs on "Tìm kiếm gia sư"; each status belongs to exactly one group. */
-export const REQUEST_STATUS_GROUPS = {
-  searching: ['submitted', 'sourcing'],
-  found: ['assigned'],
-  confirmed: ['fulfilled'],
-  other: ['draft', 'cancelled'],
-} as const satisfies Record<string, readonly RequestStatus[]>;
-export type RequestStatusGroup = keyof typeof REQUEST_STATUS_GROUPS;
-export const REQUEST_STATUS_GROUP_KEYS = Object.keys(REQUEST_STATUS_GROUPS) as [
-  RequestStatusGroup,
-  ...RequestStatusGroup[],
-];
+/**
+ * Learner-facing stage of a request, the three tabs of "Tìm kiếm gia sư":
+ * searching = sent and waiting for the centre; found = a moderator proposed (assigned) a tutor
+ * the learner has not confirmed yet; confirmed = the learner confirmed hiring, or the class
+ * already completed. Drafts and cancelled requests are "other" and have no tab.
+ */
+export const LEARNER_REQUEST_STAGES = ['searching', 'found', 'confirmed'] as const;
+export type LearnerRequestStage = (typeof LEARNER_REQUEST_STAGES)[number];
+export type RequestStage = LearnerRequestStage | 'other';
+export type LearnerStageCounts = Record<LearnerRequestStage, number>;
+
+export const confirmTutorSchema = z.strictObject({
+  version: z.number().int().min(1),
+  assignmentId: z.uuid(),
+});
 
 const localDate = z.iso.date();
 
 export const parentRequestListSchema = z.strictObject({
   status: z.enum(REQUEST_STATUSES).optional(),
-  group: z.enum(REQUEST_STATUS_GROUP_KEYS).optional(),
+  group: z.enum(LEARNER_REQUEST_STAGES).optional(),
   q: z.string().trim().max(100).optional(),
   subjectId: z.string().min(1).max(80).optional(),
   mode: z.enum(['online', 'offline']).optional(),
@@ -239,6 +242,38 @@ export interface ParentRequestSummary {
 export interface ParentRequestListItem extends ParentRequestSummary {
   studentName: string | null;
   contactPhone: string | null;
+  stage: RequestStage;
+}
+
+/** Fit of the proposed tutor for this request, from the shared class-matching score. */
+export interface ProposedTutorFit {
+  score: number;
+  coverage: number;
+  level: 'strong' | 'near' | 'uncertain' | 'low';
+  criteria: {
+    key: string;
+    score: number;
+    maxScore: number;
+    status: 'match' | 'adjustable' | 'unknown';
+  }[];
+}
+
+/** Tutor proposed by the centre for an assigned or completed request (owner view only). */
+export interface ProposedTutor {
+  assignmentId: string;
+  displayName: string;
+  tutorType: 'university_student' | 'pedagogy_student' | 'teacher' | null;
+  school: string | null;
+  specialization: string | null;
+  experienceYears: number | null;
+  experienceSummary: string | null;
+  bio: string;
+  subjects: string[];
+  teachesOnline: boolean;
+  teachesOffline: boolean;
+  assignedAt: string;
+  learnerConfirmedAt: string | null;
+  fit: ProposedTutorFit;
 }
 
 /** Returned only from an owner-authenticated detail/create/update endpoint. */
@@ -254,4 +289,6 @@ export interface OwnParentRequest extends ParentRequestSummary {
   contactAddress: string | null;
   contactConsentAt: string | null;
   contactConsentVersion: string | null;
+  stage: RequestStage;
+  tutor: ProposedTutor | null;
 }

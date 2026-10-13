@@ -136,40 +136,40 @@ export function ParentDashboardPage() {
           <MetricTile
             label="Bản nháp"
             value={report.data.draftRequests}
-            to="/parent?status=draft"
+            to="/parent"
             icon={FileText}
           />
           <MetricTile
             label="Đã gửi"
             value={report.data.submittedRequests}
-            to="/parent?status=submitted"
+            to="/parent"
             icon={ClipboardList}
             tone="accent"
           />
           <MetricTile
             label="Đang tìm gia sư"
             value={report.data.sourcingRequests}
-            to="/parent?status=sourcing"
+            to="/parent"
             icon={Search}
             tone="warning"
           />
           <MetricTile
             label="Đã gán gia sư"
             value={report.data.assignedRequests}
-            to="/parent?status=assigned"
+            to="/parent?group=found"
             icon={UserRound}
           />
           <MetricTile
             label="Đã hoàn tất"
             value={report.data.fulfilledRequests}
-            to="/parent?status=fulfilled"
+            to="/parent?group=confirmed"
             icon={CircleCheck}
             tone="success"
           />
           <MetricTile
             label="Đã hủy"
             value={report.data.cancelledRequests}
-            to="/parent?status=cancelled"
+            to="/parent"
             icon={CircleX}
             tone="warning"
           />

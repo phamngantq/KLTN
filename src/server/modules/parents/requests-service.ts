@@ -169,3 +169,42 @@ export async function submitOwn(
   }
   throw new AppError(409, 'CLASS_CODE_CONFLICT', 'Không thể cấp mã lớp. Vui lòng thử lại.');
 }
+
+export function countOwnStages(db: Db, parentId: string) {
+  return repo.countOwnStages(db, parentId);
+}
+
+/** Learner confirms the tutor the centre proposed; only once, only while the class is active. */
+export async function confirmTutor(
+  db: Db,
+  parentId: string,
+  id: string,
+  version: number,
+  assignmentId: string,
+  now = new Date(),
+): Promise<OwnParentRequest> {
+  const current = await getOwn(db, parentId, id);
+  if (
+    current.status !== 'assigned' ||
+    current.version !== version ||
+    current.tutor?.assignmentId !== assignmentId ||
+    current.tutor.learnerConfirmedAt !== null
+  ) {
+    throw stale();
+  }
+  try {
+    const confirmed = await repo.confirmProposedTutor(
+      db,
+      parentId,
+      id,
+      version,
+      assignmentId,
+      now.toISOString(),
+    );
+    if (!confirmed) throw stale();
+  } catch (error) {
+    if (rootErrorMessage(error).includes('LEARNER_CONFIRMATION_INVALID')) throw stale();
+    throw error;
+  }
+  return getOwn(db, parentId, id);
+}

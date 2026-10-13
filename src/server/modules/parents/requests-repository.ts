@@ -22,7 +22,12 @@ import type {
   ParentRequestSummary,
   UpdateParentRequestInput,
 } from '../../../shared/schemas/requests';
-import { REQUEST_STATUS_GROUPS } from '../../../shared/schemas/requests';
+import type {
+  LearnerStageCounts,
+  ProposedTutor,
+  RequestStage,
+} from '../../../shared/schemas/requests';
+import { assignedTutorFit } from '../classes/matching';
 import type { Db } from '../../db/client';
 import {
   auditLogs,
@@ -33,6 +38,9 @@ import {
   parentRequests,
   requestScheduleWindows,
   subjects,
+  tutorProfiles,
+  tutorSubjects,
+  users,
 } from '../../db/schema';
 
 const publicColumns = {
@@ -56,6 +64,19 @@ const publicColumns = {
   createdAt: parentRequests.createdAt,
   updatedAt: parentRequests.updatedAt,
 };
+
+/** Learner tab of a request; see LEARNER_REQUEST_STAGES. Kept in SQL so lists filter and page on it. */
+// Fully qualified on purpose: Drizzle may emit bare column names, which the correlated
+// subquery would resolve against class_assignments/class_listings instead.
+const stageExpression = sql<RequestStage>`CASE
+  WHEN parent_requests.status IN ('submitted', 'sourcing') THEN 'searching'
+  WHEN parent_requests.status = 'fulfilled' THEN 'confirmed'
+  WHEN parent_requests.status = 'assigned' AND EXISTS (
+    SELECT 1 FROM class_assignments a JOIN class_listings c ON c.id = a.class_id
+    WHERE c.source_request_id = parent_requests.id AND a.status = 'active'
+      AND a.learner_confirmed_at IS NOT NULL) THEN 'confirmed'
+  WHEN parent_requests.status = 'assigned' THEN 'found'
+  ELSE 'other' END`;
 
 type PublicRow = Omit<ParentRequestSummary, 'schedule'> & {
   timezone: string;
@@ -149,6 +170,7 @@ export async function findOwnRequest(
       contactConsentAt: parentRequestPrivate.contactConsentAt,
       contactConsentVersion: parentRequestPrivate.contactConsentVersion,
       studentName: parentRequestPrivate.studentName,
+      stage: stageExpression,
     })
     .from(parentRequests)
     .innerJoin(subjects, eq(subjects.id, parentRequests.subjectId))
@@ -195,8 +217,13 @@ export async function findOwnRequest(
     contactConsentAt,
     contactConsentVersion,
     studentName,
+    stage,
     ...publicRow
   } = row;
+  const tutor =
+    publicRow.status === 'assigned' || publicRow.status === 'fulfilled'
+      ? await proposedTutor(db, id)
+      : null;
   return {
     ...summary(publicRow, windows),
     publishedClassId: publishedClass?.id ?? null,
@@ -207,6 +234,8 @@ export async function findOwnRequest(
     contactAddress,
     contactConsentAt,
     contactConsentVersion,
+    stage,
+    tutor,
     cancellationReason: cancellation?.reason ?? null,
   };
 }
@@ -220,9 +249,7 @@ export async function listOwnRequests(
   const where = and(
     eq(parentRequests.parentUserId, parentId),
     query.status ? eq(parentRequests.status, query.status) : undefined,
-    query.group
-      ? inArray(parentRequests.status, [...REQUEST_STATUS_GROUPS[query.group]])
-      : undefined,
+    query.group ? sql`${stageExpression} = ${query.group}` : undefined,
     query.subjectId ? eq(parentRequests.subjectId, query.subjectId) : undefined,
     query.mode ? eq(parentRequests.mode, query.mode) : undefined,
     query.from ? gte(parentRequests.createdAt, localDayStartUtc(query.from)) : undefined,
@@ -243,6 +270,7 @@ export async function listOwnRequests(
         ...publicColumns,
         studentName: parentRequestPrivate.studentName,
         contactPhone: parentRequestPrivate.contactPhone,
+        stage: stageExpression,
       })
       .from(parentRequests)
       .innerJoin(subjects, eq(subjects.id, parentRequests.subjectId))
@@ -281,10 +309,11 @@ export async function listOwnRequests(
     byRequest.set(requestId, list);
   }
   return {
-    items: rows.map(({ studentName, contactPhone, ...row }) => ({
+    items: rows.map(({ studentName, contactPhone, stage, ...row }) => ({
       ...summary(row, byRequest.get(row.id) ?? []),
       studentName,
       contactPhone,
+      stage,
     })),
     page: query.page,
     pageSize: query.pageSize,
@@ -503,4 +532,132 @@ export async function submitAndPublishOwnRequest(
     sourcingAudit,
   ]);
   return submitResult.length === 1 && sourcingResult.length === 1;
+}
+
+/** Owner's request counts per learner tab; drafts and cancelled requests have no tab. */
+export async function countOwnStages(db: Db, parentId: string): Promise<LearnerStageCounts> {
+  const rows = await db
+    .select({ stage: stageExpression, total: count() })
+    .from(parentRequests)
+    .where(eq(parentRequests.parentUserId, parentId))
+    .groupBy(stageExpression)
+    .all();
+  const counts: LearnerStageCounts = { searching: 0, found: 0, confirmed: 0 };
+  for (const row of rows) if (row.stage !== 'other') counts[row.stage] = row.total;
+  return counts;
+}
+
+/** The active assignment's tutor for this request with a learner-facing profile and fit. */
+async function proposedTutor(db: Db, requestId: string): Promise<ProposedTutor | null> {
+  const row = await db
+    .select({
+      assignmentId: classAssignments.id,
+      classId: classAssignments.classId,
+      tutorId: classAssignments.tutorUserId,
+      assignedAt: classAssignments.assignedAt,
+      learnerConfirmedAt: classAssignments.learnerConfirmedAt,
+      displayName: users.displayName,
+      tutorType: tutorProfiles.tutorType,
+      school: tutorProfiles.school,
+      specialization: tutorProfiles.specialization,
+      experienceYears: tutorProfiles.experienceYears,
+      experienceSummary: tutorProfiles.experienceSummary,
+      bio: tutorProfiles.bio,
+      teachesOnline: tutorProfiles.teachesOnline,
+      teachesOffline: tutorProfiles.teachesOffline,
+    })
+    .from(classAssignments)
+    .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
+    .innerJoin(users, eq(users.id, classAssignments.tutorUserId))
+    .innerJoin(tutorProfiles, eq(tutorProfiles.userId, classAssignments.tutorUserId))
+    .where(and(eq(classListings.sourceRequestId, requestId), eq(classAssignments.status, 'active')))
+    .get();
+  if (!row) return null;
+  const [subjectRows, fit] = await Promise.all([
+    db
+      .select({ name: subjects.name })
+      .from(tutorSubjects)
+      .innerJoin(subjects, eq(subjects.id, tutorSubjects.subjectId))
+      .where(eq(tutorSubjects.tutorId, row.tutorId))
+      .orderBy(asc(subjects.name))
+      .all(),
+    assignedTutorFit(db, row.tutorId, row.classId),
+  ]);
+  return {
+    assignmentId: row.assignmentId,
+    assignedAt: row.assignedAt,
+    learnerConfirmedAt: row.learnerConfirmedAt,
+    displayName: row.displayName,
+    tutorType: row.tutorType,
+    school: row.school,
+    specialization: row.specialization,
+    experienceYears: row.experienceYears,
+    experienceSummary: row.experienceSummary,
+    bio: row.bio,
+    teachesOnline: row.teachesOnline,
+    teachesOffline: row.teachesOffline,
+    subjects: subjectRows.map((subject) => subject.name),
+    fit: fit
+      ? {
+          score: fit.score,
+          coverage: fit.coverage,
+          level: fit.level,
+          criteria: fit.criteria
+            .filter((item) => item.maxScore > 0)
+            .map(({ key, score, maxScore, status }) => ({ key, score, maxScore, status })),
+        }
+      : { score: 0, coverage: 0, level: 'uncertain', criteria: [] },
+  };
+}
+
+/**
+ * Learner confirms hiring the proposed tutor: one-time stamp on the active assignment plus a
+ * request version bump and audit, all in one D1 batch. D1 rejects any other confirmer.
+ */
+export async function confirmProposedTutor(
+  db: Db,
+  parentId: string,
+  requestId: string,
+  version: number,
+  assignmentId: string,
+  now: string,
+): Promise<boolean> {
+  const mutationId = crypto.randomUUID();
+  const bumped = db
+    .update(parentRequests)
+    .set({ version: sql`${parentRequests.version} + 1`, mutationId, updatedAt: now })
+    .where(
+      and(
+        eq(parentRequests.id, requestId),
+        eq(parentRequests.parentUserId, parentId),
+        eq(parentRequests.status, 'assigned'),
+        eq(parentRequests.version, version),
+        exists(
+          db
+            .select({ one: sql`1` })
+            .from(classAssignments)
+            .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
+            .where(
+              and(
+                eq(classAssignments.id, assignmentId),
+                eq(classAssignments.status, 'active'),
+                sql`${classAssignments.learnerConfirmedAt} IS NULL`,
+                eq(classListings.sourceRequestId, requestId),
+              ),
+            ),
+        ),
+      ),
+    )
+    .returning({ id: parentRequests.id });
+  const confirmed = db
+    .update(classAssignments)
+    .set({ learnerConfirmedAt: now, learnerConfirmedBy: parentId })
+    .where(and(eq(classAssignments.id, assignmentId), wasCommitted(db, requestId, mutationId)));
+  const audit = db.insert(auditLogs).select(
+    sql`SELECT ${crypto.randomUUID()}, ${parentId}, 'parent_request.tutor_confirmed', 'parent_request',
+      ${requestId}, ${JSON.stringify({ assignmentId, version: version + 1 })}, ${now}
+      WHERE EXISTS (SELECT 1 FROM parent_requests WHERE id = ${requestId} AND mutation_id = ${mutationId})`,
+  );
+  const [result] = await db.batch([bumped, confirmed, audit]);
+  return result.length === 1;
 }

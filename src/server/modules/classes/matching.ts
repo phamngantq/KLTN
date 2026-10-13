@@ -4,6 +4,7 @@ import type {
   ClassSearchQuery,
   MatchAdjustment,
   MatchCriterion,
+  PublicClass,
 } from '../../../shared/schemas/classes';
 import { MATCH_ALGORITHM_VERSION } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
@@ -146,4 +147,21 @@ export async function getRecommendationWithState(
   const row = await repo.findCandidateClass(db, tutorId, classId);
   if (!row) throw notFound();
   return { recommendation: toRecommendation(row), negotiableTime: row.negotiableTime };
+}
+
+/** Fit of an already assigned tutor, scored with the same criteria as recommendations. */
+export async function assignedTutorFit(
+  db: Db,
+  tutorId: string,
+  classId: string,
+): Promise<ClassMatch | null> {
+  const row = await repo.scoreTutorForClass(db, tutorId, classId);
+  if (!row) return null;
+  return toRecommendation({
+    class: { mode: row.mode, grade: row.grade, publicArea: row.publicArea } as PublicClass,
+    gradeScore: row.gradeScore,
+    areaScore: row.areaScore,
+    scheduleScore: row.scheduleScore,
+    negotiableTime: row.negotiableTime === 1,
+  }).match;
 }

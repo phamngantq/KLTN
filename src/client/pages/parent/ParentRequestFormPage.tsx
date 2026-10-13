@@ -108,7 +108,8 @@ function toInput(form: FormState): CreateParentRequestInput {
   };
 }
 
-export function ParentRequestFormPage() {
+/** `embedded` renders only the form card, for the top of "Tìm kiếm gia sư". */
+export function ParentRequestFormPage({ embedded = false }: { embedded?: boolean }) {
   const { id } = useParams();
   const detail = useOwnParentRequest(id);
   const subjects = useSubjects();
@@ -172,11 +173,20 @@ export function ParentRequestFormPage() {
       key={id ?? 'new'}
       request={id ? detail.data : undefined}
       subjects={subjects.data}
+      embedded={embedded}
     />
   );
 }
 
-function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subjects: Subject[] }) {
+function RequestEditor({
+  request,
+  subjects,
+  embedded = false,
+}: {
+  request?: OwnParentRequest;
+  subjects: Subject[];
+  embedded?: boolean;
+}) {
   const navigate = useNavigate();
   const create = useCreateParentRequest();
   const update = useUpdateParentRequest();
@@ -324,8 +334,13 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
   }
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl min-w-0 flex-col gap-6">
-      <header className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <section
+      className={`flex w-full min-w-0 flex-col gap-6 ${embedded ? '' : 'mx-auto max-w-5xl'}`}
+    >
+      <header
+        hidden={embedded}
+        className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
+      >
         <div>
           <h1 className="text-3xl font-semibold text-primary">Tìm kiếm gia sư</h1>
           <p className="mt-1 text-sm text-muted">
@@ -653,9 +668,19 @@ function RequestEditor({ request, subjects }: { request?: OwnParentRequest; subj
               type="button"
               variant="secondary"
               disabled={busy}
-              onClick={() => navigate(backTo)}
+              onClick={() => {
+                if (!embedded) {
+                  navigate(backTo);
+                  return;
+                }
+                setForm(toForm(request));
+                setLocalErrors({});
+                create.reset();
+                update.reset();
+                createKey.current = crypto.randomUUID();
+              }}
             >
-              Hủy
+              {embedded ? 'Nhập lại' : 'Hủy'}
             </Button>
             <Button type="submit" loading={busy}>
               {request ? 'Lưu thay đổi' : 'Gửi yêu cầu'}

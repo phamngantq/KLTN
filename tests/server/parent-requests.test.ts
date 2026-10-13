@@ -596,7 +596,10 @@ describe('parent find-tutor requests', () => {
       return (await response.json<ApiSuccess<Page<ParentRequestSummary>>>()).data;
     }
     expect((await list('group=searching')).items.map((item) => item.id)).toEqual([math.id]);
-    expect((await list('group=other')).total).toBe(1);
+    // Drafts have no tab any more.
+    expect((await api(`${PATH}?group=other`, { headers: { Cookie: parent.cookie } })).status).toBe(
+      422,
+    );
     expect((await list('group=found')).total).toBe(0);
     expect((await list(`q=${encodeURIComponent('Văn Bình')}`)).items.map((i) => i.id)).toEqual([
       math.id,

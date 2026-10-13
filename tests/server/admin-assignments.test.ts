@@ -1075,3 +1075,96 @@ describe('moderator applications and assignment', () => {
     });
   });
 });
+
+describe('learner confirmation of the proposed tutor', () => {
+  it('shows a proposed tutor with fit, lets only the learner confirm once and moves the tab', async () => {
+    const state = await fixture();
+    await env.DB.prepare(
+      `UPDATE tutor_profiles SET tutor_type = 'teacher', school = 'THPT Thử nghiệm',
+         specialization = 'Toán THPT', experience_years = 5 WHERE user_id = ?`,
+    )
+      .bind(state.tutorA.userId)
+      .run();
+    await env.DB.prepare('INSERT INTO tutor_preference_grades (tutor_id, grade) VALUES (?, ?)')
+      .bind(state.tutorA.userId, 'Lớp 10')
+      .run();
+    const assigned = await api(
+      `/admin/classes/${state.cls.id}/assign`,
+      jsonInit(
+        'POST',
+        assignmentBody(state.cls, state.request, state.applicationA),
+        state.moderator,
+      ),
+    );
+    expect(assigned.status).toBe(200);
+    const assignment = (await assigned.json<ApiSuccess<AdminAssignment>>()).data;
+
+    const read = async () =>
+      (
+        await (
+          await api(`/parent/requests/${state.request.id}`, {
+            headers: { Cookie: state.parent.cookie },
+          })
+        ).json<ApiSuccess<OwnParentRequest>>()
+      ).data;
+    const found = await read();
+    expect(found.stage).toBe('found');
+    expect(found.tutor).toMatchObject({
+      assignmentId: assignment.id,
+      tutorType: 'teacher',
+      school: 'THPT Thử nghiệm',
+      specialization: 'Toán THPT',
+      experienceYears: 5,
+      learnerConfirmedAt: null,
+    });
+    expect(found.tutor!.fit.score).toBeGreaterThanOrEqual(70);
+    expect(found.tutor!.fit.criteria.find((item) => item.key === 'grade')?.status).toBe('match');
+    const counts = async () =>
+      (
+        await (
+          await api('/parent/requests/stage-counts', { headers: { Cookie: state.parent.cookie } })
+        ).json<ApiSuccess<Record<string, number>>>()
+      ).data;
+    expect(await counts()).toEqual({ searching: 0, found: 1, confirmed: 0 });
+    const tab = await api('/parent/requests?group=found', {
+      headers: { Cookie: state.parent.cookie },
+    });
+    expect((await tab.json<ApiSuccess<Page<{ id: string; stage: string }>>>()).data.items).toEqual([
+      expect.objectContaining({ id: state.request.id, stage: 'found' }),
+    ]);
+
+    const body = { version: found.version, assignmentId: assignment.id };
+    const path = `/parent/requests/${state.request.id}/confirm-tutor`;
+    const stranger = await register('parent');
+    expect((await api(path, jsonInit('POST', body, stranger))).status).toBe(404);
+    expect((await api(path, jsonInit('POST', body, state.tutorA))).status).toBe(403);
+    expect(
+      (await api(path, jsonInit('POST', { ...body, version: found.version - 1 }, state.parent)))
+        .status,
+    ).toBe(409);
+    await expect(
+      env.DB.prepare(
+        'UPDATE class_assignments SET learner_confirmed_at = ?, learner_confirmed_by = ? WHERE id = ?',
+      )
+        .bind(new Date().toISOString(), stranger.userId, assignment.id)
+        .run(),
+    ).rejects.toThrow(/LEARNER_CONFIRMATION_INVALID/);
+
+    const confirmed = await api(path, jsonInit('POST', body, state.parent));
+    expect(confirmed.status).toBe(200);
+    const after = (await confirmed.json<ApiSuccess<OwnParentRequest>>()).data;
+    expect(after.stage).toBe('confirmed');
+    expect(after.status).toBe('assigned');
+    expect(after.tutor!.learnerConfirmedAt).toBeTruthy();
+    expect(await counts()).toEqual({ searching: 0, found: 0, confirmed: 1 });
+    expect(
+      (await api(path, jsonInit('POST', { ...body, version: after.version }, state.parent))).status,
+    ).toBe(409);
+    const audit = await env.DB.prepare(
+      "SELECT count(*) AS n FROM audit_logs WHERE action = 'parent_request.tutor_confirmed' AND target_id = ?",
+    )
+      .bind(state.request.id)
+      .first<{ n: number }>();
+    expect(audit?.n).toBe(1);
+  });
+});

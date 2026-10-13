@@ -112,6 +112,7 @@ const REQUESTS = [
       [7, '09:00', '10:30'],
     ],
     tutorRequirements: 'Gia sư nữ, hướng dẫn viết văn nghị luận.',
+    learnerConfirmed: true,
     studentTraits: 'Thích đọc truyện, viết còn lan man.',
     days: 15,
   },
@@ -171,6 +172,32 @@ SELECT id, ${sql(passwordHash)}, ${sql(now)} FROM users WHERE id = ${sql(tutorId
   approval_status, visibility, created_at, updated_at)
 VALUES (${sql(tutorId)}, ${sql(SAMPLE_TUTOR.slug)}, 'Hồ sơ gia sư mẫu dùng để minh họa lớp đã gán.', 'VND', 1, 1,
   'approved', 'private', ${sql(now)}, ${sql(now)});`,
+    // Learner-facing profile facts and the preferences the fit score compares against.
+    `UPDATE tutor_profiles SET tutor_type = 'pedagogy_student', school = 'Trường Đại học Sư phạm Hà Nội',
+  specialization = 'Toán, Vật lý, Hóa học THCS - THPT', experience_years = 3,
+  experience_summary = 'Ba năm kèm học sinh THCS, THPT; từng ôn thi vào lớp 10 và tốt nghiệp THPT cho nhiều học sinh.',
+  bio = 'Sinh viên năm cuối Sư phạm, dạy kèm từ năm 2023. Ưu tiên phương pháp hệ thống kiến thức, giao bài tập theo năng lực và báo cáo tiến bộ hằng tháng cho gia đình.'
+WHERE user_id = ${sql(tutorId)} AND school IS NULL;`,
+    ...['Lớp 7', 'Lớp 8', 'Lớp 9', 'Lớp 12'].map(
+      (grade) =>
+        `INSERT OR IGNORE INTO tutor_preference_grades (tutor_id, grade) VALUES (${sql(tutorId)}, ${sql(grade)});`,
+    ),
+    ...['Cầu Giấy', 'Đống Đa'].map(
+      (area) =>
+        `INSERT OR IGNORE INTO tutor_preference_areas (tutor_id, area) VALUES (${sql(tutorId)}, ${sql(area)});`,
+    ),
+    ...[
+      [1, '19:00', '21:30'],
+      [3, '17:00', '21:30'],
+      [4, '19:00', '21:30'],
+      [5, '19:00', '21:30'],
+      [6, '15:00', '19:00'],
+      [7, '08:00', '11:00'],
+    ].map(
+      ([weekday, start, end], index) =>
+        `INSERT OR IGNORE INTO availability_rules (id, tutor_id, weekday, start_local, end_local, timezone, created_at)
+VALUES (${sql(sampleId(7, index + 1))}, ${sql(tutorId)}, ${weekday}, ${sql(start)}, ${sql(end)}, 'Asia/Ho_Chi_Minh', ${sql(now)});`,
+    ),
     ...subjects.map(
       (subjectId) =>
         `INSERT OR IGNORE INTO tutor_subjects (tutor_id, subject_id) VALUES (${sql(tutorId)}, ${sql(subjectId)});`,
@@ -276,6 +303,13 @@ SELECT ${sql(assignmentId)}, ${sql(classId)}, ${sql(applicationId)}, ${sql(tutor
   ${sql(assignmentId)}, ${sql(assignedAt)}, ${item.tuition}, ${sql(adminId)}, ${sql(assignedAt)}
 WHERE NOT EXISTS (SELECT 1 FROM class_assignments WHERE id = ${sql(assignmentId)})
   AND EXISTS (SELECT 1 FROM parent_requests WHERE id = ${sql(requestId)} AND status = 'assigned');`);
+    if (item.learnerConfirmed) {
+      // The learner accepted the proposed tutor ("Đã xác nhận"); D1 checks the confirmer.
+      out.push(`UPDATE class_assignments SET learner_confirmed_at = ${sql(ago(60 - item.key))},
+  learner_confirmed_by = ${sql(learnerId)}
+WHERE id = ${sql(assignmentId)} AND learner_confirmed_at IS NULL
+  AND EXISTS (SELECT 1 FROM parent_requests WHERE id = ${sql(requestId)} AND status = 'assigned');`);
+    }
     if (item.state === 'assigned') continue;
 
     // Completion: class, request and assignment share one mutation ID with the lifecycle event.

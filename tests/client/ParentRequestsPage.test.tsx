@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -39,17 +39,12 @@ const ownRequest: OwnParentRequest = {
   contactConsentVersion: null,
   createdAt: '2026-10-11T00:00:00.000Z',
   updatedAt: '2026-10-11T00:00:00.000Z',
+  stage: 'other',
+  tutor: null,
 };
 
 const subjects = [{ id: 'math', slug: 'math', name: 'Toán' }];
-const counts = {
-  draftRequests: 1,
-  submittedRequests: 1,
-  sourcingRequests: 1,
-  assignedRequests: 2,
-  fulfilledRequests: 1,
-  cancelledRequests: 0,
-};
+const counts = { searching: 2, found: 2, confirmed: 1 };
 
 async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
   await user.type(screen.getByRole('textbox', { name: /Họ và tên/ }), 'Phạm Văn Bình');
@@ -61,11 +56,11 @@ async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
 
 describe('parent requests', () => {
   it('shows status cards and tabs, filters on the server and keeps the address private', async () => {
-    const sourcing = { ...ownRequest, status: 'sourcing' as const };
+    const sourcing = { ...ownRequest, status: 'sourcing' as const, stage: 'searching' as const };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       if (req.path === '/subjects') return { data: subjects };
-      if (req.path === '/parent/dashboard') return { data: counts };
+      if (req.path === '/parent/requests/stage-counts') return { data: counts };
       if (req.path.startsWith('/parent/requests?')) {
         const query = new URLSearchParams(req.path.split('?')[1]);
         const items = query.get('group') === 'searching' && !query.get('q') ? [sourcing] : [];
@@ -80,14 +75,13 @@ describe('parent requests', () => {
     expect(screen.getByText('Phạm Văn Bình')).toBeTruthy();
     expect(screen.getByText('0912345678')).toBeTruthy();
     expect(screen.queryByText(ownRequest.contactAddress!)).toBeNull();
-    expect(await screen.findByText('6')).toBeTruthy();
+    expect(await screen.findByText('5')).toBeTruthy();
     const tabs = screen.getAllByRole('tab').map((tab) => tab.textContent);
-    expect(tabs).toEqual([
-      'Đang tìm gia sư2',
-      'Đã tìm được gia sư2',
-      'Đã xác nhận1',
-      'Nháp & đã hủy1',
-    ]);
+    expect(tabs).toEqual(['Đang tìm gia sư2', 'Đã tìm được gia sư2', 'Đã xác nhận1']);
+    // The request form is shown directly on the page, and there is no date filter.
+    expect(await screen.findByRole('heading', { name: 'Tạo yêu cầu tìm gia sư' })).toBeTruthy();
+    expect(screen.queryByLabelText('Từ ngày')).toBeNull();
+    expect(screen.queryByLabelText('Đến ngày')).toBeNull();
     expect(calls.some((call) => call.path === '/parent/requests?group=searching&pageSize=10')).toBe(
       true,
     );
@@ -121,6 +115,7 @@ describe('parent requests', () => {
         current = {
           ...current,
           status: 'sourcing',
+          stage: 'searching',
           version: 2,
           publishedClassId: 'class-1',
           publishedClassCode: 'LH-0001',
@@ -139,11 +134,16 @@ describe('parent requests', () => {
     expect(calls.some((call) => call.path.endsWith('/submit'))).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu' }));
     expect(
-      await screen.findByText(/Yêu cầu đã được công bố trong danh sách lớp tìm gia sư/),
+      await screen.findByText(
+        'Yêu cầu tìm gia sư của bạn đã được tiếp nhận thành công. Trung tâm sẽ sớm liên hệ để hỗ trợ bạn.',
+      ),
     ).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Xem lớp LH-0001' }).getAttribute('href')).toBe(
-      '/lop-hoc/class-1',
-    );
+    expect(screen.queryByText(/đã được công bố trong danh sách lớp/)).toBeNull();
+    expect(screen.queryByRole('link', { name: /Xem lớp/ })).toBeNull();
+    // Contact sits inside the request details block.
+    const details = screen.getByRole('article', { name: 'Chi tiết yêu cầu tìm gia sư' });
+    expect(within(details).getByText('0912345678')).toBeTruthy();
+    expect(within(details).getByText(/Đã đồng ý chia sẻ|Chưa đồng ý chia sẻ/)).toBeTruthy();
     const submitted = calls.find((call) => call.path.endsWith('/submit'));
     expect(submitted?.body).toEqual({ version: 1, consentToShareContact: true });
     expect(submitted?.headers.get('X-CSRF-Token')).toBe('csrf-test-token');
@@ -160,6 +160,7 @@ describe('parent requests', () => {
         current = {
           ...current,
           status: 'sourcing',
+          stage: 'searching',
           version: 2,
           publishedClassId: 'class-1',
           publishedClassCode: 'LH-0001',
@@ -402,5 +403,77 @@ describe('parent requests', () => {
     expect(
       calls.find((call) => call.path === '/parent/requests' && call.method === 'POST')?.body,
     ).toMatchObject({ mode: 'online', area: null, contactAddress: null });
+  });
+
+  it('shows the proposed tutor with fit and confirms hiring only after the dialog', async () => {
+    let current: OwnParentRequest = {
+      ...ownRequest,
+      status: 'assigned',
+      stage: 'found',
+      version: 4,
+      agreedTuitionPerSessionMinor: 200_000,
+      tutor: {
+        assignmentId: '00000000-0000-4000-8000-0000000000aa',
+        displayName: 'Nguyễn Văn Gia',
+        tutorType: 'pedagogy_student',
+        school: 'Trường Đại học Sư phạm Hà Nội',
+        specialization: 'Toán THCS',
+        experienceYears: 3,
+        experienceSummary: null,
+        bio: 'Giới thiệu gia sư.',
+        subjects: ['Toán'],
+        teachesOnline: true,
+        teachesOffline: true,
+        assignedAt: '2026-10-11T01:00:00.000Z',
+        learnerConfirmedAt: null,
+        fit: {
+          score: 85,
+          coverage: 100,
+          level: 'near',
+          criteria: [
+            { key: 'subject', score: 30, maxScore: 30, status: 'match' },
+            { key: 'grade', score: 0, maxScore: 20, status: 'adjustable' },
+          ],
+        },
+      },
+    };
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'student' });
+      if (req.path === '/parent/requests/req-1' && req.method === 'GET') return { data: current };
+      if (req.path === '/parent/requests/req-1/confirm-tutor') {
+        current = {
+          ...current,
+          stage: 'confirmed',
+          version: 5,
+          tutor: { ...current.tutor!, learnerConfirmedAt: '2026-10-12T02:00:00.000Z' },
+        };
+        return { data: current };
+      }
+      return undefined;
+    });
+    renderRoute('/parent/requests/req-1');
+    const user = userEvent.setup();
+
+    const panel = await screen.findByRole('complementary', { name: 'Gia sư được đề xuất' });
+    expect(within(panel).getByText('Nguyễn Văn Gia')).toBeTruthy();
+    expect(within(panel).getByText('Trường Đại học Sư phạm Hà Nội')).toBeTruthy();
+    expect(
+      within(panel).getByRole('meter', { name: 'Độ phù hợp' }).getAttribute('aria-valuenow'),
+    ).toBe('85');
+    expect(within(panel).getByRole('link', { name: 'Xem hồ sơ gia sư' }).getAttribute('href')).toBe(
+      '/parent/requests/req-1/gia-su',
+    );
+    await user.click(within(panel).getByRole('button', { name: 'Xác nhận thuê gia sư' }));
+    expect(calls.some((call) => call.path.endsWith('/confirm-tutor'))).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Xác nhận thuê' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.path.endsWith('/confirm-tutor'))?.body).toEqual({
+        version: 4,
+        assignmentId: '00000000-0000-4000-8000-0000000000aa',
+      }),
+    );
+    expect(await screen.findByRole('complementary', { name: 'Gia sư đã xác nhận' })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Xác nhận thuê gia sư' })).toBeNull();
+    expect(screen.getAllByText('Đã xác nhận').length).toBeGreaterThan(0);
   });
 });

@@ -1,10 +1,12 @@
 import { Hono } from 'hono';
 import {
+  confirmTutorSchema,
   createParentRequestSchema,
   parentRequestListSchema,
   submitParentRequestSchema,
   updateParentRequestSchema,
   type OwnParentRequest,
+  type LearnerStageCounts,
   type ParentRequestListItem,
 } from '../../../shared/schemas/requests';
 import type { Page } from '../../../shared/schemas/discovery';
@@ -52,6 +54,24 @@ parentRequestRoutes.get('/', async (c) => {
   return ok<Page<ParentRequestListItem>>(
     c,
     await service.listOwn(c.var.db, authOf(c).user.id, query),
+  );
+});
+
+parentRequestRoutes.get('/stage-counts', async (c) =>
+  ok<LearnerStageCounts>(c, await service.countOwnStages(c.var.db, authOf(c).user.id)),
+);
+
+parentRequestRoutes.post('/:id/confirm-tutor', async (c) => {
+  const { version, assignmentId } = await parseJsonBody(c, confirmTutorSchema);
+  return ok<OwnParentRequest>(
+    c,
+    await service.confirmTutor(
+      c.var.db,
+      authOf(c).user.id,
+      c.req.param('id'),
+      version,
+      assignmentId,
+    ),
   );
 });
 

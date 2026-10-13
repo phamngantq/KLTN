@@ -198,7 +198,9 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(parent.getByLabel(/Tôi đồng ý chia sẻ số điện thoại/)).toHaveCount(0);
     await send.click();
     await expect(parent).toHaveURL(/\/parent\/requests\/[0-9a-f-]+$/);
-    await expect(parent.getByText('Lớp đang tìm gia sư')).toBeVisible();
+    await expect(
+      parent.getByText(/Yêu cầu tìm gia sư của bạn đã được tiếp nhận thành công/),
+    ).toBeVisible();
     const requests = await getData<Items<Request>>(parent, '/parent/requests?status=sourcing');
     expect(requests.total).toBe(1);
     const request = requests.items[0]!;
@@ -322,8 +324,15 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(tutor.getByText('Đã ghi nhận xác nhận nội dung hợp đồng của bạn.')).toBeVisible();
 
     await parent.reload();
-    await expect(parent.getByText('Đã gán gia sư')).toBeVisible();
+    // A moderator assignment is a proposal; the learner confirms the hire.
+    const proposed = parent.getByRole('complementary', { name: 'Gia sư được đề xuất' });
+    await expect(proposed).toBeVisible();
+    await expect(proposed.getByRole('meter', { name: 'Độ phù hợp' })).toBeVisible();
     await expect(parent.getByText(/180\.000\s*₫\/buổi/).first()).toBeVisible();
+    await proposed.getByRole('button', { name: 'Xác nhận thuê gia sư' }).click();
+    await parent.getByRole('button', { name: 'Xác nhận thuê', exact: true }).click();
+    await expect(parent.getByRole('complementary', { name: 'Gia sư đã xác nhận' })).toBeVisible();
+    await expect(parent.getByRole('button', { name: 'Xác nhận thuê gia sư' })).toHaveCount(0);
     let releaseReport!: () => void;
     const reportGate = new Promise<void>((resolve) => {
       releaseReport = resolve;

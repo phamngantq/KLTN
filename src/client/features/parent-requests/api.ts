@@ -5,16 +5,16 @@ import type {
   OwnParentRequest,
   ParentRequestListItem,
   RequestStatus,
-  RequestStatusGroup,
+  LearnerRequestStage,
+  LearnerStageCounts,
   UpdateParentRequestInput,
 } from '../../../shared/schemas/requests';
-import type { ParentDashboard } from '../../../shared/schemas/reports';
 import { useSession } from '../../app/auth';
 import { api, toQuery } from '../../lib/api-client';
 
 export interface ParentRequestFilters {
   status?: RequestStatus;
-  group?: RequestStatusGroup;
+  group?: LearnerRequestStage;
   q?: string;
   subjectId?: string;
   mode?: 'online' | 'offline';
@@ -41,12 +41,13 @@ export function useParentRequests(filters: ParentRequestFilters) {
   });
 }
 
-/** Status counts for the summary cards and tabs; the same D1 dashboard as "Tổng quan". */
+/** Counts for the three learner tabs and summary cards. */
 export function useParentRequestCounts() {
   const { user } = useSession();
   return useQuery({
-    queryKey: ['parent-dashboard'],
-    queryFn: ({ signal }) => api.get<ParentDashboard>('/parent/dashboard', { signal }),
+    queryKey: ['parent-request-stages', user?.id],
+    queryFn: ({ signal }) =>
+      api.get<LearnerStageCounts>('/parent/requests/stage-counts', { signal }),
     enabled: Boolean(user),
   });
 }
@@ -68,6 +69,7 @@ function useRequestCache() {
     queryClient.setQueryData(detailKey(user?.id, request.id), request);
     void queryClient.invalidateQueries({ queryKey: ['parent-requests', user?.id] });
     void queryClient.invalidateQueries({ queryKey: ['parent-dashboard'] });
+    void queryClient.invalidateQueries({ queryKey: ['parent-request-stages', user?.id] });
   };
 }
 
@@ -110,5 +112,26 @@ export function useSubmitParentRequest() {
       cache(request);
       void queryClient.invalidateQueries({ queryKey: ['classes', 'public'] });
     },
+  });
+}
+
+/** Learner confirms hiring the tutor the centre proposed for this request. */
+export function useConfirmTutor() {
+  const cache = useRequestCache();
+  return useMutation({
+    mutationFn: ({
+      id,
+      version,
+      assignmentId,
+    }: {
+      id: string;
+      version: number;
+      assignmentId: string;
+    }) =>
+      api.post<OwnParentRequest>(`/parent/requests/${encodeURIComponent(id)}/confirm-tutor`, {
+        version,
+        assignmentId,
+      }),
+    onSuccess: cache,
   });
 }

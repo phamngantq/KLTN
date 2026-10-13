@@ -483,6 +483,10 @@ export const classAssignments = sqliteTable(
       onDelete: 'restrict',
     }),
     tuitionRecordedAt: text('tuition_recorded_at'),
+    learnerConfirmedAt: text('learner_confirmed_at'),
+    learnerConfirmedBy: text('learner_confirmed_by').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
   },
   (t) => [
     uniqueIndex('class_assignments_application_uq').on(t.applicationId),
@@ -723,6 +727,11 @@ export const tutorProfiles = sqliteTable(
     visibility: text('visibility', { enum: VISIBILITIES }).notNull().default('private'),
     ...timestamps(),
     moderationNote: text('moderation_note'),
+    tutorType: text('tutor_type', { enum: TUTOR_TYPES }),
+    school: text('school'),
+    specialization: text('specialization'),
+    experienceYears: integer('experience_years'),
+    experienceSummary: text('experience_summary'),
   },
   (t) => [
     uniqueIndex('tutor_profiles_slug_uq').on(t.slug),

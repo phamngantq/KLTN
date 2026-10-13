@@ -1046,3 +1046,23 @@ export async function withdrawApplication(
   const [result] = await db.batch([update, audit]);
   return result.length === 1;
 }
+
+/**
+ * Score inputs for one tutor against one class in any state, for the learner's view of an
+ * assigned tutor. Uses the same SQL criteria as tutor recommendations.
+ */
+export async function scoreTutorForClass(db: Db, tutorId: string, classId: string) {
+  const scores = matchScores(tutorId);
+  const row = await db
+    .select({
+      mode: classListings.mode,
+      grade: classListings.grade,
+      publicArea: classListings.publicArea,
+      ...scores,
+    })
+    .from(classListings)
+    .innerJoin(parentRequests, eq(parentRequests.id, classListings.sourceRequestId))
+    .where(eq(classListings.id, classId))
+    .get();
+  return row ?? null;
+}

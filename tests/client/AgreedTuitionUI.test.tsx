@@ -171,6 +171,31 @@ describe('agreed tuition UI', () => {
       contactConsentVersion: 'v1',
       createdAt: '2026-10-11T00:00:00.000Z',
       updatedAt: '2026-10-11T01:00:00.000Z',
+      stage: 'found',
+      tutor: {
+        assignmentId: '00000000-0000-4000-8000-0000000000aa',
+        displayName: 'Nguyễn Văn Gia',
+        tutorType: 'pedagogy_student',
+        school: 'Trường Đại học Sư phạm Hà Nội',
+        specialization: 'Toán THCS',
+        experienceYears: 3,
+        experienceSummary: null,
+        bio: 'Giới thiệu gia sư.',
+        subjects: ['Toán'],
+        teachesOnline: true,
+        teachesOffline: true,
+        assignedAt: '2026-10-11T01:00:00.000Z',
+        learnerConfirmedAt: null,
+        fit: {
+          score: 85,
+          coverage: 100,
+          level: 'near',
+          criteria: [
+            { key: 'subject', score: 30, maxScore: 30, status: 'match' },
+            { key: 'grade', score: 0, maxScore: 20, status: 'adjustable' },
+          ],
+        },
+      },
     };
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
