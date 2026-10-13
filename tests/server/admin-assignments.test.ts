@@ -145,6 +145,80 @@ async function fixture() {
   return { moderator, parent, request, cls, tutorA, tutorB, applicationA, applicationB };
 }
 
+type FixtureState = Awaited<ReturnType<typeof fixture>>;
+
+const contactOf = (state: FixtureState, assignmentId: string, session = state.tutorA) =>
+  api(`/tutor/assignments/${assignmentId}/contact`, { headers: { Cookie: session.cookie } });
+
+/**
+ * Walks the learner-contact gate: learner confirms the hire, the tutor acknowledges the
+ * contract, then the moderator records the placement fee. Contact stays closed until the end.
+ */
+async function openContactGate(state: FixtureState, assignment: AdminAssignment) {
+  const request = (
+    await (
+      await api(`/parent/requests/${state.request.id}`, {
+        headers: { Cookie: state.parent.cookie },
+      })
+    ).json<ApiSuccess<OwnParentRequest>>()
+  ).data;
+  expect((await contactOf(state, assignment.id)).status).toBe(404);
+  const confirmed = await api(
+    `/parent/requests/${state.request.id}/confirm-tutor`,
+    jsonInit('POST', { version: request.version, assignmentId: assignment.id }, state.parent),
+  );
+  expect(confirmed.status).toBe(200);
+  expect((await contactOf(state, assignment.id)).status).toBe(404);
+
+  const content = await publishTutorContract(state.moderator);
+  const issued = await api(
+    `/admin/assignments/${assignment.id}/contracts`,
+    jsonInit(
+      'POST',
+      { assignmentVersion: assignment.version, contentRevisionId: content.id },
+      state.moderator,
+    ),
+  );
+  expect(issued.status).toBe(201);
+  const contract = (await issued.json<ApiSuccess<ClassContractRecord>>()).data;
+  // A fee cannot be recorded before the tutor acknowledges the contract.
+  const early = await api(
+    `/admin/contracts/${contract.id}/placement-fee`,
+    jsonInit('POST', { amountMinor: 110_000 }, state.moderator),
+  );
+  expect(early.status).toBe(409);
+  const acknowledged = await api(
+    `/tutor/contracts/${contract.id}/acknowledge`,
+    jsonInit('POST', { version: 1, acknowledged: true }, state.tutorA),
+  );
+  expect(acknowledged.status).toBe(200);
+  expect((await contactOf(state, assignment.id)).status).toBe(404);
+  const tutorView = (
+    await (
+      await api('/tutor/assignments', { headers: { Cookie: state.tutorA.cookie } })
+    ).json<ApiSuccess<Page<TutorAssignment>>>()
+  ).data.items.find((item) => item.id === assignment.id);
+  expect(tutorView?.contactGate).toEqual({
+    learnerConfirmed: true,
+    contractAcknowledged: true,
+    placementFeePaid: false,
+  });
+
+  const feePath = `/admin/contracts/${contract.id}/placement-fee`;
+  expect(
+    (await api(feePath, jsonInit('POST', { amountMinor: 110_000 }, state.tutorA))).status,
+  ).toBe(403);
+  const fee = await api(feePath, jsonInit('POST', { amountMinor: 110_000 }, state.moderator));
+  expect(fee.status).toBe(200);
+  expect((await fee.json<ApiSuccess<ClassContractRecord>>()).data).toMatchObject({
+    placementFeeAmountMinor: 110_000,
+    learnerConfirmedAt: expect.any(String),
+  });
+  expect((await api(feePath, jsonInit('POST', { amountMinor: 1 }, state.moderator))).status).toBe(
+    409,
+  );
+}
+
 const assignmentBody = (
   cls: AdminClass,
   request: OwnParentRequest,
@@ -556,9 +630,8 @@ describe('moderator applications and assignment', () => {
       (await api('/tutor/assignments', { headers: { Cookie: state.parent.cookie } })).status,
     ).toBe(403);
 
-    const selectedContact = await api(`/tutor/assignments/${assignment.id}/contact`, {
-      headers: { Cookie: state.tutorA.cookie },
-    });
+    await openContactGate(state, assignment);
+    const selectedContact = await contactOf(state, assignment.id);
     expect(selectedContact.status).toBe(200);
     expect((await selectedContact.json<ApiSuccess<AssignedParentContact>>()).data).toMatchObject({
       phone: PHONE,

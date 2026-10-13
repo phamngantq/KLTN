@@ -16,7 +16,9 @@ import {
   useAdminContractCandidates,
   useAdminContracts,
   useIssueContract,
+  useRecordPlacementFee,
 } from '../../features/terms-contracts/api';
+import { TextField } from '../../components/ui/Field';
 
 export function AdminClassContractsPage() {
   const template = usePublishedContent('contract', 'tutor-class-contract', 'tutor');
@@ -29,6 +31,26 @@ export function AdminClassContractsPage() {
   const [preview, setPreview] = useState<ClassContractRecord | null>(null);
   const [notice, setNotice] = useState('');
   const readOnly = isReadOnlyPreview();
+  const recordFee = useRecordPlacementFee();
+  const [feeFor, setFeeFor] = useState<ClassContractRecord | null>(null);
+  const [feeAmount, setFeeAmount] = useState('');
+
+  function confirmFee() {
+    if (!feeFor || readOnly) return;
+    const amount = Number(feeAmount);
+    if (!Number.isSafeInteger(amount) || amount < 0) return;
+    recordFee.mutate(
+      { contractId: feeFor.id, amountMinor: amount },
+      {
+        onSuccess: () => {
+          setNotice(
+            `Đã ghi nhận phí môi giới cho lớp ${feeFor.classCode}. Gia sư đã xem được liên hệ.`,
+          );
+          setFeeFor(null);
+        },
+      },
+    );
+  }
 
   function confirm() {
     if (!selected || !template.data || readOnly) return;
@@ -251,6 +273,32 @@ export function AdminClassContractsPage() {
                         ? 'Gia sư đã xác nhận'
                         : 'Chờ gia sư xác nhận'}
                     </Badge>
+                    <Badge tone={item.learnerConfirmedAt ? 'success' : 'warning'}>
+                      {item.learnerConfirmedAt
+                        ? 'Người học đã xác nhận thuê'
+                        : 'Chờ người học xác nhận'}
+                    </Badge>
+                    <Badge tone={item.placementFeePaidAt ? 'success' : 'neutral'}>
+                      {item.placementFeePaidAt
+                        ? `Đã thu phí ${formatVnd(item.placementFeeAmountMinor ?? 0)}`
+                        : 'Chưa thu phí môi giới'}
+                    </Badge>
+                    {!item.placementFeePaidAt &&
+                      item.status === 'acknowledged' &&
+                      item.learnerConfirmedAt && (
+                        <Button
+                          className="rounded-xl"
+                          disabled={readOnly}
+                          onClick={() => {
+                            setNotice('');
+                            setFeeAmount('');
+                            recordFee.reset();
+                            setFeeFor(item);
+                          }}
+                        >
+                          Ghi nhận đã thu phí
+                        </Button>
+                      )}
                     <Button
                       variant="secondary"
                       onClick={() => setPreview(item)}
@@ -340,6 +388,37 @@ export function AdminClassContractsPage() {
         onCancel={() => setSelected(null)}
         onConfirm={confirm}
       />
+      <ConfirmDialog
+        open={feeFor !== null}
+        title="Ghi nhận đã thu phí môi giới"
+        description={
+          <>
+            Xác nhận trung tâm đã nhận phí môi giới của gia sư cho lớp{' '}
+            <strong>{feeFor?.classCode}</strong> ({feeFor?.feeOptionTitle}). Sau khi ghi nhận, gia
+            sư xem được số điện thoại và địa chỉ của người học. Hệ thống không thu tiền trực tuyến.
+          </>
+        }
+        confirmLabel="Ghi nhận"
+        loading={recordFee.isPending}
+        onCancel={() => setFeeFor(null)}
+        onConfirm={confirmFee}
+      >
+        <TextField
+          label="Số tiền đã thu (₫)"
+          type="number"
+          inputMode="numeric"
+          min={0}
+          step={1000}
+          required
+          value={feeAmount}
+          onChange={(event) => setFeeAmount(event.target.value)}
+        />
+        {recordFee.isError && (
+          <p role="alert" className="text-sm text-danger">
+            {recordFee.error.message}
+          </p>
+        )}
+      </ConfirmDialog>
     </section>
   );
 }

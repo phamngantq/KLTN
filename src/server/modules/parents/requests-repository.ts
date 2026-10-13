@@ -565,6 +565,7 @@ async function proposedTutor(db: Db, requestId: string): Promise<ProposedTutor |
       bio: tutorProfiles.bio,
       teachesOnline: tutorProfiles.teachesOnline,
       teachesOffline: tutorProfiles.teachesOffline,
+      hasPhoto: sql<number>`EXISTS (SELECT 1 FROM profile_photos p WHERE p.user_id = ${classAssignments.tutorUserId})`,
     })
     .from(classAssignments)
     .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
@@ -596,6 +597,7 @@ async function proposedTutor(db: Db, requestId: string): Promise<ProposedTutor |
     bio: row.bio,
     teachesOnline: row.teachesOnline,
     teachesOffline: row.teachesOffline,
+    hasPhoto: Boolean(row.hasPhoto),
     subjects: subjectRows.map((subject) => subject.name),
     fit: fit
       ? {
@@ -660,4 +662,26 @@ export async function confirmProposedTutor(
   );
   const [result] = await db.batch([bumped, confirmed, audit]);
   return result.length === 1;
+}
+
+/** Tutor of the request's active assignment, for the learner's photo request. */
+export async function proposedTutorId(
+  db: Db,
+  parentId: string,
+  requestId: string,
+): Promise<string | null> {
+  const row = await db
+    .select({ tutorId: classAssignments.tutorUserId })
+    .from(classAssignments)
+    .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
+    .innerJoin(parentRequests, eq(parentRequests.id, classListings.sourceRequestId))
+    .where(
+      and(
+        eq(parentRequests.id, requestId),
+        eq(parentRequests.parentUserId, parentId),
+        eq(classAssignments.status, 'active'),
+      ),
+    )
+    .get();
+  return row?.tutorId ?? null;
 }

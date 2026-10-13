@@ -10,6 +10,7 @@ import { ok } from '../../lib/respond';
 import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
+import * as photos from '../tutors/photos';
 import * as service from './service';
 import { adminRequestRoutes } from './requests-routes';
 import { adminApplicationRoutes } from './applications-routes';
@@ -27,6 +28,8 @@ adminRoutes.get('/tutors', async (c) => {
   const query = parseQuery(c, adminTutorListSchema);
   return ok<Page<AdminTutor>>(c, await service.listTutors(c.var.db, query));
 });
+
+adminRoutes.get('/tutors/:id/photo', (c) => photos.photoResponse(c.env.DB, c.req.param('id')));
 
 adminRoutes.post('/tutors/:id/:action{approve|reject|hide}', async (c) => {
   const action = c.req.param('action') as ModerationAction;

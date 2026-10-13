@@ -149,3 +149,16 @@ export function useIssueContract() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: contractsKey }),
   });
 }
+
+/** Moderator attests the placement fee was received offline; unlocks the tutor's contact view. */
+export function useRecordPlacementFee() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { contractId: string; amountMinor: number }) =>
+      api.post<ClassContractRecord>(
+        `/admin/contracts/${encodeURIComponent(input.contractId)}/placement-fee`,
+        { amountMinor: input.amountMinor },
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: contractsKey }),
+  });
+}

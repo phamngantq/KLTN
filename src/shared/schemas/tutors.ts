@@ -42,6 +42,11 @@ export const updateTutorProfileSchema = z
     preferredGrades: preferredGradesSchema,
     preferredAreas: preferredAreasSchema,
     negotiableTime: z.boolean(),
+    tutorType: z.enum(['university_student', 'pedagogy_student', 'teacher']).nullable(),
+    school: z.string().trim().min(1).max(120).nullable(),
+    specialization: z.string().trim().min(1).max(160).nullable(),
+    experienceYears: z.number().int().min(0).max(60).nullable(),
+    experienceSummary: z.string().trim().min(1).max(500).nullable(),
   })
   .partial();
 export type UpdateTutorProfileInput = z.infer<typeof updateTutorProfileSchema>;
@@ -76,7 +81,16 @@ export interface TutorProfile {
   /** Admin's reason when the profile was rejected or hidden. */
   moderationNote: string | null;
   missing: ProfileRequirement[];
+  tutorType: 'university_student' | 'pedagogy_student' | 'teacher' | null;
+  school: string | null;
+  specialization: string | null;
+  experienceYears: number | null;
+  experienceSummary: string | null;
+  hasPhoto: boolean;
 }
+
+export const PROFILE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
+export const PROFILE_PHOTO_MAX_BYTES = 1_048_576;
 
 export const PROFILE_REQUIREMENT_LABELS: Record<ProfileRequirement, string> = {
   bio: 'Giới thiệu bản thân',

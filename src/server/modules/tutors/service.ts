@@ -36,7 +36,13 @@ export async function getOwnProfile(db: Db, userId: string): Promise<TutorProfil
   if (!row) return null;
   const subjects = sortSubjects((await repo.subjectsByTutor(db, [userId])).get(userId) ?? []);
   const preferences = await repo.classPreferencesByTutor(db, userId);
-  return { ...row, ...preferences, subjects, missing: missingRequirements(row, subjects) };
+  return {
+    ...row,
+    hasPhoto: Boolean(row.hasPhoto),
+    ...preferences,
+    subjects,
+    missing: missingRequirements(row, subjects),
+  };
 }
 
 /** Upserts the caller's own profile. Ownership comes from the session; moderation fields are not writable. */

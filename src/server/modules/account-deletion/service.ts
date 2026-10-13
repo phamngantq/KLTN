@@ -18,6 +18,7 @@ import {
   complaints,
   idempotencyKeys,
   parentProfiles,
+  profilePhotos,
   parentRequestPrivate,
   parentRequests,
   requestScheduleWindows,
@@ -144,6 +145,7 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
       .set({ publicArea: null, updatedAt: now })
       .where(eq(classListings.parentUserId, userId)),
     db.delete(parentProfiles).where(eq(parentProfiles.userId, userId)),
+    db.delete(profilePhotos).where(eq(profilePhotos.userId, userId)),
     db.delete(availabilityRules).where(eq(availabilityRules.tutorId, userId)),
     db.delete(availabilityExceptions).where(eq(availabilityExceptions.tutorId, userId)),
     db.delete(tutorProfiles).where(eq(tutorProfiles.userId, userId)),

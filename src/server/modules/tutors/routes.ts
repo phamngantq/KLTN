@@ -8,6 +8,7 @@ import { ok } from '../../lib/respond';
 import { parseJsonBody } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
+import * as photos from './photos';
 import * as service from './service';
 
 /** Mounted at /api/v1/subjects — public catalogue. */
@@ -28,6 +29,17 @@ tutorProfileRoutes.patch('/', async (c) => {
   const input = await parseJsonBody(c, updateTutorProfileSchema);
   return ok<TutorProfile>(c, await service.updateOwnProfile(c.var.db, authOf(c).user.id, input));
 });
+
+/** Own avatar: multipart "file" (JPG, PNG or WebP, at most 1 MB). */
+tutorProfileRoutes.post('/photo', async (c) => {
+  await photos.savePhoto(c.env.DB, authOf(c).user.id, await photos.photoFromRequest(c.req.raw));
+  return ok(c, { saved: true });
+});
+tutorProfileRoutes.delete('/photo', async (c) => {
+  await photos.deletePhoto(c.env.DB, authOf(c).user.id);
+  return ok(c, { deleted: true });
+});
+tutorProfileRoutes.get('/photo', (c) => photos.photoResponse(c.env.DB, authOf(c).user.id));
 
 tutorProfileRoutes.post('/submit', async (c) =>
   ok<TutorProfile>(c, await service.submitForReview(c.var.db, authOf(c).user.id)),

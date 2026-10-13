@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
 import type { ApprovalStatus, Subject } from '../../../shared/schemas/tutors';
 import type { Db } from '../../db/client';
@@ -53,6 +53,12 @@ export function findProfileRow(db: Db, userId: string) {
       approvalStatus: tutorProfiles.approvalStatus,
       visibility: tutorProfiles.visibility,
       moderationNote: tutorProfiles.moderationNote,
+      tutorType: tutorProfiles.tutorType,
+      school: tutorProfiles.school,
+      specialization: tutorProfiles.specialization,
+      experienceYears: tutorProfiles.experienceYears,
+      experienceSummary: tutorProfiles.experienceSummary,
+      hasPhoto: sql<number>`EXISTS (SELECT 1 FROM profile_photos p WHERE p.user_id = ${tutorProfiles.userId})`,
     })
     .from(tutorProfiles)
     .innerJoin(users, eq(users.id, tutorProfiles.userId))
@@ -116,6 +122,11 @@ export interface ProfileWrite {
   preferredGrades?: string[] | undefined;
   preferredAreas?: string[] | undefined;
   negotiableTime?: boolean | undefined;
+  tutorType?: 'university_student' | 'pedagogy_student' | 'teacher' | null | undefined;
+  school?: string | null | undefined;
+  specialization?: string | null | undefined;
+  experienceYears?: number | null | undefined;
+  experienceSummary?: string | null | undefined;
 }
 
 /**
@@ -129,6 +140,11 @@ export async function upsertProfile(db: Db, write: ProfileWrite, now: string): P
     ...(write.teachesOnline !== undefined && { teachesOnline: write.teachesOnline }),
     ...(write.teachesOffline !== undefined && { teachesOffline: write.teachesOffline }),
     ...(write.negotiableTime !== undefined && { negotiableTime: write.negotiableTime }),
+    ...(write.tutorType !== undefined && { tutorType: write.tutorType }),
+    ...(write.school !== undefined && { school: write.school }),
+    ...(write.specialization !== undefined && { specialization: write.specialization }),
+    ...(write.experienceYears !== undefined && { experienceYears: write.experienceYears }),
+    ...(write.experienceSummary !== undefined && { experienceSummary: write.experienceSummary }),
   };
   const upsert = db
     .insert(tutorProfiles)

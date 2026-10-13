@@ -283,9 +283,9 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(tutor.getByText(cls!.code, { exact: false })).toBeVisible();
     await expect(tutor.getByText(/180\.000\s*₫\/buổi/).first()).toBeVisible();
     await expect(tutor.getByText(phone)).toHaveCount(0);
-    await tutor.getByRole('button', { name: 'Xem liên hệ người học' }).click();
-    await expect(tutor.getByRole('region', { name: 'Liên hệ người học' })).toContainText(phone);
-    await expect(tutor.getByRole('region', { name: 'Liên hệ người học' })).toContainText(address);
+    // Contact stays closed until the hire is confirmed, the contract acknowledged and the fee paid.
+    await expect(tutor.getByText('Liên hệ người học mở sau khi hoàn tất các bước:')).toBeVisible();
+    await expect(tutor.getByRole('button', { name: 'Xem liên hệ người học' })).toHaveCount(0);
     const assignments = await getData<Items<Assignment>>(tutor, '/tutor/assignments');
     const assignment = assignments.items.find((item) => item.classId === cls!.id);
     expect(assignment).toBeDefined();
@@ -333,6 +333,20 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await parent.getByRole('button', { name: 'Xác nhận thuê', exact: true }).click();
     await expect(parent.getByRole('complementary', { name: 'Gia sư đã xác nhận' })).toBeVisible();
     await expect(parent.getByRole('button', { name: 'Xác nhận thuê gia sư' })).toHaveCount(0);
+
+    // The centre records the placement fee received offline; only then the tutor sees contact.
+    await admin.goto('/admin/contracts');
+    await admin.getByRole('button', { name: 'Ghi nhận đã thu phí' }).click();
+    await admin
+      .getByRole('dialog')
+      .getByLabel(/Số tiền đã thu/)
+      .fill('90000');
+    await admin.getByRole('dialog').getByRole('button', { name: 'Ghi nhận', exact: true }).click();
+    await expect(admin.getByText(/Đã ghi nhận phí môi giới cho lớp/)).toBeVisible();
+    await tutor.goto('/tutor/classes');
+    await tutor.getByRole('button', { name: 'Xem liên hệ người học' }).click();
+    await expect(tutor.getByRole('region', { name: 'Liên hệ người học' })).toContainText(phone);
+    await expect(tutor.getByRole('region', { name: 'Liên hệ người học' })).toContainText(address);
     let releaseReport!: () => void;
     const reportGate = new Promise<void>((resolve) => {
       releaseReport = resolve;

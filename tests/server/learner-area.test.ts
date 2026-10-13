@@ -462,3 +462,84 @@ describe('grouped learner price items', () => {
     expect(mine).toEqual([`Vẽ ${tag}`, `Piano ${tag}`, `Tiếng Nhật ${tag}`]);
   });
 });
+
+describe('tutor profile facts and photo', () => {
+  function putPhoto(session: Session, file: File) {
+    const form = new FormData();
+    form.set('file', file);
+    return api('/tutor/profile/photo', {
+      method: 'POST',
+      body: form,
+      headers: { Cookie: session.cookie, 'X-CSRF-Token': session.csrfToken },
+    });
+  }
+
+  it('saves experience fields and a signed photo, served only to allowed viewers', async () => {
+    const tutor = await register('tutor');
+    const updated = await api(
+      '/tutor/profile',
+      jsonInit(
+        'PATCH',
+        {
+          tutorType: 'pedagogy_student',
+          school: 'Trường Đại học Sư phạm Hà Nội',
+          specialization: 'Toán THCS',
+          experienceYears: 3,
+          experienceSummary: 'Ba năm kèm học sinh THCS.',
+        },
+        tutor,
+      ),
+    );
+    expect(updated.status).toBe(200);
+    expect(await data(updated)).toMatchObject({
+      tutorType: 'pedagogy_student',
+      school: 'Trường Đại học Sư phạm Hà Nội',
+      experienceYears: 3,
+      hasPhoto: false,
+    });
+    expect(
+      (await api('/tutor/profile', jsonInit('PATCH', { experienceYears: 61 }, tutor))).status,
+    ).toBe(422);
+
+    expect(
+      (await putPhoto(tutor, new File(['<svg>'], 'a.png', { type: 'image/png' }))).status,
+    ).toBe(422);
+    expect(
+      (await putPhoto(tutor, new File([PNG, new Uint8Array(1_100_000)], 'big.png'))).status,
+    ).not.toBe(200);
+    expect((await putPhoto(tutor, new File([PNG], 'me.png'))).status).toBe(200);
+    const own = await api('/tutor/profile/photo', { headers: { Cookie: tutor.cookie } });
+    expect(own.status).toBe(200);
+    expect(own.headers.get('Content-Type')).toBe('image/png');
+    expect(own.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(new Uint8Array(await own.arrayBuffer())).toEqual(PNG);
+    const profile = await data<{ hasPhoto: boolean }>(
+      await api('/tutor/profile', { headers: { Cookie: tutor.cookie } }),
+    );
+    expect(profile.hasPhoto).toBe(true);
+
+    const admin = await moderator();
+    expect(
+      (await api(`/admin/tutors/${tutor.userId}/photo`, { headers: { Cookie: admin.cookie } }))
+        .status,
+    ).toBe(200);
+    const learner = await register('parent');
+    expect(
+      (await api(`/admin/tutors/${tutor.userId}/photo`, { headers: { Cookie: learner.cookie } }))
+        .status,
+    ).toBe(403);
+    expect(
+      (
+        await api(`/parent/requests/${crypto.randomUUID()}/tutor-photo`, {
+          headers: { Cookie: learner.cookie },
+        })
+      ).status,
+    ).toBe(404);
+
+    const removed = await api('/tutor/profile/photo', jsonInit('DELETE', {}, tutor));
+    expect(removed.status).toBe(200);
+    expect((await api('/tutor/profile/photo', { headers: { Cookie: tutor.cookie } })).status).toBe(
+      404,
+    );
+  });
+});

@@ -293,7 +293,7 @@ function ProposedTutorPanel({
       <h2 id="proposed-tutor" className="text-lg font-semibold text-primary">
         {request.stage === 'confirmed' ? 'Gia sư đã xác nhận' : 'Gia sư được đề xuất'}
       </h2>
-      <TutorSummary tutor={tutor} />
+      <TutorSummary tutor={tutor} requestId={request.id} />
       {request.agreedTuitionPerSessionMinor !== null && (
         <p className="flex items-center gap-2 rounded-lg bg-info-surface px-3 py-2 text-sm">
           <Wallet aria-hidden="true" className="size-4 text-primary" />

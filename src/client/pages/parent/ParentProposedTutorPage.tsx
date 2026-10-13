@@ -35,7 +35,7 @@ export function ParentProposedTutorPage() {
         <StageBadge stage={request.stage} status={request.status} />
       </div>
       <article className="flex flex-col gap-6 rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6">
-        <TutorSummary tutor={tutor} />
+        <TutorSummary tutor={tutor} requestId={request.id} />
         <section aria-labelledby="tutor-about" className="flex flex-col gap-2">
           <h2 id="tutor-about" className="text-lg font-semibold text-primary">
             Giới thiệu

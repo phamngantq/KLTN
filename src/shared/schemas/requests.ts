@@ -273,6 +273,7 @@ export interface ProposedTutor {
   teachesOffline: boolean;
   assignedAt: string;
   learnerConfirmedAt: string | null;
+  hasPhoto: boolean;
   fit: ProposedTutorFit;
 }
 

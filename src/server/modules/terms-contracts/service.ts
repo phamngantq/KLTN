@@ -469,6 +469,9 @@ interface ContractRow {
   agreed_tuition_per_session_minor: number | null;
   issued_at: string;
   acknowledged_at: string | null;
+  learner_confirmed_at: string | null;
+  placement_fee_paid_at: string | null;
+  placement_fee_amount_minor: number | null;
 }
 const contractSelect = `SELECT r.id, r.assignment_id, r.class_id, cl.code AS class_code,
   r.tutor_user_id, r.status, r.version, r.contract_content_revision_id,
@@ -476,8 +479,10 @@ const contractSelect = `SELECT r.id, r.assignment_id, r.class_id, cl.code AS cla
   r.fee_option_version_id, f.option_key AS fee_option_key, f.title AS fee_option_title,
   f.policy_text AS fee_policy_text, f.rate_basis_points, f.deposit_basis_points,
   r.agreed_tuition_per_session_minor,
-  r.issued_at, r.acknowledged_at
+  r.issued_at, r.acknowledged_at,
+  a.learner_confirmed_at, a.placement_fee_paid_at, a.placement_fee_amount_minor
   FROM class_contract_records r
+  JOIN class_assignments a ON a.id = r.assignment_id
   JOIN class_listings cl ON cl.id = r.class_id
   JOIN content_revisions c ON c.id = r.contract_content_revision_id
   JOIN fee_option_versions f ON f.id = r.fee_option_version_id`;
@@ -504,7 +509,63 @@ function contract(row: ContractRow): ClassContractRecord {
     agreedTuitionPerSessionMinor: row.agreed_tuition_per_session_minor,
     issuedAt: row.issued_at,
     acknowledgedAt: row.acknowledged_at,
+    learnerConfirmedAt: row.learner_confirmed_at,
+    placementFeePaidAt: row.placement_fee_paid_at,
+    placementFeeAmountMinor: row.placement_fee_amount_minor,
   };
+}
+
+/**
+ * Moderator attests the placement fee was received offline (no payment gateway). Allowed once,
+ * after the learner confirmed and the tutor acknowledged; D1 re-checks every condition.
+ */
+export async function recordPlacementFee(
+  db: D1Database,
+  moderatorId: string,
+  contractId: string,
+  amountMinor: number,
+): Promise<ClassContractRecord> {
+  const current = await getContract(db, contractId);
+  if (
+    current.status !== 'acknowledged' ||
+    !current.learnerConfirmedAt ||
+    current.placementFeePaidAt
+  ) {
+    throw new AppError(
+      409,
+      'PLACEMENT_FEE_NOT_READY',
+      'Chỉ ghi nhận phí khi người học đã xác nhận thuê, gia sư đã xác nhận hợp đồng và phí chưa được ghi nhận.',
+    );
+  }
+  const now = new Date().toISOString();
+  try {
+    const [updated] = await db.batch([
+      db
+        .prepare(
+          `UPDATE class_assignments SET placement_fee_paid_at = ?, placement_fee_amount_minor = ?,
+             placement_fee_recorded_by = ?, version = version + 1
+           WHERE id = ? AND placement_fee_paid_at IS NULL`,
+        )
+        .bind(now, amountMinor, moderatorId, current.assignmentId),
+      audit(
+        db,
+        moderatorId,
+        'assignment.placement_fee_recorded',
+        'class_assignment',
+        current.assignmentId,
+        { contractId, amountMinor },
+        now,
+      ),
+    ]);
+    if (!updated?.meta.changes)
+      throw new AppError(409, 'PLACEMENT_FEE_NOT_READY', 'Phí đã được ghi nhận.');
+  } catch (error) {
+    if (rootMessage(error).includes('PLACEMENT_FEE_INVALID')) {
+      throw new AppError(409, 'PLACEMENT_FEE_NOT_READY', 'Chưa đủ điều kiện ghi nhận phí.');
+    }
+    throw error;
+  }
+  return getContract(db, contractId);
 }
 
 export async function getContract(

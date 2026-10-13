@@ -53,6 +53,10 @@ export async function listTutorAssignments(
         status: classAssignments.status,
         assignedAt: classAssignments.assignedAt,
         agreedTuitionPerSessionMinor: classAssignments.agreedTuitionPerSessionMinor,
+        learnerConfirmed: sql<number>`${classAssignments.learnerConfirmedAt} IS NOT NULL`,
+        placementFeePaid: sql<number>`${classAssignments.placementFeePaidAt} IS NOT NULL`,
+        contractAcknowledged: sql<number>`EXISTS (SELECT 1 FROM class_contract_records r
+          WHERE r.assignment_id = ${classAssignments.id} AND r.status = 'acknowledged')`,
       })
       .from(classAssignments)
       .innerJoin(classListings, eq(classListings.id, classAssignments.classId))
@@ -70,7 +74,15 @@ export async function listTutorAssignments(
       .all(),
   ]);
   return {
-    items: items.map((row) => ({ ...row, status: 'active' as const })),
+    items: items.map(({ learnerConfirmed, contractAcknowledged, placementFeePaid, ...row }) => ({
+      ...row,
+      status: 'active' as const,
+      contactGate: {
+        learnerConfirmed: Boolean(learnerConfirmed),
+        contractAcknowledged: Boolean(contractAcknowledged),
+        placementFeePaid: Boolean(placementFeePaid),
+      },
+    })),
     page: query.page,
     pageSize: query.pageSize,
     total: totals[0]?.total ?? 0,
@@ -493,6 +505,11 @@ export async function getAssignedContact(
         eq(parentRequests.status, 'assigned'),
         sql`${parentRequestPrivate.contactConsentAt} IS NOT NULL`,
         sql`${parentRequestPrivate.contactConsentVersion} IS NOT NULL`,
+        // Contact opens only after hire confirmation, contract acknowledgement and fee receipt.
+        sql`${classAssignments.learnerConfirmedAt} IS NOT NULL`,
+        sql`${classAssignments.placementFeePaidAt} IS NOT NULL`,
+        sql`EXISTS (SELECT 1 FROM class_contract_records r
+          WHERE r.assignment_id = ${classAssignments.id} AND r.status = 'acknowledged')`,
       ),
     )
     .get();

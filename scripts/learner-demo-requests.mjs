@@ -7,6 +7,8 @@
  * Every statement is guarded, so re-running the seed changes nothing.
  */
 
+import { deflateSync } from 'node:zlib';
+
 const sampleId = (group, index) =>
   `00000000-0000-4000-8000-${String(910_000 + group * 100 + index).padStart(12, '0')}`;
 
@@ -17,6 +19,7 @@ export const SAMPLE_TUTOR = {
 };
 
 const TERMS_ID = sampleId(1, 1);
+const CONTRACT_CONTENT_ID = sampleId(1, 4);
 const QUIZ_ID = sampleId(1, 2);
 const ATTEMPT_ID = sampleId(1, 3);
 const QUESTIONS = [
@@ -156,6 +159,57 @@ const REQUESTS = [
   },
 ];
 
+/** Sample avatar: a soft gradient disc on white, 256×256 PNG. */
+function sampleAvatarPng(size = 256) {
+  const table = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buffer) => {
+    let c = 0xffffffff;
+    for (const byte of buffer) c = table[(c ^ byte) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const rows = [];
+  const mid = size / 2;
+  for (let y = 0; y < size; y++) {
+    const row = Buffer.alloc(1 + size * 3);
+    for (let x = 0; x < size; x++) {
+      const d = Math.hypot(x - mid, y - mid) / mid;
+      const head = Math.hypot(x - mid, y - mid * 0.8) < size * 0.18;
+      const body = Math.hypot(x - mid, y - size * 0.98) < size * 0.38;
+      const t = y / size;
+      const [r, g, b] =
+        d > 1
+          ? [255, 255, 255]
+          : head || body
+            ? [250, 214, 120]
+            : [Math.round(14 + 30 * t), Math.round(47 + 60 * t), Math.round(95 + 80 * t)];
+      row.set([r, g, b], 1 + x * 3);
+    }
+    rows.push(row);
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ]);
+}
+
 const ago = (minutes) => new Date(Date.now() - minutes * 60_000).toISOString();
 const hex = (n) => n.toString(16).toUpperCase().padStart(11, '0');
 
@@ -178,6 +232,21 @@ VALUES (${sql(tutorId)}, ${sql(SAMPLE_TUTOR.slug)}, 'Hồ sơ gia sư mẫu dùn
   experience_summary = 'Ba năm kèm học sinh THCS, THPT; từng ôn thi vào lớp 10 và tốt nghiệp THPT cho nhiều học sinh.',
   bio = 'Sinh viên năm cuối Sư phạm, dạy kèm từ năm 2023. Ưu tiên phương pháp hệ thống kiến thức, giao bài tập theo năng lực và báo cáo tiến bộ hằng tháng cho gia đình.'
 WHERE user_id = ${sql(tutorId)} AND school IS NULL;`,
+    (() => {
+      const png = sampleAvatarPng();
+      return `INSERT OR IGNORE INTO profile_photos (user_id, content_type, size_bytes, data, updated_at)
+VALUES (${sql(tutorId)}, 'image/png', ${png.length}, X'${png.toString('hex')}', ${sql(now)});`;
+    })(),
+    // Sample class contract template, only when the target has none published.
+    `INSERT INTO content_revisions (id, kind, slug, audience, revision, edit_version, status, title, summary,
+  body_text, created_by, published_by, published_at, created_at, updated_at)
+SELECT ${sql(CONTRACT_CONTENT_ID)}, 'contract', 'tutor-class-contract', 'tutor',
+  1 + COALESCE((SELECT max(revision) FROM content_revisions WHERE kind = 'contract' AND slug = 'tutor-class-contract' AND audience = 'tutor'), 0),
+  1, 'published', 'Hợp đồng nhận lớp (mẫu)', 'Bản mẫu cho môi trường thử nghiệm.',
+  'Đây là hợp đồng mẫu minh họa luồng nhận lớp. Gia sư dạy đúng lịch đã thống nhất, giữ bí mật thông tin người học và thanh toán phí môi giới theo phương án đã chọn trước khi nhận liên hệ của người học.',
+  ${sql(adminId)}, ${sql(adminId)}, ${sql(termsAt)}, ${sql(termsAt)}, ${sql(termsAt)}
+WHERE NOT EXISTS (SELECT 1 FROM content_revisions WHERE id = ${sql(CONTRACT_CONTENT_ID)})
+  AND NOT EXISTS (SELECT 1 FROM content_revisions WHERE kind = 'contract' AND slug = 'tutor-class-contract' AND audience = 'tutor' AND status = 'published');`,
     ...['Lớp 7', 'Lớp 8', 'Lớp 9', 'Lớp 12'].map(
       (grade) =>
         `INSERT OR IGNORE INTO tutor_preference_grades (tutor_id, grade) VALUES (${sql(tutorId)}, ${sql(grade)});`,
@@ -309,6 +378,24 @@ WHERE NOT EXISTS (SELECT 1 FROM class_assignments WHERE id = ${sql(assignmentId)
   learner_confirmed_by = ${sql(learnerId)}
 WHERE id = ${sql(assignmentId)} AND learner_confirmed_at IS NULL
   AND EXISTS (SELECT 1 FROM parent_requests WHERE id = ${sql(requestId)} AND status = 'assigned');`);
+      // Then the tutor acknowledges the contract and the centre records the placement fee,
+      // which opens the learner's contact to the tutor.
+      const contractId = sampleId(8, item.key);
+      out.push(`INSERT INTO class_contract_records (id, assignment_id, class_id, tutor_user_id, fee_option_version_id,
+  contract_content_revision_id, status, version, issued_by, issued_at, mutation_id, agreed_tuition_per_session_minor)
+SELECT ${sql(contractId)}, a.id, a.class_id, a.tutor_user_id, t.fee_option_version_id,
+  (SELECT id FROM content_revisions WHERE kind = 'contract' AND slug = 'tutor-class-contract'
+     AND audience = 'tutor' AND status = 'published'),
+  'issued', 1, ${sql(adminId)}, ${sql(ago(50))}, ${sql(contractId)}, a.agreed_tuition_per_session_minor
+FROM class_assignments a JOIN tutor_applications t ON t.id = a.application_id
+WHERE a.id = ${sql(assignmentId)} AND a.status = 'active'
+  AND NOT EXISTS (SELECT 1 FROM class_contract_records WHERE assignment_id = ${sql(assignmentId)});`);
+      out.push(`UPDATE class_contract_records SET status = 'acknowledged', acknowledged_at = ${sql(ago(45))}, version = 2
+WHERE id = ${sql(contractId)} AND status = 'issued';`);
+      out.push(`UPDATE class_assignments SET placement_fee_paid_at = ${sql(ago(40))},
+  placement_fee_amount_minor = ${Math.round(item.tuition / 2)}, placement_fee_recorded_by = ${sql(adminId)}
+WHERE id = ${sql(assignmentId)} AND placement_fee_paid_at IS NULL
+  AND EXISTS (SELECT 1 FROM class_contract_records WHERE id = ${sql(contractId)} AND status = 'acknowledged');`);
     }
     if (item.state === 'assigned') continue;
 

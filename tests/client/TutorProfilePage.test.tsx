@@ -32,6 +32,12 @@ function profile(overrides: Partial<TutorProfile> = {}): TutorProfile {
     visibility: 'private',
     moderationNote: null,
     missing: [],
+    tutorType: null,
+    school: null,
+    specialization: null,
+    experienceYears: null,
+    experienceSummary: null,
+    hasPhoto: false,
     ...overrides,
   };
 }

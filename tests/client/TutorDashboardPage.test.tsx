@@ -27,6 +27,7 @@ const assignment: TutorAssignment = {
   agreedTuitionPerSessionMinor: null,
   status: 'active',
   assignedAt: '2026-10-11T01:00:00.000Z',
+  contactGate: { learnerConfirmed: false, contractAcknowledged: false, placementFeePaid: false },
 };
 
 describe('tutor dashboard', () => {

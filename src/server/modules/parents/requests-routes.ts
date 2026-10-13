@@ -16,6 +16,8 @@ import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import * as idempotency from '../idempotency/service';
+import * as photos from '../tutors/photos';
+import { proposedTutorId } from './requests-repository';
 import * as service from './requests-service';
 
 /** Mounted at /api/v1/parent/requests; every projection is scoped to the signed-in parent. */
@@ -73,6 +75,12 @@ parentRequestRoutes.post('/:id/confirm-tutor', async (c) => {
       assignmentId,
     ),
   );
+});
+
+parentRequestRoutes.get('/:id/tutor-photo', async (c) => {
+  const tutorId = await proposedTutorId(c.var.db, authOf(c).user.id, c.req.param('id'));
+  if (!tutorId) throw new AppError(404, 'PROFILE_PHOTO_NOT_FOUND', 'Chưa có ảnh đại diện.');
+  return photos.photoResponse(c.env.DB, tutorId);
 });
 
 parentRequestRoutes.get('/:id', async (c) =>

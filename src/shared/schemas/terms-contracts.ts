@@ -151,7 +151,14 @@ export interface ClassContractRecord {
   agreedTuitionPerSessionMinor: number | null;
   issuedAt: string;
   acknowledgedAt: string | null;
+  /** Hire confirmation and placement-fee receipt on the same assignment. */
+  learnerConfirmedAt: string | null;
+  placementFeePaidAt: string | null;
+  placementFeeAmountMinor: number | null;
 }
+export const placementFeeSchema = z.strictObject({
+  amountMinor: z.number().int().min(0).max(100_000_000),
+});
 export interface AdminContractCandidate {
   assignmentId: string;
   assignmentVersion: number;

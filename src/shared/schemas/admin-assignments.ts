@@ -96,6 +96,12 @@ export interface TutorAssignment {
   status: 'active';
   assignedAt: string;
   agreedTuitionPerSessionMinor: number | null;
+  /** Learner contact opens only when all three are true. */
+  contactGate: {
+    learnerConfirmed: boolean;
+    contractAcknowledged: boolean;
+    placementFeePaid: boolean;
+  };
 }
 
 /** Historical outcome only, with no parent identity or contact data. */

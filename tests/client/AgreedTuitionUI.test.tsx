@@ -186,6 +186,7 @@ describe('agreed tuition UI', () => {
         teachesOffline: true,
         assignedAt: '2026-10-11T01:00:00.000Z',
         learnerConfirmedAt: null,
+        hasPhoto: false,
         fit: {
           score: 85,
           coverage: 100,
@@ -219,6 +220,7 @@ describe('agreed tuition UI', () => {
       publicArea: null,
       agreedTuitionPerSessionMinor: 240_000,
       status: 'active',
+      contactGate: { learnerConfirmed: true, contractAcknowledged: true, placementFeePaid: true },
       assignedAt: '2026-10-11T00:00:00.000Z',
     };
     mockApi((req) => {

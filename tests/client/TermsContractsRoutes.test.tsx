@@ -117,6 +117,9 @@ describe('tutor terms and contracts', () => {
       agreedTuitionPerSessionMinor: 180_000,
       issuedAt: '2026-10-11T00:00:00.000Z',
       acknowledgedAt: null,
+      learnerConfirmedAt: null,
+      placementFeePaidAt: null,
+      placementFeeAmountMinor: null,
     };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
@@ -128,6 +131,9 @@ describe('tutor terms and contracts', () => {
           status: 'acknowledged',
           version: 2,
           acknowledgedAt: '2026-10-11T00:02:00.000Z',
+          learnerConfirmedAt: null,
+          placementFeePaidAt: null,
+          placementFeeAmountMinor: null,
         };
         return { data: record };
       }
@@ -286,6 +292,9 @@ describe('moderator terms and contracts', () => {
           agreedTuitionPerSessionMinor: 180_000,
           issuedAt: '2026-10-11T00:01:00.000Z',
           acknowledgedAt: null,
+          learnerConfirmedAt: null,
+          placementFeePaidAt: null,
+          placementFeeAmountMinor: null,
         };
         return { status: 201, data: record };
       }

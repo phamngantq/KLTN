@@ -13,7 +13,9 @@ import {
 import { useSession } from '../../app/auth';
 import { Button } from '../../components/ui/Button';
 import { Alert, Badge } from '../../components/ui/Feedback';
-import { TextareaField, TextField } from '../../components/ui/Field';
+import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
+import { TUTOR_TYPE_LABELS, TUTOR_TYPES } from '../../../shared/schemas/pricing';
+import { ProfilePhotoField } from './ProfilePhotoField';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
   useOwnProfile,
@@ -34,6 +36,11 @@ interface FormState {
   preferredGrades: string[];
   preferredAreas: string[];
   negotiableTime: boolean;
+  tutorType: '' | 'university_student' | 'pedagogy_student' | 'teacher';
+  school: string;
+  specialization: string;
+  experienceYears: string;
+  experienceSummary: string;
 }
 
 function toForm(profile: TutorProfile | null, fallbackName: string): FormState {
@@ -47,6 +54,11 @@ function toForm(profile: TutorProfile | null, fallbackName: string): FormState {
     preferredGrades: profile?.preferredGrades ?? [],
     preferredAreas: profile?.preferredAreas ?? [],
     negotiableTime: profile?.negotiableTime ?? false,
+    tutorType: profile?.tutorType ?? '',
+    school: profile?.school ?? '',
+    specialization: profile?.specialization ?? '',
+    experienceYears: profile?.experienceYears != null ? String(profile.experienceYears) : '',
+    experienceSummary: profile?.experienceSummary ?? '',
   };
 }
 
@@ -182,6 +194,11 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
         preferredGrades: form.preferredGrades,
         preferredAreas: areas,
         negotiableTime: form.negotiableTime,
+        tutorType: form.tutorType || null,
+        school: form.school.trim() || null,
+        specialization: form.specialization.trim() || null,
+        experienceYears: form.experienceYears.trim() ? Number(form.experienceYears) : null,
+        experienceSummary: form.experienceSummary.trim() || null,
         ...(form.hourlyRate.trim() !== '' && { hourlyRateMinor: rate }),
       },
       {
@@ -222,6 +239,13 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
         >
           <UserRound aria-hidden="true" size={18} />
           Thông tin cơ bản
+        </a>
+        <a
+          href="#profile-experience"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+        >
+          <GraduationCap aria-hidden="true" size={18} />
+          Trình độ &amp; kinh nghiệm
         </a>
         <a
           href="#profile-preferences"
@@ -293,6 +317,11 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
               Thông tin cơ bản
             </h2>
           </div>
+          {profile ? (
+            <ProfilePhotoField hasPhoto={profile.hasPhoto} displayName={form.displayName} />
+          ) : (
+            <p className="text-sm text-muted">Lưu hồ sơ lần đầu để tải ảnh đại diện.</p>
+          )}
           <TextField
             label="Tên hiển thị"
             required
@@ -323,6 +352,73 @@ function ProfileForm({ profile, subjects }: { profile: TutorProfile | null; subj
                 : 'Bội số của 1.000 ₫, tối thiểu 10.000 ₫.'
             }
             error={errors.hourlyRateMinor}
+          />
+        </section>
+
+        <section
+          id="profile-experience"
+          aria-labelledby="profile-experience-title"
+          className="flex scroll-mt-24 flex-col gap-5 rounded-xl border border-primary/20 bg-bg p-5 shadow-card md:p-6"
+        >
+          <div className="flex items-center gap-3 border-b border-border pb-4">
+            <span
+              aria-hidden="true"
+              className="flex size-11 items-center justify-center rounded-lg bg-accent text-on-accent"
+            >
+              <GraduationCap size={22} />
+            </span>
+            <h2 id="profile-experience-title" className="text-xl font-semibold text-primary">
+              Trình độ &amp; kinh nghiệm
+            </h2>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <SelectField
+              label="Trình độ"
+              value={form.tutorType}
+              onChange={(e) => set('tutorType', e.target.value as FormState['tutorType'])}
+              error={errors.tutorType}
+            >
+              <option value="">Chọn trình độ</option>
+              {TUTOR_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {TUTOR_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </SelectField>
+            <TextField
+              label="Trường học"
+              placeholder="Ví dụ: Trường Đại học Sư phạm Hà Nội"
+              maxLength={120}
+              value={form.school}
+              onChange={(e) => set('school', e.target.value)}
+              error={errors.school}
+            />
+            <TextField
+              label="Chuyên môn"
+              placeholder="Ví dụ: Toán, Vật lý THCS - THPT"
+              maxLength={160}
+              value={form.specialization}
+              onChange={(e) => set('specialization', e.target.value)}
+              error={errors.specialization}
+            />
+            <TextField
+              label="Số năm kinh nghiệm giảng dạy"
+              type="number"
+              inputMode="numeric"
+              min={0}
+              max={60}
+              value={form.experienceYears}
+              onChange={(e) => set('experienceYears', e.target.value)}
+              error={errors.experienceYears}
+            />
+          </div>
+          <TextareaField
+            label="Kinh nghiệm giảng dạy"
+            hint="Lớp đã dạy, thành tích học sinh, chứng chỉ. Tối đa 500 ký tự."
+            maxLength={500}
+            value={form.experienceSummary}
+            onChange={(e) => set('experienceSummary', e.target.value)}
+            error={errors.experienceSummary}
           />
         </section>
 

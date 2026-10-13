@@ -487,6 +487,11 @@ export const classAssignments = sqliteTable(
     learnerConfirmedBy: text('learner_confirmed_by').references(() => users.id, {
       onDelete: 'restrict',
     }),
+    placementFeePaidAt: text('placement_fee_paid_at'),
+    placementFeeAmountMinor: integer('placement_fee_amount_minor'),
+    placementFeeRecordedBy: text('placement_fee_recorded_by').references(() => users.id, {
+      onDelete: 'restrict',
+    }),
   },
   (t) => [
     uniqueIndex('class_assignments_application_uq').on(t.applicationId),
@@ -951,6 +956,17 @@ export const complaintAttachments = sqliteTable(
   },
   (t) => [index('complaint_attachments_complaint_idx').on(t.complaintId, t.createdAt)],
 );
+
+/** One profile photo per user, read and written as bytes with raw D1 statements. */
+export const profilePhotos = sqliteTable('profile_photos', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  contentType: text('content_type', { enum: ['image/jpeg', 'image/png', 'image/webp'] }).notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  data: blob('data', { mode: 'buffer' }).notNull(),
+  updatedAt: text('updated_at').notNull(),
+});
 
 export const accountDeletions = sqliteTable('account_deletions', {
   userId: text('user_id')

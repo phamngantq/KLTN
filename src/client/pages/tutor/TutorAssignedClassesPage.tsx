@@ -1,5 +1,14 @@
 import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Clock3, MapPin, Phone, UserRound, Wallet } from 'lucide-react';
+import {
+  BookOpen,
+  Circle,
+  CircleCheck,
+  Clock3,
+  MapPin,
+  Phone,
+  UserRound,
+  Wallet,
+} from 'lucide-react';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type {
@@ -133,17 +142,50 @@ export function TutorAssignedClassesPage() {
                         : `${formatVnd(item.agreedTuitionPerSessionMinor)}/buổi`}
                     </span>
                   </div>
-                  <div className="flex justify-end">
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        closeContact();
-                        setSelectedId(item.id);
-                      }}
-                    >
-                      Xem liên hệ người học
-                    </Button>
-                  </div>
+                  {item.contactGate.learnerConfirmed &&
+                  item.contactGate.contractAcknowledged &&
+                  item.contactGate.placementFeePaid ? (
+                    <div className="flex justify-end">
+                      <Button
+                        variant="secondary"
+                        onClick={() => {
+                          closeContact();
+                          setSelectedId(item.id);
+                        }}
+                      >
+                        Xem liên hệ người học
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="rounded-lg bg-surface p-3 text-sm">
+                      <p className="font-medium text-primary">
+                        Liên hệ người học mở sau khi hoàn tất các bước:
+                      </p>
+                      <ul className="mt-2 flex flex-col gap-1">
+                        {(
+                          [
+                            ['learnerConfirmed', 'Người học xác nhận thuê gia sư'],
+                            ['contractAcknowledged', 'Bạn xác nhận hợp đồng lớp học'],
+                            ['placementFeePaid', 'Trung tâm ghi nhận đã thanh toán phí môi giới'],
+                          ] as const
+                        ).map(([key, label]) => (
+                          <li key={key} className="flex items-center gap-2">
+                            {item.contactGate[key] ? (
+                              <CircleCheck aria-hidden="true" className="size-4 text-success" />
+                            ) : (
+                              <Circle aria-hidden="true" className="size-4 text-muted" />
+                            )}
+                            <span className={item.contactGate[key] ? 'text-fg' : 'text-muted'}>
+                              {label}
+                              <span className="sr-only">
+                                {item.contactGate[key] ? ' (đã xong)' : ' (chưa xong)'}
+                              </span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </article>
               </li>
             ))}

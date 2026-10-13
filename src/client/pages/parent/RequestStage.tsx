@@ -153,16 +153,24 @@ function Fact({ icon, label, children }: { icon: ReactNode; label: string; child
 }
 
 /** Avatar, name and teaching facts of the proposed tutor. */
-export function TutorSummary({ tutor }: { tutor: ProposedTutor }) {
+export function TutorSummary({ tutor, requestId }: { tutor: ProposedTutor; requestId: string }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-4">
-        <span
-          aria-hidden="true"
-          className="flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-gradient-end text-xl font-bold text-on-primary"
-        >
-          {initials(tutor.displayName)}
-        </span>
+        {tutor.hasPhoto ? (
+          <img
+            src={`/api/v1/parent/requests/${encodeURIComponent(requestId)}/tutor-photo`}
+            alt={`Ảnh đại diện của ${tutor.displayName}`}
+            className="size-16 shrink-0 rounded-full border border-border object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary-gradient-end text-xl font-bold text-on-primary"
+          >
+            {initials(tutor.displayName)}
+          </span>
+        )}
         <div className="min-w-0">
           <p className="text-xl font-semibold text-primary">{tutor.displayName}</p>
           <p className="text-sm text-muted">

@@ -426,6 +426,7 @@ describe('parent requests', () => {
         teachesOffline: true,
         assignedAt: '2026-10-11T01:00:00.000Z',
         learnerConfirmedAt: null,
+        hasPhoto: false,
         fit: {
           score: 85,
           coverage: 100,

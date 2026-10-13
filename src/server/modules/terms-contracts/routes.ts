@@ -12,6 +12,7 @@ import {
   submitQuizSchema,
   type AdminTermsQuiz,
   type AdminContractCandidate,
+  placementFeeSchema,
   type ClassContractRecord,
   type TutorQuizAttempt,
   type TutorTermsAcknowledgement,
@@ -126,6 +127,14 @@ adminTermsContractRoutes.post('/assignments/:id/contracts', async (c) =>
     201,
   ),
 );
+adminTermsContractRoutes.post('/contracts/:id/placement-fee', async (c) => {
+  const { amountMinor } = await parseJsonBody(c, placementFeeSchema);
+  return ok<ClassContractRecord>(
+    c,
+    await service.recordPlacementFee(c.env.DB, authOf(c).user.id, c.req.param('id'), amountMinor),
+  );
+});
+
 adminTermsContractRoutes.get('/contracts/candidates', async (c) => {
   const { page, pageSize } = parseQuery(c, contractListSchema);
   return ok<Page<AdminContractCandidate>>(
