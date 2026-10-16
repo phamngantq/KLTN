@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Danh sách lớp mới, chi tiết lớp, nhận lớp và điều khoản dạng tích xác nhận ngày 2026-10-16
+
+Commit `87b68bd` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `6c5348dd-a8ff-4484-bafd-0572e6956908`. Gia sư có trang "Danh sách lớp mới" (thẻ lớp, lọc theo từ khóa/môn/quận Hà Nội/hình thức), "Chi tiết lớp học" và "Nhận lớp" (phí nhận lớp, quy trình, thời gian rảnh, điều khoản). Phí nhận lớp = phương án "% học phí tháng" đã công bố (40%) × học phí/buổi × số buổi/tuần × 4. Điều khoản trách nhiệm chỉ cần tích xác nhận một lần cho mỗi phiên bản; xác nhận qua bài test trước đây vẫn có hiệu lực. Dropdown Loại gia sư chỉ còn 3 lựa chọn.
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **523/523**, Playwright **4/4**, `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0035` (bảng `terms_consents`, thời gian rảnh trên đơn nhận lớp, chặn đơn không dùng phương án "% học phí tháng") đã áp dụng.
+- Sau phát hành: smoke chỉ đọc PASS; `PRAGMA foreign_key_check` 0 hàng; API lớp trả 11 lớp cho gia sư mẫu, khách không thấy yêu cầu gia sư/đặc điểm học sinh/phí nhận lớp, không trả mô tả riêng của người học; tìm "Hoàng Mai" trả 2 lớp; gia sư mẫu đã xác nhận điều khoản (từ bài test cũ); các route `/tutor/new-classes`, chi tiết, `/nhan-lop`, `/tutor/terms` trả 200. Các lớp mẫu cũ chưa có số buổi/tuần nên chưa tính được phí nhận lớp.
+
 ## Loại gia sư, khu vực Hà Nội và hàng CCCD ngày 2026-10-16
 
 Commit `56e16ea` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `99b6cd5a-e390-4d72-a009-7dccad016d6a`. Không có migration mới. Loại gia sư chỉ gồm Sinh viên / Sinh viên sư phạm / Giáo viên; bỏ "Học phí mong muốn" khỏi biểu mẫu và khỏi điều kiện gửi duyệt (cột vẫn giữ cho danh bạ gia sư công khai); hàng CCCD thẳng hàng; hình thức dạy chỉ Trực tiếp/Trực tuyến và khu vực dạy chỉ 30 quận/huyện Hà Nội, không có "+ Thêm lựa chọn".
