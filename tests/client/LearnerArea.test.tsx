@@ -314,4 +314,36 @@ describe('learner pricing', () => {
       ),
     ).toBeTruthy();
   });
+
+  it('shows tutors the same pricing page with a call to action into their own area', async () => {
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/pricing/learner-guides')
+        return {
+          data: [
+            {
+              id: 'g-1',
+              dimension: 'tutor_type',
+              tutorType: 'teacher',
+              subjectId: null,
+              subjectName: null,
+              educationLevel: 'upper_secondary',
+              minPriceMinor: 250_000,
+              maxPriceMinor: 300_000,
+            },
+          ],
+        };
+      if (req.path === '/pricing/learner-items') return { data: [] };
+      return undefined;
+    });
+    renderRoute('/tutor/pricing');
+    expect(await screen.findByRole('heading', { name: 'Giá Theo Đối Tượng Gia Sư' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Giáo viên', level: 2 })).toBeTruthy();
+    expect(screen.getByText(/Học phí trên là mức tham khảo/)).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Tạo yêu cầu tìm gia sư' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Xem danh sách lớp mới' }).getAttribute('href')).toBe(
+      '/tutor/new-classes',
+    );
+    expect(calls.some((call) => call.path.startsWith('/pricing/learner-guides'))).toBe(true);
+  });
 });

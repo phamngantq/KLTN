@@ -318,8 +318,8 @@ const tutorRoutes: RouteObject[] = [
   {
     path: 'pricing',
     ...page(async () => {
-      const { PublicPricingPage } = await import('../pages/public/PublicPricingPage');
-      return <PublicPricingPage />;
+      const { LearnerPricingPage } = await import('../pages/parent/LearnerPricingPage');
+      return <LearnerPricingPage audience="tutor" />;
     }),
   },
   {

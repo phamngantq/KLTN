@@ -63,7 +63,24 @@ const vnd = (value: number) => `${new Intl.NumberFormat('vi-VN').format(value)}�
 const range = (min: number, max: number) =>
   min === max ? `${vnd(min)}/buổi` : `${vnd(min)} - ${vnd(max)}/buổi`;
 
-export function LearnerPricingPage() {
+// Same page for both areas; only the closing call to action leads to that area's next step.
+const CTA = {
+  learner: {
+    title: 'Muốn biết học phí cho lớp của bạn?',
+    text: 'Gửi yêu cầu để trung tâm tư vấn gia sư và mức học phí phù hợp',
+    to: '/parent/request',
+    label: 'Tạo yêu cầu tìm gia sư',
+  },
+  tutor: {
+    title: 'Sẵn sàng nhận lớp?',
+    text: 'Xem các lớp đang tìm gia sư và gửi yêu cầu nhận lớp phù hợp với bạn',
+    to: '/tutor/new-classes',
+    label: 'Xem danh sách lớp mới',
+  },
+} as const;
+
+export function LearnerPricingPage({ audience = 'learner' }: { audience?: keyof typeof CTA }) {
+  const cta = CTA[audience];
   const guides = useQuery({
     queryKey: ['learner-price-guides'],
     queryFn: ({ signal }) => api.get<LearnerPriceGuide[]>('/pricing/learner-guides', { signal }),
@@ -203,12 +220,10 @@ export function LearnerPricingPage() {
       </aside>
 
       <aside className="mx-auto w-full max-w-5xl rounded-xl bg-surface px-6 py-10 text-center">
-        <h2 className="text-2xl font-semibold text-primary">Muốn biết học phí cho lớp của bạn?</h2>
-        <p className="mt-3 text-muted">
-          Gửi yêu cầu để trung tâm tư vấn gia sư và mức học phí phù hợp
-        </p>
-        <ButtonLink to="/parent/request" variant="accent" className="mt-6">
-          Tạo yêu cầu tìm gia sư
+        <h2 className="text-2xl font-semibold text-primary">{cta.title}</h2>
+        <p className="mt-3 text-muted">{cta.text}</p>
+        <ButtonLink to={cta.to} variant="accent" className="mt-6">
+          {cta.label}
         </ButtonLink>
       </aside>
     </section>
