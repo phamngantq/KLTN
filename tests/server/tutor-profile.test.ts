@@ -73,7 +73,8 @@ describe('tutor profile', () => {
       subjects: [],
     });
     expect(profile.slug).toMatch(/^nguoi-dung-thu-[a-z0-9]{6}$/);
-    expect(profile.missing).toEqual(['subjects', 'hourlyRate', 'teachingMode']);
+    // The hourly rate is no longer part of the profile form, so it is not required.
+    expect(profile.missing).toEqual(['subjects', 'teachingMode']);
   });
 
   it('saves all fields, updates the display name and replaces subjects atomically', async () => {
@@ -125,21 +126,17 @@ describe('tutor profile', () => {
     expect(gradeRows.results.map((row) => row.grade)).toEqual(['Lớp 7']);
   });
 
-  it('saves tutor-added options, keeps grade/area selection in the preference lists', async () => {
+  it('saves tutor-added subjects and grades, keeping grade selection in the preference list', async () => {
     const tutor = await register('tutor');
     const saved = await patch(tutor, {
       subjectIds: ['subj_math'],
       teachesOnline: true,
       preferredGrades: ['Lớp 9', 'Tiền tiểu học', 'Luyện thi chuyên'],
-      preferredAreas: ['Hà Nội', 'Phường Cầu Giấy, Hà Nội'],
       customOptions: [
         { kind: 'subject', label: 'Cờ vua', selected: true },
         { kind: 'subject', label: 'Vẽ', selected: false },
         { kind: 'grade', label: 'Luyện thi chuyên', selected: false },
         { kind: 'grade', label: 'IELTS', selected: true },
-        { kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true },
-        { kind: 'area', label: 'Phường Cầu Giấy, Hà Nội', selected: false },
-        { kind: 'area', label: 'Xã Sóc Sơn, Hà Nội', selected: true },
       ],
     });
     expect(saved.status).toBe(200);
@@ -147,13 +144,10 @@ describe('tutor profile', () => {
     expect(profile?.preferredGrades).toEqual(
       expect.arrayContaining(['Lớp 9', 'Tiền tiểu học', 'Luyện thi chuyên']),
     );
-    // Grade/area flags follow the preference lists, not the client's flag.
+    // Grade flags follow the preference list, not the client's flag.
     expect(profile?.customOptions).toEqual([
-      { kind: 'area', label: 'Phường Cầu Giấy, Hà Nội', selected: true },
-      { kind: 'area', label: 'Xã Sóc Sơn, Hà Nội', selected: false },
       { kind: 'grade', label: 'Luyện thi chuyên', selected: true },
       { kind: 'grade', label: 'IELTS', selected: false },
-      { kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true },
       { kind: 'subject', label: 'Cờ vua', selected: true },
       { kind: 'subject', label: 'Vẽ', selected: false },
     ]);
@@ -171,6 +165,35 @@ describe('tutor profile', () => {
     expect((await getProfile(tutor))?.customOptions).toEqual([]);
   });
 
+  it('accepts several Hà Nội districts and the three tutor types, and restores them', async () => {
+    const tutor = await register('tutor');
+    for (const tutorType of ['university_student', 'pedagogy_student', 'teacher'] as const) {
+      expect((await patch(tutor, { tutorType })).status).toBe(200);
+      expect((await getProfile(tutor))?.tutorType).toBe(tutorType);
+    }
+    const saved = await patch(tutor, {
+      teachesOnline: false,
+      teachesOffline: true,
+      preferredAreas: ['Thanh Xuân', 'Cầu Giấy', 'Hai Bà Trưng', 'Hà Đông', 'Sóc Sơn'],
+    });
+    expect(saved.status).toBe(200);
+    expect(await getProfile(tutor)).toMatchObject({
+      teachesOnline: false,
+      teachesOffline: true,
+      preferredAreas: expect.arrayContaining([
+        'Thanh Xuân',
+        'Cầu Giấy',
+        'Hai Bà Trưng',
+        'Hà Đông',
+        'Sóc Sơn',
+      ]),
+    });
+    // The hourly rate stays out of the form but an existing value is kept untouched.
+    await patch(tutor, { hourlyRateMinor: 200_000 });
+    await patch(tutor, { bio: 'Cập nhật giới thiệu' });
+    expect((await getProfile(tutor))?.hourlyRateMinor).toBe(200_000);
+  });
+
   it.each([
     ['rate not a multiple of 1000', { hourlyRateMinor: 250_500 }],
     ['rate below minimum', { hourlyRateMinor: 5_000 }],
@@ -182,24 +205,32 @@ describe('tutor profile', () => {
     ['owner override', { userId: 'someone-else' }],
     ['unknown grade', { preferredGrades: ['Lớp 13'] }],
     ['duplicate grade', { preferredGrades: ['Lớp 10', 'Lớp 10'] }],
-    ['too many areas', { preferredAreas: Array.from({ length: 41 }, (_, i) => `Area ${i}`) }],
+    ['area outside Hà Nội', { preferredAreas: ['Cầu Giấy', 'Quận 1'] }],
+    ['a province instead of a district', { preferredAreas: ['Hà Nội'] }],
+    ['unknown tutor type', { tutorType: 'professor' }],
+    ['CCCD with 11 digits', { idNumber: '00830500064' }],
+    ['impossible issue date', { idIssuedOn: '2021-02-31' }],
     ['empty custom option', { customOptions: [{ kind: 'subject', label: '  ', selected: true }] }],
     [
       'duplicate custom option',
       {
         customOptions: [
-          { kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true },
-          { kind: 'mode', label: 'kèm cặp  tại trung tâm', selected: false },
+          { kind: 'subject', label: 'Cờ vua', selected: true },
+          { kind: 'subject', label: 'cờ  vua', selected: false },
         ],
       },
+    ],
+    [
+      'tutor-added teaching mode',
+      { customOptions: [{ kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true }] },
     ],
     [
       'custom option repeating a default',
       { customOptions: [{ kind: 'subject', label: 'toán', selected: true }] },
     ],
     [
-      'custom option repeating a province',
-      { customOptions: [{ kind: 'area', label: 'Hà Nội', selected: true }] },
+      'tutor-added area',
+      { customOptions: [{ kind: 'area', label: 'Phường Cầu Giấy, Hà Nội', selected: true }] },
     ],
     ['duplicate areas', { preferredAreas: ['Cầu Giấy', 'cầu giấy'] }],
     ['invalid negotiable time', { negotiableTime: 'yes' }],
@@ -239,7 +270,7 @@ describe('POST /tutor/profile/submit', () => {
     expect(res.status).toBe(422);
     const body = await res.json<ApiErrorBody>();
     expect(body.error.code).toBe('PROFILE_INCOMPLETE');
-    expect(body.error.details).toEqual(['subjects', 'hourlyRate', 'teachingMode']);
+    expect(body.error.details).toEqual(['subjects', 'teachingMode']);
   });
 
   it('moves draft → pending once, keeps the profile private', async () => {

@@ -150,7 +150,6 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await signUp(tutor, 'tutor', tutorName, uniqueEmail('tutor'));
     await tutor.goto('/tutor/profile');
     await tutor.getByLabel('Giới thiệu bản thân').fill('Gia sư Toán trong kiểm thử local D1.');
-    await tutor.getByLabel(/Học phí/).fill('200000');
     // The second tab keeps the first tab's edits; one save stores both.
     await tutor.getByRole('tab', { name: 'Đăng ký lớp học phù hợp' }).click();
     await tutor.getByLabel('Toán', { exact: true }).check();
@@ -454,7 +453,6 @@ test('tutor contract → public offer → parent join → private contact → co
     await tutor
       .getByLabel('Giới thiệu bản thân')
       .fill('Gia sư Toán đăng lớp tìm học viên trong E2E.');
-    await tutor.getByLabel(/Học phí/).fill('200000');
     await tutor.getByRole('tab', { name: 'Đăng ký lớp học phù hợp' }).click();
     await tutor.getByLabel('Toán', { exact: true }).check();
     await tutor.getByLabel('Trực tiếp', { exact: true }).check();

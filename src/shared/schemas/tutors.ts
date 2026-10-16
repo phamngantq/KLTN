@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { HANOI_DISTRICTS, isHanoiDistrict } from './hanoi-wards';
+import { TUTOR_TYPES } from './pricing';
 
 export const MIN_HOURLY_RATE = 10_000;
 export const MAX_HOURLY_RATE = 10_000_000;
@@ -13,11 +15,18 @@ export const DEFAULT_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp
 ]);
 /** System grades; the last one is legacy, kept valid for profiles that already chose it. */
 export const GRADE_OPTIONS = [...DEFAULT_GRADE_OPTIONS, 'Tiếng Anh giao tiếp'];
-export const MAX_PREFERRED_AREAS = 40;
+/** Every Hà Nội district can be chosen; the D1 quota (40) stays above it. */
+export const MAX_PREFERRED_AREAS = HANOI_DISTRICTS.length;
 
-/** "Tự thêm lựa chọn": tutor-added options per group, at most MAX_CUSTOM_OPTIONS each. */
+/**
+ * "Tự thêm lựa chọn": tutor-added options per group, at most MAX_CUSTOM_OPTIONS each.
+ * Storage still knows "mode" and "area" rows saved earlier; new saves accept only the
+ * groups that keep "+ Thêm lựa chọn" (teaching modes and Hà Nội areas are fixed lists).
+ */
 export const CUSTOM_OPTION_KINDS = ['subject', 'grade', 'mode', 'area'] as const;
 export type CustomOptionKind = (typeof CUSTOM_OPTION_KINDS)[number];
+export const EDITABLE_OPTION_KINDS = ['subject', 'grade'] as const;
+export type EditableOptionKind = (typeof EDITABLE_OPTION_KINDS)[number];
 export const MAX_CUSTOM_OPTIONS = 20;
 /** Built-in "Hình thức có thể dạy"; they map to teachesOffline / teachesOnline. */
 export const DEFAULT_MODE_OPTIONS = ['Trực tiếp', 'Trực tuyến'] as const;
@@ -38,7 +47,7 @@ const customOptionsSchema = z
   .array(
     z
       .strictObject({
-        kind: z.enum(CUSTOM_OPTION_KINDS),
+        kind: z.enum(EDITABLE_OPTION_KINDS, 'Nhóm này không cho thêm lựa chọn.'),
         label: z.string().trim().min(1, 'Lựa chọn không được để trống.').max(80),
         selected: z.boolean(),
       })
@@ -47,10 +56,10 @@ const customOptionsSchema = z
         path: ['label'],
       }),
   )
-  .max(CUSTOM_OPTION_KINDS.length * MAX_CUSTOM_OPTIONS)
+  .max(EDITABLE_OPTION_KINDS.length * MAX_CUSTOM_OPTIONS)
   .refine(
     (options) =>
-      CUSTOM_OPTION_KINDS.every(
+      EDITABLE_OPTION_KINDS.every(
         (kind) => options.filter((option) => option.kind === kind).length <= MAX_CUSTOM_OPTIONS,
       ),
     `Mỗi nhóm chỉ thêm tối đa ${MAX_CUSTOM_OPTIONS} lựa chọn.`,
@@ -67,8 +76,14 @@ const preferredGradesSchema = z
   .array(z.string().trim().min(1).max(40))
   .max(MAX_PREFERRED_GRADES)
   .refine((grades) => new Set(grades).size === grades.length, 'Lớp học bị trùng.');
+// Teaching areas are Hà Nội districts only; the server rejects anything else.
 const preferredAreasSchema = z
-  .array(z.string().trim().min(1).max(80))
+  .array(
+    z
+      .string()
+      .trim()
+      .refine((area): boolean => isHanoiDistrict(area), 'Khu vực phải là quận/huyện thuộc Hà Nội.'),
+  )
   .max(MAX_PREFERRED_AREAS)
   .refine(
     (areas) => new Set(areas.map((area) => area.toLocaleLowerCase('vi'))).size === areas.length,
@@ -123,7 +138,7 @@ export const updateTutorProfileSchema = z
     preferredAreas: preferredAreasSchema,
     negotiableTime: z.boolean(),
     customOptions: customOptionsSchema,
-    tutorType: z.enum(['university_student', 'pedagogy_student', 'teacher']).nullable(),
+    tutorType: z.enum(TUTOR_TYPES, 'Loại gia sư không hợp lệ.').nullable(),
     school: z.string().trim().min(1).max(120).nullable(),
     specialization: z.string().trim().min(1).max(160).nullable(),
     experienceYears: z.number().int().min(0).max(60).nullable(),

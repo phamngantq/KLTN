@@ -664,11 +664,11 @@ describe('published classes and tutor applications', () => {
 
   it('matches a broad area as a complete segment, not a prefix of another district', async () => {
     const admin = await moderator();
-    const tutor = await createPublicTutor({
-      subjectIds: ['subj_history'],
-      teachesOffline: true,
-      preferredAreas: ['Quận 1'],
-    });
+    const tutor = await createPublicTutor({ subjectIds: ['subj_history'], teachesOffline: true });
+    // A free-text area saved before the Hà Nội district list still matches as a whole unit.
+    await env.DB.prepare("INSERT INTO tutor_preference_areas (tutor_id, area) VALUES (?, 'Quận 1')")
+      .bind(tutor.userId)
+      .run();
     const createOffline = async (publicArea: string) => {
       const parent = await register('parent');
       const request = await createSubmittedRequest(parent, {
@@ -698,7 +698,8 @@ describe('published classes and tutor applications', () => {
       coverage: 65,
       level: 'uncertain',
       adjustments: ['area'],
-      profileChangesPreview: { preferredArea: 'Quận 10' },
+      // Only Hà Nội districts are offered as a profile change.
+      profileChangesPreview: { preferredArea: null },
     });
     const longDistrict = await createOffline(`${'A'.repeat(81)}, TP.HCM`);
     expect((await get(longDistrict.id)).match).toMatchObject({
@@ -720,7 +721,7 @@ describe('published classes and tutor applications', () => {
     ).toMatchObject({ score: 15, status: 'match' });
     const unicodeDistrict = await createOffline('Đống Đa, Hà Nội');
     expect(
-      (await api('/tutor/profile', jsonInit('PATCH', { preferredAreas: ['đống đa'] }, tutor)))
+      (await api('/tutor/profile', jsonInit('PATCH', { preferredAreas: ['Đống Đa'] }, tutor)))
         .status,
     ).toBe(200);
     expect(
@@ -737,14 +738,14 @@ describe('published classes and tutor applications', () => {
       area: 'Phường Hoàn Kiếm, Hà Nội',
     });
     const draft = (
-      await (await createClass(admin, request, 'Quận 10, TP.HCM')).json<ApiSuccess<AdminClass>>()
+      await (await createClass(admin, request, 'Hoàng Mai, Hà Nội')).json<ApiSuccess<AdminClass>>()
     ).data;
     const cls = await publishClass(admin, draft);
     const tutor = await createPublicTutor({
       subjectIds: ['subj_history'],
       teachesOffline: true,
       preferredGrades: ['Lớp 9'],
-      preferredAreas: ['Quận 1'],
+      preferredAreas: ['Cầu Giấy'],
     });
     await env.DB.prepare(
       `INSERT INTO availability_rules
@@ -765,7 +766,7 @@ describe('published classes and tutor applications', () => {
       adjustments: ['grade', 'area', 'schedule'],
       profileChangesPreview: {
         preferredGrade: 'Lớp 10',
-        preferredArea: 'Quận 10',
+        preferredArea: 'Hoàng Mai',
         negotiableTime: true,
       },
     });
@@ -851,7 +852,7 @@ describe('published classes and tutor applications', () => {
       >()
     ).data;
     expect(profile.preferredGrades).toEqual(expect.arrayContaining(['Lớp 9', 'Lớp 10']));
-    expect(profile.preferredAreas).toEqual(expect.arrayContaining(['Quận 1', 'Quận 10']));
+    expect(profile.preferredAreas).toEqual(expect.arrayContaining(['Cầu Giấy', 'Hoàng Mai']));
     expect(profile).toMatchObject({ negotiableTime: true, approvalStatus: 'approved' });
     expect(
       await env.DB.prepare('SELECT count(*) AS n FROM availability_rules WHERE tutor_id = ?')
@@ -877,8 +878,16 @@ describe('published classes and tutor applications', () => {
       subjectIds: ['subj_history'],
       teachesOffline: true,
       preferredGrades: ['Lớp 10'],
-      preferredAreas: Array.from({ length: 40 }, (_, index) => `Khu ${index + 1}`),
     });
+    // A tutor already at the D1 area quota (rows from before the Hà Nội district list).
+    await env.DB.batch(
+      Array.from({ length: 40 }, (_, index) =>
+        env.DB.prepare('INSERT INTO tutor_preference_areas (tutor_id, area) VALUES (?, ?)').bind(
+          fullTutor.userId,
+          `Khu ${index + 1}`,
+        ),
+      ),
+    );
     await passAndAcknowledgeTutorTerms(fullTutor);
     const rejected = await apply(fullTutor, ['area']);
     expect(rejected.status).toBe(409);

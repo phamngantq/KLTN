@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { BookOpen, CircleCheck, UserRound } from 'lucide-react';
+import { BookOpen, CircleCheck, UserRound, X } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import {
   DEFAULT_TIMEZONE,
@@ -7,18 +7,21 @@ import {
   type WeeklyAvailability,
   type WeeklyRule,
 } from '../../../shared/schemas/availability';
-import { HANOI_CITY, HANOI_WARDS } from '../../../shared/schemas/hanoi-wards';
-import { provinceOfArea, VN_PROVINCES } from '../../../shared/schemas/provinces';
+import {
+  HANOI_DISTRICTS,
+  HANOI_SUBURBAN_DISTRICTS,
+  HANOI_URBAN_DISTRICTS,
+  hanoiDistrictOf,
+} from '../../../shared/schemas/hanoi-wards';
 import {
   DEFAULT_GRADE_OPTIONS,
   DEFAULT_MODE_OPTIONS,
   GRADE_OPTIONS,
   MAX_CUSTOM_OPTIONS,
-  MAX_PREFERRED_AREAS,
   MAX_SUBJECTS_PER_TUTOR,
   optionKey,
   PROFILE_REQUIREMENT_LABELS,
-  type CustomOptionKind,
+  type EditableOptionKind,
   type Subject,
   type TutorCustomOption,
   type TutorProfile,
@@ -31,7 +34,6 @@ import {
 } from '../../components/domain/RequestScheduleGrid';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
-import { SelectField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useSaveWeekly, useWeeklyAvailability } from '../../features/availability/api';
 import {
@@ -73,7 +75,6 @@ const SUBJECT_ORDER = [
   'dia-ly',
   'tin-hoc',
 ];
-const PROVINCES_SHOWN = 6;
 const INLINE_ERROR_FIELDS = new Set([
   'phone',
   'dateOfBirth',
@@ -84,7 +85,6 @@ const INLINE_ERROR_FIELDS = new Set([
   'idResidence',
   'displayName',
   'bio',
-  'hourlyRateMinor',
   'tutorType',
   'school',
   'specialization',
@@ -98,25 +98,29 @@ const isGridRule = (rule: WeeklyRule) =>
   !rule.effectiveTo &&
   isRequestGridWindow({ weekday: rule.weekday, startLocal: rule.start, endLocal: rule.end });
 
+/** Saved areas as catalogue districts; anything outside Hà Nội is reported, not kept. */
+function splitAreas(areas: string[]): { districts: string[]; outside: string[] } {
+  const districts: string[] = [];
+  const outside: string[] = [];
+  for (const area of areas) {
+    const district = hanoiDistrictOf(area);
+    if (!district) outside.push(area);
+    else if (!districts.includes(district)) districts.push(district);
+  }
+  return { districts, outside };
+}
+
 function toForm(
   profile: TutorProfile | null,
   availability: WeeklyAvailability,
   fallbackName: string,
 ): FormState {
-  const preferredAreas = profile?.preferredAreas ?? [];
-  const customOptions = profile?.customOptions ?? [];
-  // Areas saved before the province list (free text) become the tutor's own options.
-  const knownAreas = new Set(
-    customOptions.filter((option) => option.kind === 'area').map((o) => optionKey(o.label)),
+  // Teaching modes and areas are fixed lists now; only subject/grade options stay editable.
+  const customOptions = (profile?.customOptions ?? []).filter(
+    (option) => option.kind === 'subject' || option.kind === 'grade',
   );
-  const legacyAreas = preferredAreas
-    .filter((area) => !(VN_PROVINCES as readonly string[]).includes(area))
-    .filter((area) => !knownAreas.has(optionKey(area)))
-    .map((label): TutorCustomOption => ({ kind: 'area', label, selected: true }));
-  const chosen = {
-    grade: new Set((profile?.preferredGrades ?? []).map(optionKey)),
-    area: new Set(preferredAreas.map(optionKey)),
-  };
+  const chosenGrades = new Set((profile?.preferredGrades ?? []).map(optionKey));
+  const { districts: preferredAreas } = splitAreas(profile?.preferredAreas ?? []);
   return {
     ...basicFieldsOf(profile, fallbackName),
     subjectIds: profile?.subjects.map((s) => s.id) ?? [],
@@ -125,9 +129,9 @@ function toForm(
     preferredGrades: profile?.preferredGrades ?? [],
     preferredAreas,
     negotiableTime: profile?.negotiableTime ?? false,
-    customOptions: [...customOptions, ...legacyAreas].map((option) =>
-      option.kind === 'grade' || option.kind === 'area'
-        ? { ...option, selected: chosen[option.kind].has(optionKey(option.label)) }
+    customOptions: customOptions.map((option) =>
+      option.kind === 'grade'
+        ? { ...option, selected: chosenGrades.has(optionKey(option.label)) }
         : option,
     ),
     windows: availability.rules
@@ -206,10 +210,12 @@ function ProfileForm({
     toForm(profile, availability, user?.displayName ?? ''),
   );
   const [form, setForm] = useState<FormState>(initial);
-  const [showAllProvinces, setShowAllProvinces] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [dateError, setDateError] = useState<string | null>(null);
+  const [basicErrors, setBasicErrors] = useState<
+    Partial<Record<'idIssuedOn' | 'idNumber', string>>
+  >({});
+  const outsideAreas = splitAreas(profile?.preferredAreas ?? []).outside;
   const [saved, setSaved] = useState(false);
   const update = useUpdateProfile();
   const saveWeekly = useSaveWeekly();
@@ -220,7 +226,7 @@ function ProfileForm({
   const errors = fieldErrors(update.error);
   const status = profile?.approvalStatus ?? 'draft';
   const saving = update.isPending || saveWeekly.isPending;
-  const custom = (kind: CustomOptionKind) =>
+  const custom = (kind: EditableOptionKind) =>
     form.customOptions.filter((option) => option.kind === kind);
 
   function selectTab(next: Tab) {
@@ -249,18 +255,17 @@ function ProfileForm({
     return checked ? [...list, value] : list.filter((item) => item !== value);
   }
 
-  function toggleCustom(kind: CustomOptionKind, label: string, checked: boolean) {
+  function toggleCustom(kind: EditableOptionKind, label: string, checked: boolean) {
     const next: Partial<FormState> = {
       customOptions: form.customOptions.map((option) =>
         option.kind === kind && option.label === label ? { ...option, selected: checked } : option,
       ),
     };
     if (kind === 'grade') next.preferredGrades = toggleIn(form.preferredGrades, label, checked);
-    if (kind === 'area') next.preferredAreas = toggleIn(form.preferredAreas, label, checked);
     patch(next);
   }
 
-  function removeCustom(kind: CustomOptionKind, label: string) {
+  function removeCustom(kind: EditableOptionKind, label: string) {
     patch({
       customOptions: form.customOptions.filter(
         (option) => !(option.kind === kind && option.label === label),
@@ -268,14 +273,11 @@ function ProfileForm({
       ...(kind === 'grade' && {
         preferredGrades: form.preferredGrades.filter((item) => item !== label),
       }),
-      ...(kind === 'area' && {
-        preferredAreas: form.preferredAreas.filter((item) => item !== label),
-      }),
     });
   }
 
   /** Adds a tutor option, selected; returns an error message when it is rejected. */
-  function addCustom(kind: CustomOptionKind, raw: string, builtIn: string[]): string | null {
+  function addCustom(kind: EditableOptionKind, raw: string, builtIn: string[]): string | null {
     const label = raw.trim().replace(/\s+/g, ' ');
     if (!label) return 'Vui lòng nhập lựa chọn.';
     if (label.length > (kind === 'grade' ? 40 : 80))
@@ -288,12 +290,9 @@ function ProfileForm({
       return 'Lựa chọn này đã có trong danh sách.';
     if (custom(kind).length >= MAX_CUSTOM_OPTIONS)
       return `Mỗi nhóm chỉ thêm tối đa ${MAX_CUSTOM_OPTIONS} lựa chọn.`;
-    if (kind === 'area' && form.preferredAreas.length >= MAX_PREFERRED_AREAS)
-      return `Chỉ được chọn tối đa ${MAX_PREFERRED_AREAS} khu vực.`;
     patch({
       customOptions: [...form.customOptions, { kind, label, selected: true }],
       ...(kind === 'grade' && { preferredGrades: [...form.preferredGrades, label] }),
-      ...(kind === 'area' && { preferredAreas: [...form.preferredAreas, label] }),
     });
     return null;
   }
@@ -311,13 +310,20 @@ function ProfileForm({
       selectTab('preferences');
       return;
     }
-    if (form.preferredAreas.length > MAX_PREFERRED_AREAS) {
-      setLocalError(`Chỉ được chọn tối đa ${MAX_PREFERRED_AREAS} khu vực.`);
+    if (form.preferredAreas.some((area) => !hanoiDistrictOf(area))) {
+      setLocalError('Khu vực dạy chỉ gồm các quận/huyện thuộc Hà Nội.');
+      selectTab('preferences');
       return;
     }
     const issued = issuedOn(form);
-    if (issued.error) {
-      setDateError(issued.error);
+    const idNumber = form.idNumber.trim();
+    const idNumberError =
+      idNumber && !/^[0-9]{12}$/.test(idNumber) ? 'Số thẻ CCCD gồm đúng 12 chữ số.' : null;
+    if (issued.error || idNumberError) {
+      setBasicErrors({
+        ...(issued.error && { idIssuedOn: issued.error }),
+        ...(idNumberError && { idNumber: idNumberError }),
+      });
       selectTab('basic');
       return;
     }
@@ -332,7 +338,10 @@ function ProfileForm({
         preferredGrades: form.preferredGrades,
         preferredAreas: form.preferredAreas,
         negotiableTime: form.negotiableTime,
-        customOptions: form.customOptions,
+        customOptions: form.customOptions.filter(
+          (option): option is TutorCustomOption & { kind: EditableOptionKind } =>
+            option.kind === 'subject' || option.kind === 'grade',
+        ),
         tutorType: form.tutorType || null,
         school: form.school.trim() || null,
         specialization: form.specialization.trim() || null,
@@ -346,7 +355,6 @@ function ProfileForm({
         idIssuedOn: issued.value,
         idResidence: form.idResidence.trim() || null,
         idVerification: form.idVerification,
-        ...(form.hourlyRate.trim() !== '' && { hourlyRateMinor: Number(form.hourlyRate) }),
       });
       let weekly = availability;
       const scheduleChanged =
@@ -399,14 +407,6 @@ function ProfileForm({
       SUBJECT_ORDER.includes(subject.slug) ? SUBJECT_ORDER.indexOf(subject.slug) : 99;
     return rank(a) - rank(b);
   });
-  const selectedProvinces = VN_PROVINCES.filter((province) =>
-    form.preferredAreas.includes(province),
-  );
-  const shownProvinces = showAllProvinces
-    ? VN_PROVINCES
-    : VN_PROVINCES.filter(
-        (province, index) => index < PROVINCES_SHOWN || form.preferredAreas.includes(province),
-      );
   const legacyGrades = GRADE_OPTIONS.filter(
     (grade) => !DEFAULT_GRADE_OPTIONS.includes(grade) && form.preferredGrades.includes(grade),
   );
@@ -517,11 +517,11 @@ function ProfileForm({
             profile={profile}
             fields={form}
             onChange={(next) => {
-              setDateError(null);
+              setBasicErrors({});
               patch(next);
             }}
             errors={errors}
-            localErrors={dateError ? { idIssuedOn: dateError } : {}}
+            localErrors={basicErrors}
           />
           {saveBar('basic')}
         </div>
@@ -622,97 +622,76 @@ function ProfileForm({
               legend="Hình thức có thể dạy"
               columns="sm:grid-cols-2 lg:grid-cols-3"
               options={[
-                {
-                  key: 's:offline',
-                  label: DEFAULT_MODE_OPTIONS[0],
-                  checked: form.teachesOffline,
-                },
-                { key: 's:online', label: DEFAULT_MODE_OPTIONS[1], checked: form.teachesOnline },
-                ...custom('mode').map((option) => ({
-                  key: `c:${option.label}`,
-                  label: option.label,
-                  checked: option.selected,
-                  removable: true,
-                })),
+                { key: 'offline', label: DEFAULT_MODE_OPTIONS[0], checked: form.teachesOffline },
+                { key: 'online', label: DEFAULT_MODE_OPTIONS[1], checked: form.teachesOnline },
               ]}
-              onToggle={(key, checked) => {
-                if (key === 's:offline') patch({ teachesOffline: checked });
-                else if (key === 's:online') patch({ teachesOnline: checked });
-                else toggleCustom('mode', key.slice(2), checked);
-              }}
-              onRemove={(key) => removeCustom('mode', key.slice(2))}
-              onAdd={(label) => addCustom('mode', label, [...DEFAULT_MODE_OPTIONS])}
+              onToggle={(key, checked) =>
+                patch(key === 'offline' ? { teachesOffline: checked } : { teachesOnline: checked })
+              }
             />
 
-            <OptionTiles
-              legend="Khu vực có thể dạy"
-              description="Chọn tỉnh/thành phố, sau đó thêm quận/huyện, phường/xã hoặc khu vực cụ thể."
-              columns="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
-              options={[
-                ...shownProvinces.map((province) => ({
-                  key: `s:${province}`,
-                  label: province,
-                  checked: form.preferredAreas.includes(province),
-                })),
-                ...custom('area').map((option) => ({
-                  key: `c:${option.label}`,
-                  label: option.label.split(',')[0]!.trim(),
-                  hint: provinceOfArea(option.label) ?? undefined,
-                  checked: option.selected,
-                  removable: true,
-                })),
-              ]}
-              onToggle={(key, checked) => {
-                if (!key.startsWith('s:')) return toggleCustom('area', key.slice(2), checked);
-                if (checked && form.preferredAreas.length >= MAX_PREFERRED_AREAS) {
-                  setLocalError(`Chỉ được chọn tối đa ${MAX_PREFERRED_AREAS} khu vực.`);
-                  return;
+            {(
+              [
+                ['Khu vực có thể dạy — Nội thành Hà Nội', HANOI_URBAN_DISTRICTS],
+                ['Khu vực có thể dạy — Ngoại thành Hà Nội', HANOI_SUBURBAN_DISTRICTS],
+              ] as const
+            ).map(([legend, districts], index) => (
+              <OptionTiles
+                key={legend}
+                legend={legend}
+                description={
+                  index === 0
+                    ? 'Chỉ nhận lớp trong phạm vi Hà Nội. Chọn một hoặc nhiều quận/huyện.'
+                    : undefined
                 }
-                patch({ preferredAreas: toggleIn(form.preferredAreas, key.slice(2), checked) });
-              }}
-              onRemove={(key) => removeCustom('area', key.slice(2))}
-              addForm={(close) => (
-                <AreaAddForm
-                  provinces={selectedProvinces}
-                  onCancel={close}
-                  onAdd={(label) => {
-                    const message = addCustom('area', label, [...VN_PROVINCES]);
-                    if (!message) close();
-                    return message;
-                  }}
-                />
-              )}
-            >
-              <button
-                type="button"
-                onClick={() => setShowAllProvinces((value) => !value)}
-                aria-expanded={showAllProvinces}
-                className="inline-flex min-h-11 items-center self-start rounded-md px-2 text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-              >
-                {showAllProvinces
-                  ? 'Thu gọn danh sách tỉnh/thành phố'
-                  : `Xem tất cả ${VN_PROVINCES.length} tỉnh/thành phố`}
-              </button>
-              <div className="rounded-lg bg-surface p-3 text-sm">
-                <p className="font-medium text-primary">
-                  Khu vực đã chọn ({form.preferredAreas.length}/{MAX_PREFERRED_AREAS})
-                </p>
-                {form.preferredAreas.length === 0 ? (
-                  <p className="mt-1 text-muted">Chưa chọn khu vực nào.</p>
-                ) : (
-                  <ul aria-label="Khu vực đã chọn" className="mt-2 flex flex-wrap gap-2">
-                    {form.preferredAreas.map((area) => (
-                      <li
-                        key={area}
-                        className="rounded-full bg-info-surface px-3 py-1 text-primary"
+                columns="grid-cols-2 sm:grid-cols-3 lg:grid-cols-4"
+                options={districts.map((district) => ({
+                  key: district,
+                  label: district,
+                  checked: form.preferredAreas.includes(district),
+                }))}
+                onToggle={(district, checked) =>
+                  patch({ preferredAreas: toggleIn(form.preferredAreas, district, checked) })
+                }
+              />
+            ))}
+            <div className="-mt-4 flex flex-col gap-2 rounded-lg bg-surface p-3 text-sm">
+              <p className="font-medium text-primary">
+                Khu vực đã chọn ({form.preferredAreas.length}/{HANOI_DISTRICTS.length})
+              </p>
+              {form.preferredAreas.length === 0 ? (
+                <p className="text-muted">Chưa chọn khu vực nào.</p>
+              ) : (
+                <ul aria-label="Khu vực đã chọn" className="flex flex-wrap gap-2">
+                  {form.preferredAreas.map((area) => (
+                    <li
+                      key={area}
+                      className="flex items-center gap-1 rounded-full bg-info-surface pl-3 text-primary"
+                    >
+                      {area}
+                      <button
+                        type="button"
+                        aria-label={`Bỏ chọn ${area}`}
+                        onClick={() =>
+                          patch({
+                            preferredAreas: form.preferredAreas.filter((item) => item !== area),
+                          })
+                        }
+                        className="flex size-9 items-center justify-center rounded-full hover:text-danger focus-visible:outline-2 focus-visible:outline-focus"
                       >
-                        {area}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            </OptionTiles>
+                        <X aria-hidden="true" className="size-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {outsideAreas.length > 0 && (
+                <p role="note" className="text-xs text-warning">
+                  Khu vực đã lưu trước đây không thuộc danh mục Hà Nội và sẽ được bỏ khi lưu:{' '}
+                  {outsideAreas.join(', ')}.
+                </p>
+              )}
+            </div>
 
             <fieldset className="flex min-w-0 flex-col gap-3">
               <legend className="mb-1 text-base font-semibold text-primary">
@@ -765,90 +744,5 @@ function ProfileForm({
         </div>
       </form>
     </section>
-  );
-}
-
-/** "+ Thêm lựa chọn" for areas: a chosen province plus a ward/district or place. */
-function AreaAddForm({
-  provinces,
-  onAdd,
-  onCancel,
-}: {
-  provinces: string[];
-  onAdd: (label: string) => string | null;
-  onCancel: () => void;
-}) {
-  const [province, setProvince] = useState(provinces[0] ?? '');
-  const [place, setPlace] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const listId = useId();
-  if (provinces.length === 0) {
-    return (
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-dashed border-primary/40 p-3 text-sm">
-        <p className="text-muted">Chọn ít nhất một tỉnh/thành phố trước khi thêm khu vực cụ thể.</p>
-        <Button type="button" variant="secondary" size="sm" onClick={onCancel}>
-          Đóng
-        </Button>
-      </div>
-    );
-  }
-  function confirm() {
-    const name = place.trim().replace(/\s+/g, ' ');
-    if (!name) {
-      setError('Vui lòng nhập khu vực cụ thể.');
-      return;
-    }
-    setError(onAdd(`${name}, ${province}`));
-  }
-  return (
-    <div className="grid gap-3 rounded-xl border border-dashed border-primary/40 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] sm:items-end">
-      <SelectField
-        label="Tỉnh/thành phố"
-        value={province}
-        onChange={(event) => {
-          setProvince(event.target.value);
-          setError(null);
-        }}
-      >
-        {provinces.map((item) => (
-          <option key={item} value={item}>
-            {item}
-          </option>
-        ))}
-      </SelectField>
-      <TextField
-        label="Quận/huyện, phường/xã hoặc khu vực"
-        list={province === HANOI_CITY ? listId : undefined}
-        maxLength={60}
-        placeholder={province === HANOI_CITY ? 'Ví dụ: Phường Cầu Giấy' : 'Nhập khu vực cụ thể'}
-        value={place}
-        onChange={(event) => {
-          setPlace(event.target.value);
-          setError(null);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            confirm();
-          }
-        }}
-        error={error ?? undefined}
-      />
-      {province === HANOI_CITY && (
-        <datalist id={listId}>
-          {HANOI_WARDS.map((ward) => (
-            <option key={ward} value={ward} />
-          ))}
-        </datalist>
-      )}
-      <div className="flex gap-2">
-        <Button type="button" onClick={confirm}>
-          Thêm
-        </Button>
-        <Button type="button" variant="secondary" onClick={onCancel}>
-          Hủy
-        </Button>
-      </div>
-    </div>
   );
 }

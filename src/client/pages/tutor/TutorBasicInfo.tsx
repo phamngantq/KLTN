@@ -4,7 +4,6 @@ import { FileText, ImagePlus, Trash2, Upload } from 'lucide-react';
 import { TUTOR_TYPE_LABELS, TUTOR_TYPES } from '../../../shared/schemas/pricing';
 import {
   MAX_TUTOR_CREDENTIALS,
-  RATE_STEP,
   TUTOR_DOCUMENT_MAX_BYTES,
   TUTOR_DOCUMENT_TYPES,
   type IdVerificationMethod,
@@ -16,7 +15,6 @@ import { Button } from '../../components/ui/Button';
 import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
 import { OWN_PROFILE_KEY } from '../../features/tutor-profile/api';
 import { api } from '../../lib/api-client';
-import { formatVnd } from '../../lib/format';
 import { ProfilePhotoField } from './ProfilePhotoField';
 
 /** "Thông tin cơ bản" fields, kept as raw input strings until saved. */
@@ -32,7 +30,6 @@ export interface BasicFields {
   specialization: string;
   experienceSummary: string;
   bio: string;
-  hourlyRate: string;
   idNumber: string;
   idIssuedDay: string;
   idIssuedMonth: string;
@@ -55,7 +52,6 @@ export function basicFieldsOf(profile: TutorProfile | null, fallbackName: string
     specialization: profile?.specialization ?? '',
     experienceSummary: profile?.experienceSummary ?? '',
     bio: profile?.bio ?? '',
-    hourlyRate: profile?.hourlyRateMinor != null ? String(profile.hourlyRateMinor) : '',
     idNumber: profile?.idNumber ?? '',
     idIssuedDay: day,
     idIssuedMonth: month,
@@ -119,10 +115,10 @@ export function BasicInfoFields({
   fields: BasicFields;
   onChange: (next: Partial<BasicFields>) => void;
   errors: Record<string, string>;
-  localErrors: Partial<Record<'idIssuedOn', string>>;
+  localErrors: Partial<Record<'idIssuedOn' | 'idNumber', string>>;
 }) {
-  const rate = Number(fields.hourlyRate);
   const documents = profile?.documents ?? [];
+
   return (
     <>
       <Card title="Thông tin cá nhân">
@@ -256,67 +252,58 @@ export function BasicInfoFields({
           onChange={(e) => onChange({ bio: e.target.value })}
           error={errors.bio}
         />
-        <TextField
-          label="Học phí mong muốn (₫/giờ)"
-          inputMode="numeric"
-          type="number"
-          min={10000}
-          step={RATE_STEP}
-          value={fields.hourlyRate}
-          onChange={(e) => onChange({ hourlyRate: e.target.value })}
-          hint={
-            fields.hourlyRate && Number.isFinite(rate)
-              ? `${formatVnd(rate)} mỗi giờ. Bội số của 1.000 ₫.`
-              : 'Bội số của 1.000 ₫, tối thiểu 10.000 ₫.'
-          }
-          error={errors.hourlyRateMinor}
-        />
       </Card>
 
       <Card title="Thẻ căn cước">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)]">
-          <TextField
-            label="Số thẻ CCCD"
-            hint="Căn cước công dân, 12 chữ số"
-            inputMode="numeric"
-            maxLength={12}
-            value={fields.idNumber}
-            onChange={(e) => onChange({ idNumber: e.target.value.replace(/\D/g, '') })}
-            error={errors.idNumber}
-          />
-          <fieldset className="flex min-w-0 flex-col gap-1">
-            <legend className="mb-1 text-sm font-medium">Ngày cấp</legend>
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  ['idIssuedDay', 'Ngày', 2],
-                  ['idIssuedMonth', 'Tháng', 2],
-                  ['idIssuedYear', 'Năm', 4],
-                ] as const
-              ).map(([key, label, length]) => (
-                <TextField
-                  key={key}
-                  label={label}
-                  inputMode="numeric"
-                  maxLength={length}
-                  value={fields[key]}
-                  onChange={(e) => onChange({ [key]: e.target.value.replace(/\D/g, '') })}
-                />
-              ))}
-            </div>
-            {(localErrors.idIssuedOn ?? errors.idIssuedOn) && (
-              <p className="text-sm text-danger">{localErrors.idIssuedOn ?? errors.idIssuedOn}</p>
-            )}
-          </fieldset>
-          <TextField
-            label="Nơi thường trú"
-            hint="Theo thẻ CCCD"
-            maxLength={200}
-            value={fields.idResidence}
-            onChange={(e) => onChange({ idResidence: e.target.value })}
-            error={errors.idResidence}
-          />
+        {/* One aligned row on desktop: hints sit below the row so every input lines up. */}
+        <div className="grid grid-cols-3 gap-4 lg:grid-cols-[minmax(0,1.5fr)_repeat(3,minmax(0,0.6fr))_minmax(0,1.8fr)]">
+          <div className="col-span-3 lg:col-span-1">
+            <TextField
+              label="Số thẻ CCCD"
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={12}
+              placeholder="12 chữ số"
+              value={fields.idNumber}
+              onChange={(e) => onChange({ idNumber: e.target.value.replace(/\D/g, '') })}
+              error={localErrors.idNumber ?? errors.idNumber}
+            />
+          </div>
+          {(
+            [
+              ['idIssuedDay', 'Ngày cấp', 'DD', 2],
+              ['idIssuedMonth', 'Tháng cấp', 'MM', 2],
+              ['idIssuedYear', 'Năm cấp', 'YYYY', 4],
+            ] as const
+          ).map(([key, label, placeholder, length]) => (
+            <TextField
+              key={key}
+              label={label}
+              inputMode="numeric"
+              placeholder={placeholder}
+              maxLength={length}
+              value={fields[key]}
+              onChange={(e) => onChange({ [key]: e.target.value.replace(/\D/g, '') })}
+            />
+          ))}
+          <div className="col-span-3 lg:col-span-1">
+            <TextField
+              label="Nơi thường trú"
+              placeholder="Theo thẻ CCCD"
+              maxLength={200}
+              value={fields.idResidence}
+              onChange={(e) => onChange({ idResidence: e.target.value })}
+              error={errors.idResidence}
+            />
+          </div>
         </div>
+        {(localErrors.idIssuedOn ?? errors.idIssuedOn) && (
+          <p className="-mt-2 text-sm text-danger">{localErrors.idIssuedOn ?? errors.idIssuedOn}</p>
+        )}
+        <p className="-mt-2 text-xs text-muted">
+          Số thẻ căn cước công dân gồm 12 chữ số; ngày, tháng, năm cấp và nơi thường trú ghi theo
+          thẻ CCCD.
+        </p>
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium">Xác minh thẻ căn cước</legend>
           {(

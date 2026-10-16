@@ -149,3 +149,60 @@ export function wardOfArea(area: string | null | undefined): HanoiWard | null {
 export function isHanoiCatalogArea(area: string): boolean {
   return AREA_TO_WARD.has(area);
 }
+
+/**
+ * Hà Nội district-level areas tutors pick as teaching areas ("Khu vực có thể dạy"): the
+ * 12 quận, 1 thị xã and 17 huyện in use before 2025-07-01. They remain the familiar way to
+ * describe a teaching area; class areas such as "Cầu Giấy, Hà Nội" match them by name.
+ */
+export const HANOI_URBAN_DISTRICTS = [
+  'Ba Đình',
+  'Hoàn Kiếm',
+  'Tây Hồ',
+  'Long Biên',
+  'Cầu Giấy',
+  'Đống Đa',
+  'Hai Bà Trưng',
+  'Hoàng Mai',
+  'Thanh Xuân',
+  'Nam Từ Liêm',
+  'Bắc Từ Liêm',
+  'Hà Đông',
+] as const;
+export const HANOI_SUBURBAN_DISTRICTS = [
+  'Sơn Tây',
+  'Ba Vì',
+  'Chương Mỹ',
+  'Đan Phượng',
+  'Đông Anh',
+  'Gia Lâm',
+  'Hoài Đức',
+  'Mê Linh',
+  'Mỹ Đức',
+  'Phú Xuyên',
+  'Phúc Thọ',
+  'Quốc Oai',
+  'Sóc Sơn',
+  'Thạch Thất',
+  'Thanh Oai',
+  'Thanh Trì',
+  'Thường Tín',
+  'Ứng Hòa',
+] as const;
+export const HANOI_DISTRICTS = [...HANOI_URBAN_DISTRICTS, ...HANOI_SUBURBAN_DISTRICTS] as const;
+export type HanoiDistrict = (typeof HANOI_DISTRICTS)[number];
+
+export function isHanoiDistrict(value: string): value is HanoiDistrict {
+  return (HANOI_DISTRICTS as readonly string[]).includes(value);
+}
+
+/**
+ * Catalogue district for a saved free-text area ("Quận Cầu Giấy", "Cầu Giấy, Hà Nội"),
+ * or null when it is not a Hà Nội district.
+ */
+export function hanoiDistrictOf(area: string): HanoiDistrict | null {
+  const [first = '', ...rest] = area.split(',').map((part) => part.trim());
+  if (rest.length > 0 && !rest.every((part) => part === HANOI_CITY)) return null;
+  const name = first.replace(/^(Quận|Huyện|Thị xã)\s+/i, '');
+  return isHanoiDistrict(name) ? name : null;
+}

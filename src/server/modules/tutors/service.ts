@@ -5,8 +5,7 @@ import type {
   TutorProfile,
   UpdateTutorProfileInput,
 } from '../../../shared/schemas/tutors';
-import { DEFAULT_MODE_OPTIONS, GRADE_OPTIONS, optionKey } from '../../../shared/schemas/tutors';
-import { VN_PROVINCES } from '../../../shared/schemas/provinces';
+import { GRADE_OPTIONS, optionKey } from '../../../shared/schemas/tutors';
 import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import type { TutorVerification } from '../../../shared/schemas/admin';
@@ -31,7 +30,7 @@ export function missingRequirements(row: ProfileRow, subjects: Subject[]): Profi
   const missing: ProfileRequirement[] = [];
   if (row.bio.trim().length === 0) missing.push('bio');
   if (subjects.length === 0) missing.push('subjects');
-  if (row.hourlyRateMinor === null) missing.push('hourlyRate');
+  // The rate is no longer asked for in the profile; it stays optional (public directory only).
   if (!row.teachesOnline && !row.teachesOffline) missing.push('teachingMode');
   return missing;
 }
@@ -136,11 +135,9 @@ async function checkedCustomOptions(
   if (input.customOptions === undefined && input.preferredGrades === undefined) return undefined;
   const options = input.customOptions ?? (await repo.customOptionsByTutor(db, userId));
   if (input.customOptions) {
-    const builtIn: Record<TutorCustomOption['kind'], Set<string>> = {
+    const builtIn: Record<'subject' | 'grade', Set<string>> = {
       subject: new Set((await repo.listSubjects(db)).map((subject) => optionKey(subject.name))),
       grade: new Set(GRADE_OPTIONS.map(optionKey)),
-      mode: new Set(DEFAULT_MODE_OPTIONS.map(optionKey)),
-      area: new Set(VN_PROVINCES.map(optionKey)),
     };
     const clash = input.customOptions.findIndex((option) =>
       builtIn[option.kind].has(optionKey(option.label)),
@@ -157,13 +154,12 @@ async function checkedCustomOptions(
   }
   if (!input.customOptions) return undefined;
   const preferences = await repo.classPreferencesByTutor(db, userId);
-  const chosen = {
-    grade: new Set((input.preferredGrades ?? preferences.preferredGrades).map(optionKey)),
-    area: new Set((input.preferredAreas ?? preferences.preferredAreas).map(optionKey)),
-  };
+  const chosenGrades = new Set(
+    (input.preferredGrades ?? preferences.preferredGrades).map(optionKey),
+  );
   return input.customOptions.map((option) =>
-    option.kind === 'grade' || option.kind === 'area'
-      ? { ...option, selected: chosen[option.kind].has(optionKey(option.label)) }
+    option.kind === 'grade'
+      ? { ...option, selected: chosenGrades.has(optionKey(option.label)) }
       : option,
   );
 }

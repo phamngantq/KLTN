@@ -1,3 +1,4 @@
+import { hanoiDistrictOf } from '../../../shared/schemas/hanoi-wards';
 import type {
   ClassMatch,
   ClassRecommendation,
@@ -84,8 +85,11 @@ export function toRecommendation(row: repo.ScoredClass): ClassRecommendation {
     .map((item) => item.key);
   const profileChangesPreview = {
     preferredGrade: grade.status === 'adjustable' ? row.class.grade : null,
+    // Profile areas are Hà Nội districts only; other class areas are not copied over.
     preferredArea:
-      area.status === 'adjustable' ? (row.class.publicArea?.split(',')[0]?.trim() ?? null) : null,
+      area.status === 'adjustable' && row.class.publicArea
+        ? hanoiDistrictOf(row.class.publicArea)
+        : null,
     negotiableTime: schedule.status === 'adjustable' && !row.negotiableTime,
   };
   const coverage = criteria.reduce(

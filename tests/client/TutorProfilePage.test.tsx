@@ -79,7 +79,7 @@ function mockProfile(
 
 describe('TutorProfilePage — Thông tin cơ bản', () => {
   it('shows the design sections without a status block, saves every field and sends for review', async () => {
-    let current = profile({ missing: ['hourlyRate'], hourlyRateMinor: null });
+    let current = profile({ missing: ['subjects'], subjects: [] });
     const { calls } = mockProfile(
       () => current,
       (req) => {
@@ -110,7 +110,14 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
     // No profile status block or manual "Gửi duyệt".
     expect(screen.queryByText(/Trạng thái/)).toBeNull();
     expect(screen.queryByRole('button', { name: 'Gửi duyệt' })).toBeNull();
-    expect(screen.getByText('Bổ sung học phí theo giờ để hồ sơ được gửi duyệt.')).toBeTruthy();
+    expect(screen.getByText('Bổ sung ít nhất một môn dạy để hồ sơ được gửi duyệt.')).toBeTruthy();
+    // "Học phí mong muốn" is no longer part of the form.
+    expect(screen.queryByLabelText(/Học phí/)).toBeNull();
+    expect(
+      [...(screen.getByLabelText('Loại gia sư') as HTMLSelectElement).options].map(
+        (option) => option.textContent,
+      ),
+    ).toEqual(['Chọn loại gia sư', 'Sinh viên', 'Sinh viên sư phạm', 'Giáo viên']);
     expect((screen.getByLabelText('Email') as HTMLInputElement).readOnly).toBe(true);
     expect(
       (screen.getByRole('button', { name: 'Lưu thay đổi' }) as HTMLButtonElement).disabled,
@@ -123,20 +130,19 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
     await user.selectOptions(screen.getByLabelText('Năm tốt nghiệp'), '2022');
     await user.selectOptions(screen.getByLabelText('Số năm kinh nghiệm'), '2');
     await user.type(screen.getByLabelText('Thành tích'), 'Giải Nhất Olympic Toán');
-    await user.type(screen.getByLabelText(/Học phí/), '300000');
     await user.type(screen.getByLabelText(/Số thẻ CCCD/), '0083a05000649');
-    await user.type(screen.getByLabelText('Ngày'), '21');
-    await user.type(screen.getByLabelText('Tháng'), '01');
-    await user.type(screen.getByLabelText('Năm'), '2021');
+    await user.type(screen.getByLabelText('Ngày cấp'), '21');
+    await user.type(screen.getByLabelText('Tháng cấp'), '01');
+    await user.type(screen.getByLabelText('Năm cấp'), '2021');
     await user.type(screen.getByLabelText(/Nơi thường trú/), 'Tân An');
     await user.click(screen.getByRole('radio', { name: 'Xác minh bằng cách upload ảnh' }));
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
 
     expect((await screen.findAllByText('Đã lưu thay đổi.')).length).toBeGreaterThan(0);
     const body = calls.find((c) => c.method === 'PATCH')?.body as Record<string, unknown>;
+    expect(body).not.toHaveProperty('hourlyRateMinor');
     expect(body).toMatchObject({
-      hourlyRateMinor: 300_000,
-      subjectIds: ['subj_math'],
+      subjectIds: [],
       phone: '0123456789',
       dateOfBirth: '1998-01-01',
       tutorType: 'university_student',
@@ -158,15 +164,28 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
     );
   }, 30_000);
 
-  it('refuses an impossible issue date before sending anything', async () => {
+  it('refuses an impossible issue date or a short CCCD number before sending anything', async () => {
     const { calls } = mockProfile(() => profile());
     renderRoute('/tutor/profile');
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText('Ngày'), '31');
-    await user.type(screen.getByLabelText('Tháng'), '02');
-    await user.type(screen.getByLabelText('Năm'), '2021');
+    // The five CCCD fields sit in one row on desktop.
+    const id = await screen.findByLabelText(/Số thẻ CCCD/);
+    const row = id.closest('.grid')!;
+    for (const label of ['Ngày cấp', 'Tháng cấp', 'Năm cấp', 'Nơi thường trú']) {
+      expect(row.contains(screen.getByLabelText(label))).toBe(true);
+    }
+    await user.type(screen.getByLabelText('Ngày cấp'), '31');
+    await user.type(screen.getByLabelText('Tháng cấp'), '02');
+    await user.type(screen.getByLabelText('Năm cấp'), '2021');
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     expect(await screen.findByText('Ngày cấp CCCD không hợp lệ.')).toBeTruthy();
+
+    await user.clear(screen.getByLabelText('Ngày cấp'));
+    await user.type(screen.getByLabelText('Ngày cấp'), '21');
+    await user.type(id, '00830500064');
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+    expect(await screen.findByText('Số thẻ CCCD gồm đúng 12 chữ số.')).toBeTruthy();
+    expect(id.getAttribute('aria-invalid')).toBe('true');
     expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
   });
 
@@ -239,19 +258,17 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
               error: {
                 code: 'VALIDATION_ERROR',
                 message: 'Dữ liệu không hợp lệ.',
-                details: [
-                  { path: 'hourlyRateMinor', message: 'Học phí phải là bội số của 1.000 ₫.' },
-                ],
+                details: [{ path: 'tutorType', message: 'Loại gia sư không hợp lệ.' }],
               },
             }
           : undefined,
     );
     renderRoute('/tutor/profile');
     const user = userEvent.setup();
-    await user.type(await screen.findByLabelText(/Học phí/), '250500');
+    await user.selectOptions(await screen.findByLabelText('Loại gia sư'), 'teacher');
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
-    expect(await screen.findByText('Học phí phải là bội số của 1.000 ₫.')).toBeTruthy();
-    expect(screen.getByLabelText(/Học phí/).getAttribute('aria-invalid')).toBe('true');
+    expect(await screen.findByText('Loại gia sư không hợp lệ.')).toBeTruthy();
+    expect(screen.getByLabelText('Loại gia sư').getAttribute('aria-invalid')).toBe('true');
   });
 
   it('is forbidden for students', async () => {
@@ -263,7 +280,11 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
 
 describe('TutorProfilePage — Đăng ký lớp học phù hợp', () => {
   it('selects tiles, adds and removes own options, picks times and saves everything', async () => {
-    let current = profile({ preferredGrades: ['Lớp 5'], preferredAreas: ['Quận 1'] });
+    let current = profile({
+      preferredGrades: ['Lớp 5'],
+      preferredAreas: ['Quận 1', 'Quận Cầu Giấy'],
+      customOptions: [{ kind: 'mode', label: 'Kèm tại trung tâm', selected: true }],
+    });
     let week = EMPTY_WEEK;
     const { calls } = mockProfile(
       () => current,
@@ -344,29 +365,38 @@ describe('TutorProfilePage — Đăng ký lớp học phù hợp', () => {
     ).toBe(true);
     await user.click(within(grades).getByRole('checkbox', { name: 'Ôn thi đại học' }));
 
+    // Teaching modes: only the two built-in options, no "+ Thêm lựa chọn".
     const modes = screen.getByRole('group', { name: 'Hình thức có thể dạy' });
+    expect(
+      within(modes)
+        .getAllByRole('checkbox')
+        .map((box) => box.closest('label')?.textContent),
+    ).toEqual(['Trực tiếp', 'Trực tuyến']);
+    expect(within(modes).queryByRole('button', { name: /Thêm lựa chọn/ })).toBeNull();
     await user.click(within(modes).getByRole('checkbox', { name: 'Trực tiếp' }));
 
-    const areas = screen.getByRole('group', { name: 'Khu vực có thể dạy' });
-    // An area saved as free text earlier shows as the tutor's own, still selected.
+    // Areas: Hà Nội districts only, no "+ Thêm lựa chọn"; an old "Quận Cầu Giấy" maps
+    // onto the catalogue and "Quận 1" is reported as outside Hà Nội.
+    const urban = screen.getByRole('group', { name: 'Khu vực có thể dạy — Nội thành Hà Nội' });
+    const suburban = screen.getByRole('group', {
+      name: 'Khu vực có thể dạy — Ngoại thành Hà Nội',
+    });
+    expect(within(urban).getAllByRole('checkbox')).toHaveLength(12);
+    expect(within(suburban).getAllByRole('checkbox')).toHaveLength(18);
+    expect(screen.queryByRole('button', { name: /Thêm lựa chọn: Khu vực/ })).toBeNull();
+    expect(screen.queryByRole('checkbox', { name: 'Đà Nẵng' })).toBeNull();
     expect(
-      (within(areas).getByRole('checkbox', { name: 'Quận 1' }) as HTMLInputElement).checked,
+      (within(urban).getByRole('checkbox', { name: 'Cầu Giấy' }) as HTMLInputElement).checked,
     ).toBe(true);
-    await user.click(within(areas).getByRole('checkbox', { name: 'Hà Nội' }));
-    await user.click(
-      within(areas).getByRole('button', { name: 'Thêm lựa chọn: Khu vực có thể dạy' }),
-    );
-    await user.type(
-      within(areas).getByRole('combobox', { name: /Quận\/huyện, phường\/xã/ }),
-      'Phường Cầu Giấy',
-    );
-    await user.click(within(areas).getByRole('button', { name: 'Thêm' }));
-    expect(within(areas).getByRole('checkbox', { name: /Phường Cầu Giấy/ })).toBeTruthy();
+    expect(screen.getByRole('note').textContent).toContain('Quận 1');
+    await user.click(within(urban).getByRole('checkbox', { name: 'Thanh Xuân' }));
+    await user.click(within(suburban).getByRole('checkbox', { name: 'Sóc Sơn' }));
+    const chosen = screen.getByRole('list', { name: 'Khu vực đã chọn' });
+    expect(within(chosen).getByText('Sóc Sơn')).toBeTruthy();
+    await user.click(within(chosen).getByRole('button', { name: 'Bỏ chọn Sóc Sơn' }));
     expect(
-      within(within(areas).getByRole('list', { name: 'Khu vực đã chọn' })).getByText(
-        'Phường Cầu Giấy, Hà Nội',
-      ),
-    ).toBeTruthy();
+      (within(suburban).getByRole('checkbox', { name: 'Sóc Sơn' }) as HTMLInputElement).checked,
+    ).toBe(false);
 
     await user.click(screen.getByRole('button', { name: 'Thứ Ba, 19:30–21:00' }));
     await user.click(screen.getByRole('button', { name: 'Thứ Năm, 19:30–21:00' }));
@@ -390,13 +420,10 @@ describe('TutorProfilePage — Đăng ký lớp học phù hợp', () => {
       teachesOffline: true,
       teachesOnline: true,
       preferredGrades: ['Lớp 5', 'Ôn thi đại học'],
-      preferredAreas: ['Quận 1', 'Hà Nội', 'Phường Cầu Giấy, Hà Nội'],
+      preferredAreas: ['Cầu Giấy', 'Thanh Xuân'],
       negotiableTime: true,
-      customOptions: [
-        { kind: 'area', label: 'Quận 1', selected: true },
-        { kind: 'subject', label: 'Cờ vua', selected: true },
-        { kind: 'area', label: 'Phường Cầu Giấy, Hà Nội', selected: true },
-      ],
+      // The old tutor-added teaching mode is dropped; only subject/grade options remain.
+      customOptions: [{ kind: 'subject', label: 'Cờ vua', selected: true }],
     });
     const put = calls.find((call) => call.method === 'PUT');
     expect(put?.path).toBe('/tutor/availability');
@@ -469,12 +496,14 @@ describe('TutorProfilePage — Đăng ký lớp học phù hợp', () => {
     );
     renderRoute('/tutor/profile?tab=dang-ky');
     const user = userEvent.setup();
-    const areas = await screen.findByRole('group', { name: 'Khu vực có thể dạy' });
-    await user.click(within(areas).getByRole('checkbox', { name: 'Đà Nẵng' }));
+    const areas = await screen.findByRole('group', {
+      name: 'Khu vực có thể dạy — Nội thành Hà Nội',
+    });
+    await user.click(within(areas).getByRole('checkbox', { name: 'Hoàng Mai' }));
     await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     expect(await screen.findByText('Khu vực không hợp lệ.')).toBeTruthy();
     expect(
-      (within(areas).getByRole('checkbox', { name: 'Đà Nẵng' }) as HTMLInputElement).checked,
+      (within(areas).getByRole('checkbox', { name: 'Hoàng Mai' }) as HTMLInputElement).checked,
     ).toBe(true);
   });
 });
