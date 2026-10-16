@@ -1,5 +1,12 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Cách thức nhận lớp 2 tab và Bảng giá gia sư ngày 2026-10-16
+
+Commit `d506e9e` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `e224c9e3-436e-4264-8f15-109c0f0e0812`. Không có migration mới. "Cách thức nhận lớp" có 2 tab (Nhận lớp dạy, Nhận lớp được đề xuất) theo nội dung hướng dẫn của trung tâm; "Bảng giá" của gia sư dùng cùng giao diện và dữ liệu với bảng giá người học, khung cuối trang dẫn tới "Danh sách lớp mới".
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **526/526**, Playwright **4/4**, `git diff --check` PASS.
+- Sau phát hành: smoke chỉ đọc PASS; Chromium trên URL thật với gia sư mẫu: trang Cách thức nhận lớp hiện đúng 2 tab và nội dung tab đề xuất; Bảng giá hiện 3 thẻ Sinh viên / Sinh viên sư phạm / Giáo viên, bảng giá chi tiết và nút "Xem danh sách lớp mới" dẫn tới `/tutor/new-classes`.
+
 ## Danh sách lớp mới, chi tiết lớp, nhận lớp và điều khoản dạng tích xác nhận ngày 2026-10-16
 
 Commit `87b68bd` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `6c5348dd-a8ff-4484-bafd-0572e6956908`. Gia sư có trang "Danh sách lớp mới" (thẻ lớp, lọc theo từ khóa/môn/quận Hà Nội/hình thức), "Chi tiết lớp học" và "Nhận lớp" (phí nhận lớp, quy trình, thời gian rảnh, điều khoản). Phí nhận lớp = phương án "% học phí tháng" đã công bố (40%) × học phí/buổi × số buổi/tuần × 4. Điều khoản trách nhiệm chỉ cần tích xác nhận một lần cho mỗi phiên bản; xác nhận qua bài test trước đây vẫn có hiệu lực. Dropdown Loại gia sư chỉ còn 3 lựa chọn.
