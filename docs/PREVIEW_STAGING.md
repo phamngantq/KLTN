@@ -1,5 +1,12 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Loại gia sư, khu vực Hà Nội và hàng CCCD ngày 2026-10-16
+
+Commit `56e16ea` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `99b6cd5a-e390-4d72-a009-7dccad016d6a`. Không có migration mới. Loại gia sư chỉ gồm Sinh viên / Sinh viên sư phạm / Giáo viên; bỏ "Học phí mong muốn" khỏi biểu mẫu và khỏi điều kiện gửi duyệt (cột vẫn giữ cho danh bạ gia sư công khai); hàng CCCD thẳng hàng; hình thức dạy chỉ Trực tiếp/Trực tuyến và khu vực dạy chỉ 30 quận/huyện Hà Nội, không có "+ Thêm lựa chọn".
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **519/519**, Playwright **4/4**, `git diff --check` PASS.
+- Sau phát hành: smoke chỉ đọc PASS; gia sư mẫu có khu vực `Cầu Giấy`, `Đống Đa` khớp danh mục; API hồ sơ trả 422 cho khu vực ngoài Hà Nội, loại gia sư lạ, CCCD 11 chữ số, ngày cấp 31/02 và hình thức dạy tự thêm, hồ sơ không thay đổi sau các yêu cầu bị từ chối.
+
 ## Thông tin cơ bản, giấy tờ xác minh và menu Nội dung của gia sư ngày 2026-10-16
 
 Commit `43ec76d` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `a280f434-b008-4232-a817-57419c8df7bf`. Hồ sơ gia sư không còn khung trạng thái (hồ sơ đủ thông tin tự gửi duyệt khi lưu); tab "Thông tin cơ bản" theo thiết kế gồm thông tin cá nhân có ảnh đại diện, trình độ học vấn, kinh nghiệm giảng dạy, thẻ căn cước (xác minh tại trung tâm hoặc upload ảnh hai mặt) và minh chứng, bằng cấp. Menu "Nội dung" gồm Cách thức nhận lớp, Hợp đồng, Bảng giá, Cẩm nang.
