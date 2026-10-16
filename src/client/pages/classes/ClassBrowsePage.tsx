@@ -353,10 +353,6 @@ export function PublicClassBrowsePage() {
   return <BrowseClasses tutor={false} />;
 }
 
-export function TutorNewClassBrowsePage() {
-  return <BrowseClasses tutor />;
-}
-
 export function TutorMatchedClassBrowsePage() {
   const [params, setParams] = useSearchParams();
   const page = pageFromUrl(params);

@@ -5,7 +5,6 @@ import type {
   ClassRecommendation,
   FeeOptionVersion,
   PublicClass,
-  TutorApplication,
 } from '../../src/shared/schemas/classes';
 import { ApplicationMatchSummary } from '../../src/client/components/domain/MatchExplanation';
 import { anonymous, mockApi, renderRoute, sessionOf } from './helpers';
@@ -29,6 +28,10 @@ const item: PublicClass = {
   schedule: { timezone: 'Asia/Ho_Chi_Minh', discussLater: true, windows: [] },
   publishedAt: '2026-10-11T00:00:00.000Z',
   createdAt: '2026-10-10T00:00:00.000Z',
+  sessionsPerWeek: 2,
+  tutorRequirements: null,
+  studentTraits: null,
+  placementFeeMinor: null,
 };
 
 const recommendation: ClassRecommendation = {
@@ -106,101 +109,238 @@ describe('class routes', () => {
     expect(calls.some((call) => call.path.includes('subjectId=math'))).toBe(true);
   });
 
-  it('does not offer application when no fee option has been published', async () => {
+  it('lists new classes as cards like the design and filters on the server', async () => {
+    const card: PublicClass = {
+      ...item,
+      subjectName: 'Tiếng Anh',
+      grade: 'Lớp 7',
+      sessionsPerWeek: 2,
+      publishedAt: new Date().toISOString(),
+      schedule: {
+        timezone: 'Asia/Ho_Chi_Minh',
+        discussLater: false,
+        windows: [
+          { weekday: 2, startLocal: '17:00', endLocal: '19:00' },
+          { weekday: 5, startLocal: '17:00', endLocal: '19:00' },
+        ],
+      },
+      expectedBudgetMinor: 120_000,
+      placementFeeMinor: 384_000,
+      studentTraits: 'Học sinh năng động, thích học qua trò chơi',
+    };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === `/classes/${item.id}`) return { data: item };
-      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: recommendation };
-      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: [] };
+      if (req.path === '/subjects') return { data: [{ id: 'math', slug: 'toan', name: 'Toán' }] };
+      if (req.path.startsWith('/classes?'))
+        return { data: { items: [card], page: 1, pageSize: 12, total: 6 } };
+      return undefined;
+    });
+    renderRoute('/tutor/new-classes');
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole('heading', { name: 'Danh sách lớp mới' })).toBeTruthy();
+    expect(
+      await screen.findByText(
+        (_, element) => element?.tagName === 'P' && element.textContent === 'Tìm thấy 6 lớp học',
+      ),
+    ).toBeTruthy();
+    const article = screen.getByRole('heading', { name: 'Tiếng Anh - Lớp 7' }).closest('article')!;
+    expect(within(article).getByText('Mới')).toBeTruthy();
+    expect(within(article).getByText('Thanh Xuân, Hà Nội')).toBeTruthy();
+    expect(within(article).getByText('2 buổi/tuần, chiều 17h-19h')).toBeTruthy();
+    expect(within(article).getByText('120,000đ/buổi')).toBeTruthy();
+    expect(within(article).getByText('Phí nhận lớp: 384,000đ')).toBeTruthy();
+    expect(within(article).getByText('Offline')).toBeTruthy();
+    expect(within(article).getByText(card.studentTraits!)).toBeTruthy();
+    expect(
+      within(article)
+        .getByRole('link', { name: `Xem chi tiết lớp ${card.code}` })
+        .getAttribute('href'),
+    ).toBe(`/tutor/new-classes/${card.id}`);
+
+    await user.type(screen.getByRole('searchbox', { name: 'Từ khóa' }), 'Tiếng Anh');
+    await user.selectOptions(screen.getByLabelText('Môn học'), 'math');
+    await user.selectOptions(screen.getByLabelText('Khu vực'), 'Thanh Xuân');
+    await user.selectOptions(screen.getByLabelText('Hình thức dạy'), 'offline');
+    await user.click(screen.getByRole('button', { name: 'Lọc' }));
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.path.includes('q=Ti%E1%BA%BFng+Anh') &&
+            call.path.includes('subjectId=math') &&
+            call.path.includes('area=Thanh+Xu%C3%A2n') &&
+            call.path.includes('mode=offline'),
+        ),
+      ).toBe(true),
+    );
+  }, 30_000);
+
+  it('shows class details with requirements and a "Nhận lớp" button', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === `/classes/${item.id}`)
+        return {
+          data: {
+            ...item,
+            placementFeeMinor: 320_000,
+            studentTraits: 'Học sinh chăm chỉ',
+            tutorRequirements: 'Sinh viên ngoại ngữ\nGiao tiếp tốt; Kiên nhẫn với trẻ',
+          },
+        };
       return undefined;
     });
     renderRoute(`/tutor/new-classes/${item.id}`);
-
+    expect(await screen.findByRole('heading', { name: 'Chi tiết lớp học' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Toán – Lớp 8' })).toBeTruthy();
+    expect(screen.getByText(/Mã lớp: CL001/)).toBeTruthy();
+    expect(screen.getByText('200,000đ/buổi')).toBeTruthy();
+    expect(screen.getByText('320,000đ')).toBeTruthy();
+    expect(screen.getByText('Học sinh chăm chỉ')).toBeTruthy();
+    const requirements = screen.getByRole('region', { name: 'Yêu cầu gia sư' });
     expect(
-      await screen.findByText('Chưa có đủ ba phương án phí nhận lớp được công bố cho lớp này.'),
-    ).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Gửi đơn ứng tuyển' })).toBeNull();
-    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+      within(requirements)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Sinh viên ngoại ngữ', 'Giao tiếp tốt', 'Kiên nhẫn với trẻ']);
+    expect(screen.getByRole('link', { name: 'Nhận lớp' }).getAttribute('href')).toBe(
+      `/tutor/new-classes/${item.id}/nhan-lop`,
+    );
   });
 
-  it('sends the selected fee version and class version, then waits for server success', async () => {
-    const application: TutorApplication = {
-      id: '00000000-0000-4000-8000-000000000003',
-      classId: item.id,
-      feeOptionVersionId: feeOption.id,
-      status: 'submitted',
-      rejectionReason: null,
-      version: 1,
-      createdAt: '2026-10-11T01:00:00.000Z',
-      updatedAt: '2026-10-11T01:00:00.000Z',
-      class: item,
-      matchSnapshot: null,
+  it('asks for terms first, then sends the monthly fee, class version and free time', async () => {
+    const monthly = allFeeOptions.find((option) => option.optionKey === 'monthly_percent')!;
+    let accepted: string | null = null;
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === `/classes/${item.id}`)
+        return { data: { ...item, placementFeeMinor: 240_000 } };
+      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: recommendation };
+      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
+      if (req.path === '/tutor/terms')
+        return {
+          data: {
+            termsContentRevisionId: '00000000-0000-4000-8000-0000000000aa',
+            termsRevision: 1,
+            termsTitle: 'Điều khoản trách nhiệm',
+            termsBodyText: 'Nội dung điều khoản.',
+            acceptedAt: accepted,
+          },
+        };
+      if (req.path === `/classes/${item.id}/applications`)
+        return { status: 201, data: { id: 'app-1', status: 'submitted' } };
+      return undefined;
+    });
+    const { router } = renderRoute(`/tutor/new-classes/${item.id}/nhan-lop`);
+    const user = userEvent.setup();
+
+    expect(await screen.findByRole('heading', { name: 'Nhận lớp CL001' })).toBeTruthy();
+    expect(screen.getByText('240,000đ')).toBeTruthy();
+    expect(screen.getByText('200,000đ/buổi')).toBeTruthy();
+    expect(
+      screen.getByText('Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội', { selector: 'strong' }),
+    ).toBeTruthy();
+    const testLink = await screen.findByRole('link', {
+      name: 'Làm bài test điều khoản trách nhiệm',
+    });
+    expect(testLink.getAttribute('href')).toBe(
+      `/tutor/terms?next=${encodeURIComponent(`/tutor/new-classes/${item.id}/nhan-lop`)}`,
+    );
+    const send = screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }) as HTMLButtonElement;
+    expect(send.disabled).toBe(true);
+
+    // After the checkbox on the terms page, the step shows as done.
+    accepted = '2026-10-16T01:00:00.000Z';
+    router.navigate(`/tutor/new-classes/${item.id}`);
+    await screen.findByRole('heading', { name: 'Chi tiết lớp học' });
+    await user.click(screen.getByRole('link', { name: 'Nhận lớp' }));
+    await screen.findByRole('heading', { name: 'Nhận lớp CL001' });
+    await waitFor(() =>
+      expect(screen.getByText('Đã xác nhận Điều khoản trách nhiệm')).toBeTruthy(),
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
+    expect(screen.getByRole('alert').textContent).toBe('Chọn ít nhất một ngày trong tuần.');
+    await user.click(screen.getByRole('button', { name: 'T3' }));
+    await user.click(screen.getByRole('button', { name: 'T6' }));
+    expect(screen.getByRole('button', { name: 'T3' }).getAttribute('aria-pressed')).toBe('true');
+    await user.type(screen.getByLabelText(/Giờ bắt đầu/), '19:00');
+    await user.type(screen.getByLabelText(/Giờ kết thúc/), '18:00');
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
+    expect(screen.getByRole('alert').textContent).toBe('Giờ kết thúc phải sau giờ bắt đầu.');
+    await user.clear(screen.getByLabelText(/Giờ kết thúc/));
+    await user.type(screen.getByLabelText(/Giờ kết thúc/), '21:00');
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
+
+    expect(await screen.findByText('Đã gửi yêu cầu nhận lớp')).toBeTruthy();
+    const post = calls.find((call) => call.path === `/classes/${item.id}/applications`);
+    expect(post?.body).toEqual({
+      feeOptionVersionId: monthly.id,
+      classVersion: item.version,
+      availability: { weekdays: [2, 5], start: '19:00', end: '21:00' },
+    });
+    expect(post?.headers.get('Idempotency-Key')).toBeTruthy();
+  }, 30_000);
+
+  it('confirms profile adjustments before sending a near-match acceptance', async () => {
+    const near: ClassRecommendation = {
+      ...recommendation,
+      match: { ...recommendation.match, level: 'near', adjustments: ['grade'] },
     };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === `/classes/${item.id}`) return { data: item };
-      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: recommendation };
+      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: near };
       if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === `/classes/${item.id}/applications` && req.method === 'POST')
-        return { status: 201, data: application };
+      if (req.path === '/tutor/terms')
+        return {
+          data: {
+            termsContentRevisionId: '00000000-0000-4000-8000-0000000000aa',
+            termsRevision: 1,
+            termsTitle: 'Điều khoản',
+            termsBodyText: 'Nội dung.',
+            acceptedAt: '2026-10-16T01:00:00.000Z',
+          },
+        };
+      if (req.path === `/classes/${item.id}/applications`)
+        return { status: 201, data: { id: 'app-1', status: 'submitted' } };
       return undefined;
     });
-    renderRoute(`/tutor/new-classes/${item.id}`);
+    renderRoute(`/tutor/new-classes/${item.id}/nhan-lop`);
     const user = userEvent.setup();
-
-    const send = (await screen.findByRole('button', {
-      name: 'Gửi đơn ứng tuyển',
-    })) as HTMLButtonElement;
-    expect(send.disabled).toBe(true);
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: /Phương án phí nhận lớp/ }),
-      feeOption.id,
+    await screen.findByText('Đã xác nhận Điều khoản trách nhiệm');
+    await user.click(screen.getByRole('button', { name: 'T2' }));
+    await user.type(screen.getByLabelText(/Giờ bắt đầu/), '08:00');
+    await user.type(screen.getByLabelText(/Giờ kết thúc/), '10:00');
+    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
+    expect(calls.some((call) => call.path.endsWith('/applications'))).toBe(false);
+    const dialog = screen.getByRole('dialog', { name: 'Xác nhận điều chỉnh để nhận lớp' });
+    await user.click(within(dialog).getByRole('button', { name: 'Xác nhận và gửi' }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.path.endsWith('/applications'))?.body).toMatchObject({
+        acceptedAdjustments: ['grade'],
+      }),
     );
-    await user.click(send);
-
-    expect(await screen.findByText(/Hệ thống đã ghi nhận đơn của bạn/)).toBeTruthy();
-    const posted = calls.find((call) => call.method === 'POST');
-    expect(posted?.path).toBe(`/classes/${item.id}/applications`);
-    expect(posted?.body).toEqual({ feeOptionVersionId: feeOption.id, classVersion: 2 });
-    expect(posted?.headers.get('Idempotency-Key')).toBeTruthy();
-    expect(posted?.headers.get('X-CSRF-Token')).toBe('csrf-test-token');
-    await waitFor(() => expect(screen.queryByText(/thanh toán thành công/i)).toBeNull());
   });
 
-  it('routes a tutor to the published terms flow when the server rejects an unacknowledged application', async () => {
-    const { calls } = mockApi((req) => {
+  it('blocks acceptance when no placement fee is published', async () => {
+    mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === `/classes/${item.id}`) return { data: item };
       if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: recommendation };
-      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === `/classes/${item.id}/applications` && req.method === 'POST') {
+      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: [feeOption] };
+      if (req.path === '/tutor/terms')
         return {
           status: 409,
-          error: {
-            code: 'TERMS_ACK_REQUIRED',
-            message: 'Cần hoàn thành điều khoản và bài kiểm tra hiện hành.',
-          },
+          error: { code: 'TERMS_UNAVAILABLE', message: 'Chưa có điều khoản.' },
         };
-      }
       return undefined;
     });
-    renderRoute(`/tutor/new-classes/${item.id}`);
-    const user = userEvent.setup();
-    await user.selectOptions(
-      await screen.findByRole('combobox', { name: /Phương án phí nhận lớp/ }),
-      feeOption.id,
-    );
-    await user.click(screen.getByRole('button', { name: 'Gửi đơn ứng tuyển' }));
+    renderRoute(`/tutor/new-classes/${item.id}/nhan-lop`);
+    expect(await screen.findByText('Chưa có phí nhận lớp được công bố cho lớp này.')).toBeTruthy();
     expect(
-      await screen.findByText(/Cần hoàn thành điều khoản và bài kiểm tra hiện hành/),
-    ).toBeTruthy();
-    expect(
-      screen
-        .getByRole('link', { name: 'Hoàn thành điều khoản và bài kiểm tra' })
-        .getAttribute('href'),
-    ).toBe('/tutor/terms');
-    expect(screen.queryByText(/Hệ thống đã ghi nhận đơn của bạn/)).toBeNull();
-    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(1);
+      (screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('shows a scored recommendation with reasons and missing-data coverage', async () => {
@@ -218,260 +358,6 @@ describe('class routes', () => {
     await userEvent.setup().click(screen.getByText('Xem cách tính điểm'));
     expect(screen.getByText('Chưa chốt lịch.')).toBeTruthy();
     expect(calls.some((call) => call.path.startsWith('/tutor/classes/matched'))).toBe(false);
-  });
-
-  it('asks for class-specific adjustment before sending a near-match application', async () => {
-    const near: ClassRecommendation = {
-      class: item,
-      match: {
-        ...recommendation.match,
-        score: 72,
-        level: 'near',
-        adjustments: ['grade'],
-        profileChangesPreview: {
-          preferredGrade: item.grade,
-          preferredArea: null,
-          negotiableTime: false,
-        },
-        criteria: recommendation.match.criteria.map((criterion) =>
-          criterion.key === 'grade'
-            ? {
-                ...criterion,
-                score: 0,
-                status: 'adjustable' as const,
-                reason: 'Khối lớp này nằm ngoài ưu tiên đã lưu.',
-              }
-            : criterion,
-        ),
-      },
-    };
-    const { calls } = mockApi((req) => {
-      if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === `/classes/${item.id}`) return { data: item };
-      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: near };
-      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === `/classes/${item.id}/applications` && req.method === 'POST') {
-        return {
-          status: 201,
-          data: {
-            id: 'application-1',
-            matchSnapshot: {
-              classVersion: item.version,
-              score: 72,
-              acceptedAdjustments: ['grade'],
-              profileChanges: {
-                preferredGrade: item.grade,
-                preferredArea: null,
-                negotiableTime: false,
-              },
-            },
-          },
-        };
-      }
-      return undefined;
-    });
-    renderRoute(`/tutor/new-classes/${item.id}`);
-    const user = userEvent.setup();
-    await user.selectOptions(
-      await screen.findByRole('combobox', { name: /Phương án phí nhận lớp/ }),
-      feeOption.id,
-    );
-    await user.click(screen.getByRole('button', { name: 'Gửi đơn ứng tuyển' }));
-    expect(
-      await screen.findByRole('heading', { name: 'Bạn có thể điều chỉnh để dạy lớp này?' }),
-    ).toBeTruthy();
-    expect(screen.getByText(/Dạy khối lớp này dù nằm ngoài khối lớp ưu tiên/)).toBeTruthy();
-    expect(screen.getByText('Khối lớp của lớp: Lớp 8')).toBeTruthy();
-    expect(screen.getByText('Hồ sơ sẽ thêm khối lớp ưu tiên: Lớp 8')).toBeTruthy();
-    expect(
-      screen.getByText(/Các sở thích mới cũng được dùng để gợi ý những lớp về sau/),
-    ).toBeTruthy();
-    expect(screen.queryByText(/hồ sơ gia sư không tự thay đổi/)).toBeNull();
-    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
-
-    await user.click(screen.getByRole('button', { name: 'Xem lại' }));
-    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
-
-    await user.click(screen.getByRole('button', { name: 'Gửi đơn ứng tuyển' }));
-    await user.click(screen.getByRole('button', { name: 'Cập nhật hồ sơ và gửi đơn' }));
-    expect(await screen.findByText(/Hệ thống đã ghi nhận đơn của bạn/)).toBeTruthy();
-    expect(screen.getByText(/Hồ sơ giảng dạy đã được cập nhật/)).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Xem hồ sơ đã cập nhật' })).toBeTruthy();
-    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      feeOptionVersionId: feeOption.id,
-      classVersion: item.version,
-      acceptedAdjustments: ['grade'],
-    });
-  });
-
-  it('warns about a low score and records every confirmed adjustment', async () => {
-    const scheduledItem: PublicClass = {
-      ...item,
-      schedule: {
-        timezone: 'Asia/Ho_Chi_Minh',
-        discussLater: false,
-        windows: [
-          { weekday: 2, startLocal: '18:00', endLocal: '19:30' },
-          { weekday: 6, startLocal: '09:00', endLocal: '10:30' },
-        ],
-      },
-    };
-    const low: ClassRecommendation = {
-      class: scheduledItem,
-      match: {
-        ...recommendation.match,
-        score: 50,
-        coverage: 100,
-        level: 'low',
-        adjustments: ['grade', 'area', 'schedule'],
-        profileChangesPreview: {
-          preferredGrade: item.grade,
-          preferredArea: 'Thanh Xuân',
-          negotiableTime: true,
-        },
-        criteria: recommendation.match.criteria.map((criterion) =>
-          criterion.key === 'grade' || criterion.key === 'area' || criterion.key === 'schedule'
-            ? { ...criterion, score: 0, status: 'adjustable' as const }
-            : criterion,
-        ),
-      },
-    };
-    const { calls } = mockApi((req) => {
-      if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === `/classes/${item.id}`) return { data: scheduledItem };
-      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: low };
-      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === `/classes/${item.id}/applications` && req.method === 'POST') {
-        return {
-          status: 201,
-          data: {
-            id: 'application-2',
-            matchSnapshot: {
-              classVersion: item.version,
-              score: 50,
-              acceptedAdjustments: ['grade', 'area', 'schedule'],
-              profileChanges: {
-                preferredGrade: item.grade,
-                preferredArea: 'Thanh Xuân',
-                negotiableTime: true,
-              },
-            },
-          },
-        };
-      }
-      return undefined;
-    });
-    renderRoute(`/tutor/new-classes/${item.id}`);
-    const user = userEvent.setup();
-    await user.selectOptions(
-      await screen.findByRole('combobox', { name: /Phương án phí nhận lớp/ }),
-      feeOption.id,
-    );
-    await user.click(screen.getByRole('button', { name: 'Gửi đơn ứng tuyển' }));
-
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Mức độ phù hợp thấp — hãy xem kỹ trước khi ứng tuyển',
-      }),
-    ).toBeTruthy();
-    expect(screen.getByText(/Điểm phù hợp hiện tại là 50\/100/)).toBeTruthy();
-    expect(screen.getByText(/Dạy khối lớp này dù nằm ngoài khối lớp ưu tiên/)).toBeTruthy();
-    expect(screen.getByText(/Dạy tại khu vực này dù nằm ngoài khu vực ưu tiên/)).toBeTruthy();
-    expect(screen.getByText('Khối lớp của lớp: Lớp 8')).toBeTruthy();
-    expect(screen.getByText('Khu vực dạy của lớp: Thanh Xuân, Hà Nội')).toBeTruthy();
-    expect(screen.getByText('Hồ sơ sẽ thêm khu vực ưu tiên: Thanh Xuân')).toBeTruthy();
-    expect(screen.getByText(/Hồ sơ sẽ bật “Có thể thương lượng lịch học”/)).toBeTruthy();
-    expect(screen.getByText(/không tự thêm các khung giờ này vào lịch rảnh định kỳ/)).toBeTruthy();
-    expect(screen.getByText('Lịch lớp mong muốn (múi giờ Asia/Ho_Chi_Minh):')).toBeTruthy();
-    const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByText('Thứ Ba · 18:00–19:30')).toBeTruthy();
-    expect(within(dialog).getByText('Thứ Bảy · 09:00–10:30')).toBeTruthy();
-    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
-
-    await user.click(screen.getByRole('button', { name: 'Cập nhật hồ sơ và gửi đơn' }));
-    expect(await screen.findByText(/Hệ thống đã ghi nhận đơn của bạn/)).toBeTruthy();
-    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      feeOptionVersionId: feeOption.id,
-      classVersion: item.version,
-      acceptedAdjustments: ['grade', 'area', 'schedule'],
-    });
-  });
-
-  it('accepts a schedule mismatch without claiming an already-enabled profile flag changed', async () => {
-    const scheduledItem: PublicClass = {
-      ...item,
-      schedule: {
-        timezone: 'Asia/Ho_Chi_Minh',
-        discussLater: false,
-        windows: [{ weekday: 2, startLocal: '18:00', endLocal: '19:30' }],
-      },
-    };
-    const scheduleMatch: ClassRecommendation = {
-      class: scheduledItem,
-      match: {
-        ...recommendation.match,
-        score: 85,
-        coverage: 100,
-        level: 'near',
-        adjustments: ['schedule'],
-        profileChangesPreview: {
-          preferredGrade: null,
-          preferredArea: null,
-          negotiableTime: false,
-        },
-        criteria: recommendation.match.criteria.map((criterion) =>
-          criterion.key === 'schedule'
-            ? { ...criterion, score: 0, status: 'adjustable' as const }
-            : criterion,
-        ),
-      },
-    };
-    const { calls } = mockApi((req) => {
-      if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === `/classes/${item.id}`) return { data: scheduledItem };
-      if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: scheduleMatch };
-      if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === `/classes/${item.id}/applications` && req.method === 'POST') {
-        return {
-          status: 201,
-          data: {
-            id: 'application-schedule',
-            matchSnapshot: {
-              classVersion: item.version,
-              score: 85,
-              acceptedAdjustments: ['schedule'],
-              profileChanges: {
-                preferredGrade: null,
-                preferredArea: null,
-                negotiableTime: false,
-              },
-            },
-          },
-        };
-      }
-      return undefined;
-    });
-    renderRoute(`/tutor/new-classes/${item.id}`);
-    const user = userEvent.setup();
-    await user.selectOptions(
-      await screen.findByRole('combobox', { name: /Phương án phí nhận lớp/ }),
-      feeOption.id,
-    );
-    await user.click(screen.getByRole('button', { name: 'Gửi đơn ứng tuyển' }));
-
-    expect(screen.getByText(/Hồ sơ đã bật “Có thể thương lượng lịch học” từ trước/)).toBeTruthy();
-    expect(screen.getByText(/vẫn chưa trùng khung giờ lớp/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Xác nhận lịch và gửi đơn' })).toBeTruthy();
-    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
-
-    await user.click(screen.getByRole('button', { name: 'Xác nhận lịch và gửi đơn' }));
-    expect(await screen.findByText(/Hệ thống đã ghi nhận đơn của bạn/)).toBeTruthy();
-    expect(screen.queryByText(/Hồ sơ giảng dạy đã được cập nhật/)).toBeNull();
-    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      feeOptionVersionId: feeOption.id,
-      classVersion: item.version,
-      acceptedAdjustments: ['schedule'],
-    });
   });
 
   it('shows exact saved profile changes and schedule consent in an application snapshot', () => {

@@ -118,3 +118,6 @@ export async function createPublicTutor(
     .run();
   return { ...tutor, slug: data.slug };
 }
+
+/** "Thời gian rảnh có thể đi dạy" sent with every test application. */
+export const AVAILABILITY = { weekdays: [2, 4], start: '18:00', end: '20:00' } as const;

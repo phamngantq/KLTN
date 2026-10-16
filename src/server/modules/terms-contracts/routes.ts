@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Page } from '../../../shared/schemas/discovery';
 import {
+  acceptTermsSchema,
   acknowledgeContractSchema,
   acknowledgeTermsSchema,
   adminContractListSchema,
@@ -15,6 +16,7 @@ import {
   placementFeeSchema,
   type ClassContractRecord,
   type TutorQuizAttempt,
+  type TutorTerms,
   type TutorTermsAcknowledgement,
   type TutorTermsQuiz,
 } from '../../../shared/schemas/terms-contracts';
@@ -28,6 +30,19 @@ import * as service from './service';
 /** Mounted at /api/v1/tutor. No answer keys or other tutors' records leave this router. */
 export const tutorTermsContractRoutes = new Hono<AppEnv>();
 tutorTermsContractRoutes.use('*', requireRole('tutor'));
+tutorTermsContractRoutes.get('/terms', async (c) =>
+  ok<TutorTerms>(c, await service.getTutorTerms(c.env.DB, authOf(c).user.id)),
+);
+tutorTermsContractRoutes.post('/terms/consent', async (c) =>
+  ok<TutorTerms>(
+    c,
+    await service.acceptTerms(
+      c.env.DB,
+      authOf(c).user.id,
+      await parseJsonBody(c, acceptTermsSchema),
+    ),
+  ),
+);
 tutorTermsContractRoutes.get('/terms/quiz', async (c) =>
   ok<TutorTermsQuiz>(c, await service.getTutorQuiz(c.env.DB, authOf(c).user.id)),
 );

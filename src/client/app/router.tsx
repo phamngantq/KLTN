@@ -396,15 +396,22 @@ const tutorRoutes: RouteObject[] = [
   {
     path: 'new-classes',
     ...page(async () => {
-      const { TutorNewClassBrowsePage } = await import('../pages/classes/ClassBrowsePage');
-      return <TutorNewClassBrowsePage />;
+      const { TutorNewClassesPage } = await import('../pages/tutor/TutorClassPages');
+      return <TutorNewClassesPage />;
     }),
   },
   {
     path: 'new-classes/:id',
     ...page(async () => {
-      const { TutorClassDetailPage } = await import('../pages/classes/ClassDetailPage');
+      const { TutorClassDetailPage } = await import('../pages/tutor/TutorClassPages');
       return <TutorClassDetailPage />;
+    }),
+  },
+  {
+    path: 'new-classes/:id/nhan-lop',
+    ...page(async () => {
+      const { TutorAcceptClassPage } = await import('../pages/tutor/TutorClassPages');
+      return <TutorAcceptClassPage />;
     }),
   },
   {

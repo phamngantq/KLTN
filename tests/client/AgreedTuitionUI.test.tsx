@@ -34,6 +34,7 @@ const application: AdminApplication = {
   version: 1,
   createdAt: '2026-10-11T00:00:00.000Z',
   updatedAt: '2026-10-11T00:00:00.000Z',
+  availability: null,
   matchSnapshot: null,
 };
 
@@ -55,6 +56,10 @@ const adminClass: AdminClass = {
   publishedAt: '2026-10-11T00:00:00.000Z',
   createdAt: '2026-10-11T00:00:00.000Z',
   updatedAt: '2026-10-11T01:00:00.000Z',
+  sessionsPerWeek: 2,
+  tutorRequirements: null,
+  studentTraits: null,
+  placementFeeMinor: null,
 };
 
 describe('agreed tuition UI', () => {

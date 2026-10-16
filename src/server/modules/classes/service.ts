@@ -12,6 +12,7 @@ import type {
   RefreshClassInput,
 } from '../../../shared/schemas/classes';
 import type { Db } from '../../db/client';
+import { PLACEMENT_FEE_OPTION_KEY } from '../../../shared/schemas/classes';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import { assertTutorTermsReady } from '../terms-contracts/service';
 import * as repo from './repository';
@@ -330,19 +331,22 @@ export async function applyToClass(
     schedule: scoreOf('schedule'),
     negotiableTime,
   };
-  const options = await repo.availableFeeOptions(db, classId, now.toISOString());
-  if (options.length < 3) {
+  // "Phí nhận lớp" is always the published monthly-percent policy for this class.
+  const placement = (await repo.availableFeeOptions(db, classId, now.toISOString())).find(
+    (option) => option.optionKey === PLACEMENT_FEE_OPTION_KEY,
+  );
+  if (!placement) {
     throw new AppError(
       409,
       'FEE_OPTIONS_UNAVAILABLE',
-      'Cần công bố đủ ba phương án phí áp dụng cho lớp này.',
+      'Chưa có phí nhận lớp được công bố cho lớp này.',
     );
   }
-  if (!options.some((option) => option.id === input.feeOptionVersionId)) {
+  if (placement.id !== input.feeOptionVersionId) {
     throw new AppError(
       409,
       'FEE_OPTION_UNAVAILABLE',
-      'Phương án phí đã thay đổi hoặc không phù hợp.',
+      'Phí nhận lớp đã thay đổi. Vui lòng tải lại.',
     );
   }
   await assertTutorTermsReady(d1, tutorId);
@@ -359,6 +363,7 @@ export async function applyToClass(
       matchSnapshot,
       softScores,
       extraStatements(id),
+      input.availability,
     );
   } catch (error) {
     if (rootMessage(error).includes('PROFILE_PREFERENCE_LIMIT')) {

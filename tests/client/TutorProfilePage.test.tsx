@@ -117,7 +117,7 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
       [...(screen.getByLabelText('Loại gia sư') as HTMLSelectElement).options].map(
         (option) => option.textContent,
       ),
-    ).toEqual(['Chọn loại gia sư', 'Sinh viên', 'Sinh viên sư phạm', 'Giáo viên']);
+    ).toEqual(['Sinh viên', 'Sinh viên sư phạm', 'Giáo viên']);
     expect((screen.getByLabelText('Email') as HTMLInputElement).readOnly).toBe(true);
     expect(
       (screen.getByRole('button', { name: 'Lưu thay đổi' }) as HTMLButtonElement).disabled,

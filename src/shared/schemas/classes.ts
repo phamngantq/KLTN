@@ -67,6 +67,8 @@ export const classSearchSchema = z.strictObject({
     .optional(),
   mode: z.enum(['online', 'offline']).optional(),
   area: z.string().trim().min(1).max(120).optional(),
+  /** Keyword over code, subject, grade and area. */
+  q: z.string().trim().min(1).max(100).optional(),
   sort: z.enum(classSorts).default('newest'),
   ...pageFields,
 });
@@ -119,6 +121,31 @@ export interface PublicClass {
   schedule: z.infer<typeof requestScheduleSchema>;
   publishedAt: string | null;
   createdAt: string;
+  /**
+   * Structured fields of the source request; null for guests, who see only the summary.
+   * The request's free-text description stays private (it may hold contact details).
+   */
+  sessionsPerWeek: number | null;
+  tutorRequirements: string | null;
+  studentTraits: string | null;
+  /** "Phí nhận lớp": monthly-percent policy × budget × sessions/week × 4; null when unknown. */
+  placementFeeMinor: number | null;
+}
+
+/** The single placement-fee policy tutors accept ("Phí nhận lớp"). */
+export const PLACEMENT_FEE_OPTION_KEY = 'monthly_percent' as const;
+/** Weeks counted in one month of tuition for the placement fee. */
+export const PLACEMENT_FEE_WEEKS = 4;
+
+export function placementFee(
+  budgetMinor: number | null,
+  sessionsPerWeek: number | null,
+  rateBasisPoints: number | null,
+): number | null {
+  if (budgetMinor === null || !sessionsPerWeek || rateBasisPoints === null) return null;
+  return Math.round(
+    (budgetMinor * sessionsPerWeek * PLACEMENT_FEE_WEEKS * rateBasisPoints) / 10_000,
+  );
 }
 
 export interface AdminClass extends PublicClass {
@@ -201,9 +228,29 @@ export interface FeeOptionVersion {
   publishedAt: string | null;
 }
 
+const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ không hợp lệ.');
+
+/** "Thời gian rảnh có thể đi dạy" for one application. */
+export const applicationAvailabilitySchema = z
+  .strictObject({
+    weekdays: z
+      .array(z.number().int().min(1).max(7))
+      .min(1, 'Chọn ít nhất một ngày trong tuần.')
+      .max(7)
+      .refine((days) => new Set(days).size === days.length, 'Ngày bị trùng.'),
+    start: clockTime,
+    end: clockTime,
+  })
+  .refine((value) => value.start < value.end, {
+    message: 'Giờ kết thúc phải sau giờ bắt đầu.',
+    path: ['end'],
+  });
+export type ApplicationAvailability = z.infer<typeof applicationAvailabilitySchema>;
+
 export const applyClassSchema = z.strictObject({
   feeOptionVersionId: z.uuid(),
   classVersion: z.number().int().min(1),
+  availability: applicationAvailabilitySchema,
   acceptedAdjustments: z
     .array(z.enum(MATCH_ADJUSTMENTS))
     .max(MATCH_ADJUSTMENTS.length)
@@ -226,5 +273,7 @@ export interface TutorApplication {
   createdAt: string;
   updatedAt: string;
   matchSnapshot: ApplicationMatchSnapshot | null;
+  /** Null for applications sent before the free-time step existed. */
+  availability: ApplicationAvailability | null;
   class: PublicClass;
 }

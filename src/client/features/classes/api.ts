@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
+  ApplicationAvailability,
   ClassSearchQuery,
   ClassRecommendation,
   FeeOptionVersion,
@@ -25,6 +26,7 @@ export interface ClassFilters {
   grade?: string;
   mode?: 'online' | 'offline';
   area?: string;
+  q?: string;
   sort?: ClassSearchQuery['sort'];
   page: number;
   pageSize: number;
@@ -45,6 +47,7 @@ export function usePublicClasses(filters: ClassFilters) {
           grade: filters.grade,
           mode: filters.mode,
           area: filters.area,
+          q: filters.q,
           sort: filters.sort,
           page: filters.page,
           pageSize: filters.pageSize,
@@ -136,16 +139,23 @@ export function useApplyForClass() {
       classVersion,
       idempotencyKey,
       acceptedAdjustments,
+      availability,
     }: {
       classId: string;
       feeOptionVersionId: string;
       classVersion: number;
       idempotencyKey: string;
       acceptedAdjustments?: MatchAdjustment[];
+      availability: ApplicationAvailability;
     }) =>
       api.post<TutorClassApplication>(
         `/classes/${encodeURIComponent(classId)}/applications`,
-        { feeOptionVersionId, classVersion, ...(acceptedAdjustments && { acceptedAdjustments }) },
+        {
+          feeOptionVersionId,
+          classVersion,
+          availability,
+          ...(acceptedAdjustments && { acceptedAdjustments }),
+        },
         { headers: { 'Idempotency-Key': idempotencyKey } },
       ),
     onSuccess: () => {

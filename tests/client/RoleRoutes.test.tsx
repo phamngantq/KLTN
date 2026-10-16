@@ -103,7 +103,7 @@ describe('Figma role route matrix', () => {
       return undefined;
     });
     renderRoute('/tutor/new-classes');
-    expect(await screen.findByRole('heading', { name: 'Lớp mới' })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Danh sách lớp mới' })).toBeTruthy();
     expect(await screen.findByRole('heading', { name: 'Chưa có lớp phù hợp' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: /ứng tuyển/i })).toBeNull();
     expect(screen.getByRole('navigation', { name: 'Điều hướng Gia sư' })).toBeTruthy();

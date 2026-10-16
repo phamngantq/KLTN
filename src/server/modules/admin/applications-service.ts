@@ -14,6 +14,7 @@ import {
   users,
 } from '../../db/schema';
 import { AppError } from '../../lib/errors';
+import { availabilityOf } from '../classes/repository';
 
 const columns = {
   id: tutorApplications.id,
@@ -34,15 +35,20 @@ const columns = {
   createdAt: tutorApplications.createdAt,
   updatedAt: tutorApplications.updatedAt,
   matchSnapshotJson: tutorApplications.matchSnapshotJson,
+  availableWeekdays: tutorApplications.availableWeekdays,
+  availableStart: tutorApplications.availableStart,
+  availableEnd: tutorApplications.availableEnd,
 };
 
 function toApplication(
   row: NonNullable<Awaited<ReturnType<typeof applicationRow>>>,
 ): AdminApplication {
-  const { matchSnapshotJson, ...application } = row;
+  const { matchSnapshotJson, availableWeekdays, availableStart, availableEnd, ...application } =
+    row;
   return {
     ...application,
     matchSnapshot: matchSnapshotJson === '{}' ? null : JSON.parse(matchSnapshotJson),
+    availability: availabilityOf(availableWeekdays, availableStart, availableEnd),
   };
 }
 

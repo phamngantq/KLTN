@@ -22,7 +22,15 @@ import type {
   AdminContractCandidate,
   ClassContractRecord,
 } from '../../src/shared/schemas/terms-contracts';
-import { api, createPublicTutor, errorCode, jsonInit, register, type Session } from './helpers';
+import {
+  AVAILABILITY,
+  api,
+  createPublicTutor,
+  errorCode,
+  jsonInit,
+  register,
+  type Session,
+} from './helpers';
 import { markLegacySubmittedRequest } from './legacy-request-fixture';
 import {
   passAndAcknowledgeTutorTerms,
@@ -101,7 +109,8 @@ async function seedPublishedFee(moderator: Session): Promise<string> {
       .bind(key)
       .first<{ version: number }>();
     const version = (latest?.version ?? 0) + 1;
-    if (!selectedId) selectedId = id;
+    // The placement fee is always the monthly-percent policy.
+    if (key === 'monthly_percent') selectedId = id;
     await env.DB.prepare(
       `INSERT INTO fee_option_versions
       (id, option_key, version, title, policy_text, rate_basis_points,
@@ -119,9 +128,14 @@ async function seedPublishedFee(moderator: Session): Promise<string> {
 async function apply(tutor: Session, cls: AdminClass, feeOptionVersionId: string) {
   const response = await api(
     `/classes/${cls.id}/applications`,
-    jsonInit('POST', { feeOptionVersionId, classVersion: cls.version }, tutor, {
-      'Idempotency-Key': crypto.randomUUID(),
-    }),
+    jsonInit(
+      'POST',
+      { feeOptionVersionId, classVersion: cls.version, availability: AVAILABILITY },
+      tutor,
+      {
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+    ),
   );
   if (response.status !== 201) {
     throw new Error(`Synthetic application failed (${response.status}): ${await response.text()}`);

@@ -554,7 +554,7 @@ WHERE id = ${sql(requestId)} AND status = 'submitted'
     out.push(`INSERT INTO tutor_applications (id, class_id, tutor_user_id, fee_option_version_id, status, version,
   mutation_id, created_at, updated_at, match_snapshot_json)
 SELECT ${sql(applicationId)}, ${sql(classId)}, ${sql(tutorId)},
-  (SELECT id FROM fee_option_versions WHERE option_key = 'first_lesson_percent' AND status = 'published'
+  (SELECT id FROM fee_option_versions WHERE option_key = 'monthly_percent' AND status = 'published'
      AND scope_subject_id IS NULL AND scope_mode IS NULL ORDER BY version DESC LIMIT 1),
   'submitted', 1, ${sql(applicationId)}, ${sql(appliedAt)}, ${sql(appliedAt)}, '{}'
 WHERE NOT EXISTS (SELECT 1 FROM tutor_applications WHERE id = ${sql(applicationId)})

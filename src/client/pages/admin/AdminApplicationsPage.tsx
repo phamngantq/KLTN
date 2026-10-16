@@ -316,6 +316,17 @@ export function AdminApplicationsPage() {
                         </dd>
                       </div>
                     </div>
+                    {item.availability && (
+                      <div className="sm:col-span-2">
+                        <dt className="text-xs text-muted">Thời gian rảnh có thể đi dạy</dt>
+                        <dd className="font-medium text-primary">
+                          {item.availability.weekdays
+                            .map((day) => (day === 7 ? 'CN' : `T${day + 1}`))
+                            .join(', ')}{' '}
+                          · {item.availability.start}–{item.availability.end}
+                        </dd>
+                      </div>
+                    )}
                   </dl>
                   <ModeratorMatchSnapshot item={item} />
                   {item.rejectionReason && (

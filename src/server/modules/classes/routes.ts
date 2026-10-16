@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import {
   adminClassListSchema,
   applyClassSchema,
@@ -35,13 +35,29 @@ publicFeeRoutes.get('/published', async (c) =>
   ok<FeeOptionVersion[]>(c, await service.listPublishedFeeOptions(c.env.DB)),
 );
 
+/**
+ * Request details (tutor requirements, student traits) and the placement fee
+ * are for signed-in tutors and moderators; guests see the summary only.
+ */
+function forViewer(c: Context<AppEnv>, item: PublicClass): PublicClass {
+  const role = c.var.auth?.user.role;
+  if (role === 'tutor' || role === 'admin') return item;
+  return {
+    ...item,
+    tutorRequirements: null,
+    studentTraits: null,
+    placementFeeMinor: null,
+  };
+}
+
 /** Mounted at /api/v1/classes. Only open listings can be read publicly. */
 export const classRoutes = new Hono<AppEnv>();
-classRoutes.get('/', async (c) =>
-  ok<Page<PublicClass>>(c, await service.searchClasses(c.var.db, parseQuery(c, classSearchSchema))),
-);
+classRoutes.get('/', async (c) => {
+  const page = await service.searchClasses(c.var.db, parseQuery(c, classSearchSchema));
+  return ok<Page<PublicClass>>(c, { ...page, items: page.items.map((item) => forViewer(c, item)) });
+});
 classRoutes.get('/:id', async (c) =>
-  ok<PublicClass>(c, await service.getPublicClass(c.var.db, c.req.param('id'))),
+  ok<PublicClass>(c, forViewer(c, await service.getPublicClass(c.var.db, c.req.param('id')))),
 );
 classRoutes.post(
   '/:id/applications',

@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { FileText, ImagePlus, Trash2, Upload } from 'lucide-react';
-import { TUTOR_TYPE_LABELS, TUTOR_TYPES } from '../../../shared/schemas/pricing';
+import { TUTOR_TYPE_LABELS, TUTOR_TYPES, type TutorType } from '../../../shared/schemas/pricing';
 import {
   MAX_TUTOR_CREDENTIALS,
   TUTOR_DOCUMENT_MAX_BYTES,
@@ -22,7 +22,7 @@ export interface BasicFields {
   displayName: string;
   phone: string;
   dateOfBirth: string;
-  tutorType: '' | 'university_student' | 'pedagogy_student' | 'teacher';
+  tutorType: TutorType;
   school: string;
   major: string;
   graduationYear: string;
@@ -44,7 +44,8 @@ export function basicFieldsOf(profile: TutorProfile | null, fallbackName: string
     displayName: profile?.displayName ?? fallbackName,
     phone: profile?.phone ?? '',
     dateOfBirth: profile?.dateOfBirth ?? '',
-    tutorType: profile?.tutorType ?? '',
+    // Exactly three choices and no empty option: an unset profile starts as "Sinh viên".
+    tutorType: profile?.tutorType ?? TUTOR_TYPES[0],
     school: profile?.school ?? '',
     major: profile?.major ?? '',
     graduationYear: profile?.graduationYear != null ? String(profile.graduationYear) : '',
@@ -169,7 +170,6 @@ export function BasicInfoFields({
             onChange={(e) => onChange({ tutorType: e.target.value as BasicFields['tutorType'] })}
             error={errors.tutorType}
           >
-            <option value="">Chọn loại gia sư</option>
             {TUTOR_TYPES.map((type) => (
               <option key={type} value={type}>
                 {TUTOR_TYPE_LABELS[type]}

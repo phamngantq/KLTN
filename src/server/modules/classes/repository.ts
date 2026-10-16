@@ -27,7 +27,12 @@ import type {
   TutorApplication,
   ApplicationStatus,
 } from '../../../shared/schemas/classes';
-import { FEE_OPTION_KEYS } from '../../../shared/schemas/classes';
+import {
+  FEE_OPTION_KEYS,
+  PLACEMENT_FEE_OPTION_KEY,
+  placementFee,
+} from '../../../shared/schemas/classes';
+import type { ApplicationAvailability } from '../../../shared/schemas/classes';
 import type { Db } from '../../db/client';
 import {
   auditLogs,
@@ -72,6 +77,19 @@ const classColumns = {
   publishedAt: classListings.publishedAt,
   createdAt: classListings.createdAt,
   updatedAt: classListings.updatedAt,
+  sessionsPerWeek: parentRequests.sessionsPerWeek,
+  tutorRequirements: parentRequests.tutorRequirements,
+  studentTraits: parentRequests.studentTraits,
+  // Rate of the placement-fee policy that applies to this class now (most specific first).
+  placementRateBp: sql<number | null>`(SELECT f.rate_basis_points FROM fee_option_versions f
+    WHERE f.option_key = ${PLACEMENT_FEE_OPTION_KEY} AND f.status = 'published'
+      AND f.published_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+      AND (f.effective_from IS NULL OR f.effective_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      AND (f.effective_to IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', 'now') < f.effective_to)
+      AND (f.scope_subject_id IS NULL OR f.scope_subject_id = class_listings.subject_id)
+      AND (f.scope_mode IS NULL OR f.scope_mode = class_listings.mode)
+    ORDER BY ((f.scope_subject_id IS NOT NULL) + (f.scope_mode IS NOT NULL)) DESC,
+      f.version DESC LIMIT 1)`,
 };
 type ClassRow = Awaited<ReturnType<typeof findClassRow>>;
 type ActualClassRow = NonNullable<ClassRow>;
@@ -97,10 +115,19 @@ async function withSchedules(db: Db, rows: ActualClassRow[]): Promise<AdminClass
     list.push(window);
     grouped.set(requestId, list);
   }
-  return rows.map(({ timezone, discussLater, ...row }) => ({
-    ...row,
-    schedule: { timezone, discussLater, windows: grouped.get(row.sourceRequestId) ?? [] },
-  }));
+  return rows.map(
+    ({ timezone, discussLater, placementRateBp, tutorRequirements, studentTraits, ...row }) => ({
+      ...row,
+      tutorRequirements: tutorRequirements.trim() || null,
+      studentTraits: studentTraits.trim() || null,
+      placementFeeMinor: placementFee(
+        row.expectedBudgetMinor,
+        row.sessionsPerWeek,
+        placementRateBp,
+      ),
+      schedule: { timezone, discussLater, windows: grouped.get(row.sourceRequestId) ?? [] },
+    }),
+  );
 }
 
 function publicProjection(row: AdminClass): PublicClass {
@@ -118,6 +145,10 @@ function publicProjection(row: AdminClass): PublicClass {
     schedule: row.schedule,
     publishedAt: row.publishedAt,
     createdAt: row.createdAt,
+    sessionsPerWeek: row.sessionsPerWeek,
+    tutorRequirements: row.tutorRequirements,
+    studentTraits: row.studentTraits,
+    placementFeeMinor: row.placementFeeMinor,
   };
 }
 
@@ -381,6 +412,16 @@ export async function findCandidateClass(
   return scoredProjection(row, (await withSchedules(db, [row]))[0]!);
 }
 
+/** Code, subject, grade or public area contains the keyword (case-insensitive for ASCII). */
+function keywordFilter(q: string): SQL {
+  const pattern = `%${q.replace(/[!%_]/g, (char) => `!${char}`)}%`;
+  return sql`(class_listings.code LIKE ${pattern} ESCAPE '!'
+    OR class_listings.grade LIKE ${pattern} ESCAPE '!'
+    OR class_listings.public_area LIKE ${pattern} ESCAPE '!'
+    OR EXISTS (SELECT 1 FROM subjects s WHERE s.id = class_listings.subject_id
+      AND s.name LIKE ${pattern} ESCAPE '!'))`;
+}
+
 function classSearchFilter(db: Db, query: ClassSearchQuery, matchedTutorId?: string): SQL {
   return and(
     eq(classListings.status, 'open'),
@@ -388,6 +429,7 @@ function classSearchFilter(db: Db, query: ClassSearchQuery, matchedTutorId?: str
     query.grade ? eq(classListings.grade, query.grade) : undefined,
     query.mode ? eq(classListings.mode, query.mode) : undefined,
     query.area ? sql`instr(${classListings.publicArea}, ${query.area}) > 0` : undefined,
+    query.q ? keywordFilter(query.q) : undefined,
     matchedTutorId ? matchedFor(db, matchedTutorId) : undefined,
   )!;
 }
@@ -886,7 +928,11 @@ export async function insertApplication(
     before: [],
     after: [],
   },
+  availability: ApplicationAvailability | null = null,
 ): Promise<boolean> {
+  const weekdays = availability ? [...availability.weekdays].sort().join(',') : null;
+  const availableStart = availability?.start ?? null;
+  const availableEnd = availability?.end ?? null;
   const mutationId = crypto.randomUUID();
   const matchSnapshotJson = JSON.stringify(matchSnapshot);
   const scores = matchScores(tutorId);
@@ -894,7 +940,8 @@ export async function insertApplication(
     .insert(tutorApplications)
     .select(
       sql`SELECT ${id}, ${classId}, ${tutorId},
-    ${feeOptionVersionId}, 'submitted', NULL, 1, ${mutationId}, ${now}, ${now}, ${matchSnapshotJson}
+    ${feeOptionVersionId}, 'submitted', NULL, 1, ${mutationId}, ${now}, ${now}, ${matchSnapshotJson},
+    ${weekdays}, ${availableStart}, ${availableEnd}
     WHERE EXISTS (
       SELECT 1 FROM class_listings
       JOIN parent_requests ON parent_requests.id = class_listings.source_request_id
@@ -912,7 +959,7 @@ export async function insertApplication(
   // idempotency key can be marked completed. The invalid status trips a CHECK.
   const assertInserted = db.insert(tutorApplications)
     .select(sql`SELECT ${crypto.randomUUID()}, ${classId}, ${tutorId},
-    ${feeOptionVersionId}, 'invalid', NULL, 1, ${mutationId}, ${now}, ${now}, '{}'
+    ${feeOptionVersionId}, 'invalid', NULL, 1, ${mutationId}, ${now}, ${now}, '{}', NULL, NULL, NULL
     WHERE NOT EXISTS (SELECT 1 FROM tutor_applications WHERE id = ${id} AND mutation_id = ${mutationId})`);
   const profileChanges: BatchItem<'sqlite'>[] = [];
   const changes = matchSnapshot.profileChanges;
@@ -958,6 +1005,15 @@ export async function insertApplication(
   return true;
 }
 
+export function availabilityOf(
+  weekdays: string | null,
+  start: string | null,
+  end: string | null,
+): ApplicationAvailability | null {
+  if (!weekdays || !start || !end) return null;
+  return { weekdays: weekdays.split(',').map(Number), start, end };
+}
+
 export async function findOwnApplication(
   db: Db,
   tutorId: string,
@@ -974,6 +1030,9 @@ export async function findOwnApplication(
       createdAt: tutorApplications.createdAt,
       updatedAt: tutorApplications.updatedAt,
       matchSnapshotJson: tutorApplications.matchSnapshotJson,
+      availableWeekdays: tutorApplications.availableWeekdays,
+      availableStart: tutorApplications.availableStart,
+      availableEnd: tutorApplications.availableEnd,
     })
     .from(tutorApplications)
     .where(and(eq(tutorApplications.id, id), eq(tutorApplications.tutorUserId, tutorId)))
@@ -981,10 +1040,12 @@ export async function findOwnApplication(
   if (!row) return null;
   const cls = await findAdminClass(db, row.classId);
   if (!cls) return null;
-  const { matchSnapshotJson, ...application } = row;
+  const { matchSnapshotJson, availableWeekdays, availableStart, availableEnd, ...application } =
+    row;
   return {
     ...application,
     matchSnapshot: matchSnapshotJson === '{}' ? null : JSON.parse(matchSnapshotJson),
+    availability: availabilityOf(availableWeekdays, availableStart, availableEnd),
     class: publicProjection(cls),
   };
 }

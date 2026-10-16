@@ -67,6 +67,10 @@ const createdClass: AdminClass = {
   publishedAt: null,
   createdAt: '2026-10-11T01:00:00.000Z',
   updatedAt: '2026-10-11T01:00:00.000Z',
+  sessionsPerWeek: 2,
+  tutorRequirements: null,
+  studentTraits: null,
+  placementFeeMinor: null,
 };
 
 describe('AdminRequestsPage', () => {

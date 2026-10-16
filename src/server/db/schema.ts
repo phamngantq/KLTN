@@ -453,6 +453,9 @@ export const tutorApplications = sqliteTable(
     mutationId: text('mutation_id').notNull(),
     ...timestamps(),
     matchSnapshotJson: text('match_snapshot_json').notNull().default('{}'),
+    availableWeekdays: text('available_weekdays'),
+    availableStart: text('available_start'),
+    availableEnd: text('available_end'),
   },
   (t) => [
     uniqueIndex('tutor_applications_live_uq')
@@ -773,6 +776,21 @@ export const tutorPreferenceAreas = sqliteTable(
     area: text('area').notNull(),
   },
   (t) => [primaryKey({ columns: [t.tutorId, t.area] })],
+);
+
+/** One checkbox acceptance per published "Điều khoản trách nhiệm" revision; see 0035. */
+export const termsConsents = sqliteTable(
+  'terms_consents',
+  {
+    tutorUserId: text('tutor_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    termsContentRevisionId: text('terms_content_revision_id')
+      .notNull()
+      .references(() => contentRevisions.id, { onDelete: 'restrict' }),
+    acceptedAt: text('accepted_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tutorUserId, t.termsContentRevisionId] })],
 );
 
 /** Owner/moderator-only contact and citizen-ID facts of a tutor; see migration 0034. */

@@ -12,7 +12,15 @@ import type { Page } from '../../src/shared/schemas/discovery';
 import type { OwnParentRequest } from '../../src/shared/schemas/requests';
 import { createDb } from '../../src/server/db/client';
 import { insertApplication } from '../../src/server/modules/classes/repository';
-import { api, createPublicTutor, jsonInit, register, type Session } from './helpers';
+import {
+  AVAILABILITY,
+  api,
+  createPublicTutor,
+  errorCode,
+  jsonInit,
+  register,
+  type Session,
+} from './helpers';
 import { markLegacySubmittedRequest } from './legacy-request-fixture';
 import { passAndAcknowledgeTutorTerms, publishTutorTermsQuiz } from './terms-fixture';
 
@@ -31,11 +39,12 @@ const REQUEST = {
   contactPhone: '0912345678',
   contactAddress: 'Số 41 đường riêng',
 } as const;
+// The placement fee tutors apply with ("Phí nhận lớp": 40% of a month's tuition).
 const FEE = {
-  optionKey: 'first_lesson_percent',
-  title: 'Theo buổi đầu tiên',
-  policyText: 'Gia sư chọn phương án phí theo phần trăm học phí buổi đầu tiên.',
-  rateBasisPoints: 5000,
+  optionKey: 'monthly_percent',
+  title: 'Theo học phí tháng',
+  policyText: 'Phí nhận lớp bằng 40% học phí một tháng của lớp.',
+  rateBasisPoints: 4000,
   depositBasisPoints: null,
   scopeSubjectId: null,
   scopeMode: null,
@@ -289,7 +298,11 @@ describe('published classes and tutor applications', () => {
     const { admin, cls } = await setupOpenClass();
     const tutor = await createPublicTutor();
     const applicationPath = `/classes/${cls.id}/applications`;
-    const body = { feeOptionVersionId: crypto.randomUUID(), classVersion: cls.version };
+    const body = {
+      feeOptionVersionId: crypto.randomUUID(),
+      classVersion: cls.version,
+      availability: AVAILABILITY,
+    };
     const apply = (session: Session, payload: unknown = body) =>
       api(
         applicationPath,
@@ -308,8 +321,8 @@ describe('published classes and tutor applications', () => {
     }
     const fee = await createPublishedFee(admin);
     expect(fee).toMatchObject({
-      optionKey: 'first_lesson_percent',
-      rateBasisPoints: 5000,
+      optionKey: 'monthly_percent',
+      rateBasisPoints: 4000,
       version: 1,
       status: 'published',
     });
@@ -340,8 +353,8 @@ describe('published classes and tutor applications', () => {
     });
     expect(second.version).toBe(1);
     const third = await createPublishedFee(admin, {
-      optionKey: 'monthly_percent',
-      rateBasisPoints: 4000,
+      optionKey: 'first_lesson_percent',
+      rateBasisPoints: 5000,
     });
     expect(third.version).toBe(1);
     const successor = await createPublishedFee(admin, { rateBasisPoints: 6000 });
@@ -351,11 +364,15 @@ describe('published classes and tutor applications', () => {
     });
     const current = (await currentResponse.json<ApiSuccess<FeeOptionVersion[]>>()).data;
     expect(current).toHaveLength(3);
-    expect(current.find((option) => option.optionKey === 'first_lesson_percent')?.id).toBe(
-      successor.id,
-    );
+    expect(current.find((option) => option.optionKey === 'monthly_percent')?.id).toBe(successor.id);
     expect(
-      (await apply(tutor, { feeOptionVersionId: fee.id, classVersion: cls.version })).status,
+      (
+        await apply(tutor, {
+          feeOptionVersionId: fee.id,
+          classVersion: cls.version,
+          availability: AVAILABILITY,
+        })
+      ).status,
     ).toBe(409);
     await publishTutorTermsQuiz(admin);
     await passAndAcknowledgeTutorTerms(tutor);
@@ -389,8 +406,12 @@ describe('published classes and tutor applications', () => {
       rateBasisPoints: 30_000,
       depositBasisPoints: 5000,
     });
-    await createPublishedFee(admin, { optionKey: 'monthly_percent', rateBasisPoints: 4000 });
-    const body = { feeOptionVersionId: fee.id, classVersion: cls.version };
+    await createPublishedFee(admin, { optionKey: 'first_lesson_percent', rateBasisPoints: 5000 });
+    const body = {
+      feeOptionVersionId: fee.id,
+      classVersion: cls.version,
+      availability: AVAILABILITY,
+    };
     const path = `/classes/${cls.id}/applications`;
     const key = `apply-${crypto.randomUUID()}`;
     expect(
@@ -412,6 +433,7 @@ describe('published classes and tutor applications', () => {
       version: 1,
       classId: cls.id,
       feeOptionVersionId: fee.id,
+      availability: AVAILABILITY,
     });
     const replay = await api(path, jsonInit('POST', body, tutor, { 'Idempotency-Key': key }));
     expect(replay.status).toBe(201);
@@ -575,7 +597,7 @@ describe('published classes and tutor applications', () => {
       rateBasisPoints: 30_000,
       depositBasisPoints: 5000,
     });
-    await createPublishedFee(admin, { optionKey: 'monthly_percent', rateBasisPoints: 4000 });
+    await createPublishedFee(admin, { optionKey: 'first_lesson_percent', rateBasisPoints: 5000 });
     await publishTutorTermsQuiz(admin);
     await passAndAcknowledgeTutorTerms(tutor);
     const updated = await api(
@@ -621,7 +643,12 @@ describe('published classes and tutor applications', () => {
         `/classes/${lower.id}/applications`,
         jsonInit(
           'POST',
-          { feeOptionVersionId: fee.id, classVersion: lower.version, acceptedAdjustments },
+          {
+            feeOptionVersionId: fee.id,
+            classVersion: lower.version,
+            availability: AVAILABILITY,
+            acceptedAdjustments,
+          },
           tutor,
           { 'Idempotency-Key': `match-apply-${crypto.randomUUID()}` },
         ),
@@ -776,7 +803,7 @@ describe('published classes and tutor applications', () => {
       rateBasisPoints: 30_000,
       depositBasisPoints: 5000,
     });
-    await createPublishedFee(admin, { optionKey: 'monthly_percent', rateBasisPoints: 4000 });
+    await createPublishedFee(admin, { optionKey: 'first_lesson_percent', rateBasisPoints: 5000 });
     await publishTutorTermsQuiz(admin);
     await passAndAcknowledgeTutorTerms(tutor);
     // The three scored preferences are unchanged, but a concurrent profile edit
@@ -827,7 +854,12 @@ describe('published classes and tutor applications', () => {
         `/classes/${cls.id}/applications`,
         jsonInit(
           'POST',
-          { feeOptionVersionId: fee.id, classVersion: cls.version, acceptedAdjustments },
+          {
+            feeOptionVersionId: fee.id,
+            classVersion: cls.version,
+            availability: AVAILABILITY,
+            acceptedAdjustments,
+          },
           session,
           { 'Idempotency-Key': `profile-match-${crypto.randomUUID()}` },
         ),
@@ -947,5 +979,195 @@ describe('published classes and tutor applications', () => {
     });
     await addRule('Asia/Ho_Chi_Minh', '18:00', '20:00');
     expect(await get()).toMatchObject({ score: 100, coverage: 100, level: 'strong' });
+  });
+});
+
+describe('class acceptance: terms checkbox, placement fee and free time', () => {
+  it('shows request details and the placement fee to tutors only, and filters by keyword', async () => {
+    const parent = await register('parent');
+    const admin = await moderator();
+    const request = await createSubmittedRequest(parent, {
+      sessionsPerWeek: 3,
+      tutorRequirements: 'Sinh viên ngoại ngữ\nGiao tiếp tốt',
+      studentTraits: 'Học sinh năng động',
+    });
+    const cls = await publishClass(
+      admin,
+      (await (await createClass(admin, request)).json<ApiSuccess<AdminClass>>()).data,
+    );
+    await createPublishedFee(admin);
+    const tutor = await createPublicTutor();
+
+    const guestView = (await (await api(`/classes/${cls.id}`)).json<ApiSuccess<PublicClass>>())
+      .data;
+    expect(guestView).toMatchObject({
+      sessionsPerWeek: 3,
+      tutorRequirements: null,
+      studentTraits: null,
+      placementFeeMinor: null,
+    });
+    const tutorView = (
+      await (
+        await api(`/classes/${cls.id}`, { headers: { Cookie: tutor.cookie } })
+      ).json<ApiSuccess<PublicClass>>()
+    ).data;
+    // 40% × 180.000 ₫/buổi × 3 buổi/tuần × 4 tuần.
+    expect(tutorView).toMatchObject({
+      tutorRequirements: 'Sinh viên ngoại ngữ\nGiao tiếp tốt',
+      studentTraits: 'Học sinh năng động',
+      placementFeeMinor: 864_000,
+    });
+    // The free-text description stays private for everyone.
+    expect(JSON.stringify(tutorView)).not.toContain('0912345678');
+
+    const search = async (q: string) =>
+      (
+        await (
+          await api(`/classes?q=${encodeURIComponent(q)}&pageSize=48`, {
+            headers: { Cookie: tutor.cookie },
+          })
+        ).json<ApiSuccess<Page<PublicClass>>>()
+      ).data.items.map((item) => item.id);
+    expect(await search(cls.code)).toEqual([cls.id]);
+    expect(await search('Cầu Giấy')).toContain(cls.id);
+    expect(await search('100%_không-có')).toEqual([]);
+  });
+
+  it('accepts terms with one checkbox and applies only with the monthly fee and free time', async () => {
+    const parent = await register('parent');
+    const admin = await moderator();
+    const request = await createSubmittedRequest(parent, { sessionsPerWeek: 2 });
+    const cls = await publishClass(
+      admin,
+      (await (await createClass(admin, request)).json<ApiSuccess<AdminClass>>()).data,
+    );
+    const monthly = await createPublishedFee(admin);
+    const firstLesson = await createPublishedFee(admin, {
+      optionKey: 'first_lesson_percent',
+      rateBasisPoints: 5000,
+    });
+    await publishTutorTermsQuiz(admin);
+    const tutor = await createPublicTutor();
+    const recommendation = (
+      await (
+        await api(`/tutor/classes/${cls.id}/recommendation`, { headers: { Cookie: tutor.cookie } })
+      ).json<ApiSuccess<ClassRecommendation>>()
+    ).data;
+    const apply = (body: Record<string, unknown>) =>
+      api(
+        `/classes/${cls.id}/applications`,
+        jsonInit(
+          'POST',
+          {
+            feeOptionVersionId: monthly.id,
+            classVersion: cls.version,
+            availability: AVAILABILITY,
+            ...(recommendation.match.adjustments.length > 0 && {
+              acceptedAdjustments: recommendation.match.adjustments,
+            }),
+            ...body,
+          },
+          tutor,
+          { 'Idempotency-Key': crypto.randomUUID() },
+        ),
+      );
+
+    // Terms first: one checkbox, no quiz.
+    const before = await api('/tutor/terms', { headers: { Cookie: tutor.cookie } });
+    const terms = (
+      await before.json<ApiSuccess<{ termsContentRevisionId: string; acceptedAt: string | null }>>()
+    ).data;
+    expect(terms.acceptedAt).toBeNull();
+    const notApplied = await apply({});
+    expect(notApplied.status).toBe(409);
+    expect(await errorCode(notApplied)).toBe('TERMS_ACK_REQUIRED');
+    expect(
+      (
+        await api(
+          '/tutor/terms/consent',
+          jsonInit(
+            'POST',
+            { termsContentRevisionId: terms.termsContentRevisionId, accepted: false },
+            tutor,
+          ),
+        )
+      ).status,
+    ).toBe(422);
+    expect(
+      (
+        await api(
+          '/tutor/terms/consent',
+          jsonInit('POST', { termsContentRevisionId: crypto.randomUUID(), accepted: true }, tutor),
+        )
+      ).status,
+    ).toBe(409);
+    const consent = await api(
+      '/tutor/terms/consent',
+      jsonInit(
+        'POST',
+        { termsContentRevisionId: terms.termsContentRevisionId, accepted: true },
+        tutor,
+      ),
+    );
+    expect(consent.status).toBe(200);
+    const acceptedAt = (await consent.json<ApiSuccess<{ acceptedAt: string }>>()).data.acceptedAt;
+    expect(acceptedAt).toEqual(expect.any(String));
+    const again = await api(
+      '/tutor/terms/consent',
+      jsonInit(
+        'POST',
+        { termsContentRevisionId: terms.termsContentRevisionId, accepted: true },
+        tutor,
+      ),
+    );
+    expect((await again.json<ApiSuccess<{ acceptedAt: string }>>()).data.acceptedAt).toBe(
+      acceptedAt,
+    );
+
+    // Only the monthly-percent placement fee, and free time is required and checked.
+    const otherFee = await apply({ feeOptionVersionId: firstLesson.id });
+    expect(otherFee.status).toBe(409);
+    expect(await errorCode(otherFee)).toBe('FEE_OPTION_UNAVAILABLE');
+    for (const availability of [
+      undefined,
+      { weekdays: [], start: '18:00', end: '20:00' },
+      { weekdays: [8], start: '18:00', end: '20:00' },
+      { weekdays: [2], start: '20:00', end: '18:00' },
+      { weekdays: [2], start: '25:00', end: '26:00' },
+    ]) {
+      expect((await apply({ availability })).status).toBe(422);
+    }
+    const created = await apply({
+      availability: { weekdays: [6, 2], start: '17:00', end: '19:00' },
+    });
+    expect(created.status).toBe(201);
+    const application = (await created.json<ApiSuccess<TutorApplication>>()).data;
+    expect(application.availability).toEqual({ weekdays: [2, 6], start: '17:00', end: '19:00' });
+    const adminList = await api(`/admin/applications?classId=${cls.id}`, {
+      headers: { Cookie: admin.cookie },
+    });
+    expect(
+      (await adminList.json<ApiSuccess<Page<{ availability: unknown }>>>()).data.items[0]
+        ?.availability,
+    ).toEqual({ weekdays: [2, 6], start: '17:00', end: '19:00' });
+
+    // D1 itself refuses an application under another fee option.
+    await expect(
+      env.DB.prepare(
+        `INSERT INTO tutor_applications (id, class_id, tutor_user_id, fee_option_version_id, status,
+           version, mutation_id, created_at, updated_at, match_snapshot_json)
+         VALUES (?, ?, ?, ?, 'submitted', 1, ?, ?, ?, '{}')`,
+      )
+        .bind(
+          crypto.randomUUID(),
+          cls.id,
+          (await createPublicTutor()).userId,
+          firstLesson.id,
+          crypto.randomUUID(),
+          new Date().toISOString(),
+          new Date().toISOString(),
+        )
+        .run(),
+    ).rejects.toThrow();
   });
 });

@@ -28,6 +28,7 @@ const matched: AdminApplication = {
   version: 1,
   createdAt: '2026-10-12T00:00:00.000Z',
   updatedAt: '2026-10-12T00:00:00.000Z',
+  availability: null,
   matchSnapshot: {
     algorithmVersion: MATCH_ALGORITHM_VERSION,
     classVersion: 3,

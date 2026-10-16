@@ -5,7 +5,7 @@ import type { AdminAssignment, ClassLifecycle } from '../../src/shared/schemas/a
 import type { AdminClass, TutorApplication } from '../../src/shared/schemas/classes';
 import type { ComplaintDetail } from '../../src/shared/schemas/complaints';
 import type { OwnParentRequest } from '../../src/shared/schemas/requests';
-import { api, createPublicTutor, jsonInit, register, type Session } from './helpers';
+import { AVAILABILITY, api, createPublicTutor, jsonInit, register, type Session } from './helpers';
 import { passAndAcknowledgeTutorTerms, publishTutorTermsQuiz } from './terms-fixture';
 
 const PRIVATE_MARKER = '0912345678';
@@ -79,7 +79,8 @@ async function publishedFee(admin: Session): Promise<string> {
     )
       .bind(key)
       .first<{ version: number }>();
-    if (!selectedId) selectedId = id;
+    // The placement fee is always the monthly-percent policy.
+    if (key === 'monthly_percent') selectedId = id;
     await env.DB.prepare(
       `INSERT INTO fee_option_versions
         (id, option_key, version, title, policy_text, rate_basis_points,
@@ -111,9 +112,14 @@ async function applyTutor(admin: Session, cls: AdminClass) {
   await passAndAcknowledgeTutorTerms(tutor);
   const response = await api(
     `/classes/${cls.id}/applications`,
-    jsonInit('POST', { feeOptionVersionId: feeId, classVersion: cls.version }, tutor, {
-      'Idempotency-Key': crypto.randomUUID(),
-    }),
+    jsonInit(
+      'POST',
+      { feeOptionVersionId: feeId, classVersion: cls.version, availability: AVAILABILITY },
+      tutor,
+      {
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+    ),
   );
   expect(response.status).toBe(201);
   return { tutor, application: (await response.json<ApiSuccess<TutorApplication>>()).data };

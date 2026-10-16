@@ -1,4 +1,3 @@
-import { useRef, useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -9,26 +8,12 @@ import {
   MapPin,
 } from 'lucide-react';
 import { Link, useParams } from 'react-router';
-import { FEE_OPTION_KEYS } from '../../../shared/schemas/classes';
 import { useSession } from '../../app/auth';
-import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
-import { MatchExplanation, ADJUSTMENT_LABELS } from '../../components/domain/MatchExplanation';
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert } from '../../components/ui/Feedback';
-import { SelectField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
-import {
-  useApplyForClass,
-  useClassRecommendation,
-  useFeeOptions,
-  usePublicClass,
-  type ClassRecommendation,
-  type MatchAdjustment,
-  type PublicClass,
-} from '../../features/classes/api';
+import { usePublicClass, type PublicClass } from '../../features/classes/api';
 import { formatDate, formatVnd, WEEKDAY_LABELS } from '../../lib/format';
-import { isApiError } from '../../lib/api-client';
 
 function ClassFacts({ item }: { item: PublicClass }) {
   return (
@@ -117,290 +102,11 @@ function ClassFacts({ item }: { item: PublicClass }) {
   );
 }
 
-function TutorApplicationForm({
-  item,
-  match,
-  refresh,
-}: {
-  item: PublicClass;
-  match: ClassRecommendation['match'];
-  refresh: () => void;
-}) {
-  const preview = isReadOnlyPreview();
-  const feeOptions = useFeeOptions(item.id, !preview);
-  const apply = useApplyForClass();
-  const [feeOptionVersionId, setFeeOptionVersionId] = useState('');
-  const [adjustmentDialogOpen, setAdjustmentDialogOpen] = useState(false);
-  const idempotencyKey = useRef<string | null>(null);
-  const selected = feeOptions.data?.find((option) => option.id === feeOptionVersionId);
-  const hasAllOptions = FEE_OPTION_KEYS.every((key) =>
-    feeOptions.data?.some((option) => option.optionKey === key),
-  );
-  const termsError =
-    isApiError(apply.error, 'TERMS_ACK_REQUIRED') ||
-    isApiError(apply.error, 'TERMS_QUIZ_UNAVAILABLE');
-  const adjustmentDialogTitle =
-    match.level === 'near'
-      ? 'Bạn có thể điều chỉnh để dạy lớp này?'
-      : match.level === 'low'
-        ? 'Mức độ phù hợp thấp — hãy xem kỹ trước khi ứng tuyển'
-        : 'Chưa đủ dữ liệu để đánh giá đầy đủ lớp này';
-  const profileChanges = match.profileChangesPreview;
-  const profileChangesReady = match.adjustments.every((adjustment) =>
-    adjustment === 'grade'
-      ? profileChanges.preferredGrade === item.grade
-      : adjustment === 'area'
-        ? Boolean(profileChanges.preferredArea)
-        : typeof profileChanges.negotiableTime === 'boolean',
-  );
-  const willUpdateProfile = Boolean(
-    profileChanges.preferredGrade || profileChanges.preferredArea || profileChanges.negotiableTime,
-  );
-  const savedProfileChanges = apply.data?.matchSnapshot?.profileChanges;
-  const profileWasUpdated = Boolean(
-    savedProfileChanges?.preferredGrade ||
-    savedProfileChanges?.preferredArea ||
-    savedProfileChanges?.negotiableTime,
-  );
-
-  function applyWith(acceptedAdjustments: MatchAdjustment[]) {
-    if (!feeOptionVersionId || apply.isPending || preview || !profileChangesReady) return;
-    idempotencyKey.current ??= crypto.randomUUID();
-    apply.mutate(
-      {
-        classId: item.id,
-        feeOptionVersionId,
-        classVersion: item.version,
-        idempotencyKey: idempotencyKey.current,
-        ...(acceptedAdjustments.length > 0 && { acceptedAdjustments }),
-      },
-      {
-        onSuccess: () => setAdjustmentDialogOpen(false),
-        onError: () => {
-          // Score, class and fee policy may have changed before the application was sent.
-          setAdjustmentDialogOpen(false);
-          idempotencyKey.current = null;
-          refresh();
-          void feeOptions.refetch();
-        },
-      },
-    );
-  }
-
-  function submit() {
-    if (!feeOptionVersionId || apply.isPending || preview || !profileChangesReady) return;
-    if (match.adjustments.length > 0) setAdjustmentDialogOpen(true);
-    else applyWith([]);
-  }
-
-  if (preview) {
-    return (
-      <Alert title="Bản xem trước chỉ đọc">
-        Chức năng ứng tuyển lớp chưa mở trên bản xem trước.
-      </Alert>
-    );
-  }
-
-  return (
-    <section className="p-5 sm:p-6" aria-labelledby="apply-heading">
-      <h2 id="apply-heading" className="text-xl font-semibold text-primary">
-        Đăng ký nhận lớp
-      </h2>
-      <p className="mt-1 text-sm text-muted">
-        Chọn một phương án phí đã được kiểm duyệt viên công bố. Việc ứng tuyển không phải thanh
-        toán.
-      </p>
-      <div className="mt-4">
-        <MatchExplanation match={match} />
-      </div>
-      {feeOptions.isPending ? (
-        <PageLoading label="Đang tải phương án phí…" />
-      ) : feeOptions.isError ? (
-        <Alert
-          tone="danger"
-          title="Không tải được phương án phí"
-          action={
-            <Button variant="secondary" onClick={() => void feeOptions.refetch()}>
-              Thử lại
-            </Button>
-          }
-        >
-          {feeOptions.error.message}
-        </Alert>
-      ) : !hasAllOptions ? (
-        <Alert tone="warning" title="Chưa thể ứng tuyển">
-          Chưa có đủ ba phương án phí nhận lớp được công bố cho lớp này.
-        </Alert>
-      ) : apply.isSuccess ? (
-        <Alert tone="success" title="Đã gửi đơn ứng tuyển">
-          Hệ thống đã ghi nhận đơn của bạn.{' '}
-          {profileWasUpdated && (
-            <>
-              Hồ sơ giảng dạy đã được cập nhật theo lựa chọn bạn xác nhận.{' '}
-              <Link className="font-medium text-primary underline" to="/tutor/profile">
-                Xem hồ sơ đã cập nhật
-              </Link>
-              .{' '}
-            </>
-          )}
-          <Link className="font-medium text-primary underline" to="/tutor/class-requests">
-            Theo dõi đơn ứng tuyển
-          </Link>
-          .
-        </Alert>
-      ) : (
-        <div className="mt-4 flex max-w-xl flex-col gap-4">
-          <p className="text-sm text-muted">
-            Trước khi ứng tuyển, gia sư cần hoàn thành bài kiểm tra và xác nhận điều khoản hiện
-            hành.{' '}
-            <Link
-              className="font-medium text-primary underline underline-offset-4"
-              to="/tutor/terms"
-            >
-              Xem điều khoản và bài kiểm tra
-            </Link>
-          </p>
-          <SelectField
-            label="Phương án phí nhận lớp"
-            value={feeOptionVersionId}
-            onChange={(event) => {
-              setFeeOptionVersionId(event.target.value);
-              idempotencyKey.current = null;
-              apply.reset();
-            }}
-            required
-          >
-            <option value="">Chọn phương án</option>
-            {feeOptions.data.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.title} · Phiên bản {option.version}
-              </option>
-            ))}
-          </SelectField>
-          {selected && (
-            <p className="whitespace-pre-line rounded-md bg-info-surface p-3 text-sm">
-              {selected.policyText}
-            </p>
-          )}
-          {apply.isError && (
-            <Alert tone="danger" title="Chưa gửi được đơn ứng tuyển">
-              {apply.error.message}{' '}
-              {termsError ? (
-                <Link
-                  className="block font-medium text-primary underline underline-offset-4"
-                  to="/tutor/terms"
-                >
-                  Hoàn thành điều khoản và bài kiểm tra
-                </Link>
-              ) : (
-                <span className="block">Nếu lớp đã thay đổi, tải lại trang trước khi thử lại.</span>
-              )}
-            </Alert>
-          )}
-          {!profileChangesReady && (
-            <Alert tone="warning" title="Chưa thể xác nhận thay đổi hồ sơ">
-              Thông tin thay đổi chưa đầy đủ. Hãy tải lại điểm phù hợp trước khi ứng tuyển.
-            </Alert>
-          )}
-          <Button
-            variant="accent"
-            className="w-full rounded-xl text-base font-semibold"
-            onClick={submit}
-            loading={apply.isPending}
-            disabled={!feeOptionVersionId || !profileChangesReady}
-          >
-            Gửi đơn ứng tuyển
-          </Button>
-        </div>
-      )}
-      <ConfirmDialog
-        open={adjustmentDialogOpen}
-        title={adjustmentDialogTitle}
-        description={
-          <div className="max-h-[50vh] space-y-3 overflow-y-auto pr-1">
-            <p>
-              {match.level === 'near'
-                ? `Lớp ${item.code} có tiêu chí khác với ưu tiên trong hồ sơ của bạn.`
-                : `Điểm phù hợp hiện tại là ${match.score}/100 cho lớp ${item.code}. Những tiêu chí dưới đây chưa khớp với hồ sơ của bạn; hãy cân nhắc trước khi ứng tuyển.`}{' '}
-              {willUpdateProfile
-                ? 'Nếu xác nhận, hệ thống sẽ cập nhật sở thích giảng dạy trong hồ sơ của bạn và gửi đơn ứng tuyển lớp này. Các sở thích mới cũng được dùng để gợi ý những lớp về sau.'
-                : 'Nếu xác nhận, hệ thống sẽ ghi nhận bạn có thể sắp xếp lịch riêng cho lớp này và gửi đơn ứng tuyển. Hồ sơ gia sư đã bật thương lượng lịch từ trước nên mục này không thay đổi.'}
-            </p>
-            {match.coverage < 100 && (
-              <p>Hệ thống mới đánh giá được {match.coverage}% tiêu chí từ thông tin hiện có.</p>
-            )}
-            <ul className="list-disc space-y-3 pl-5">
-              {match.adjustments.map((adjustment) => (
-                <li key={adjustment}>
-                  <p>{ADJUSTMENT_LABELS[adjustment]}</p>
-                  {adjustment === 'grade' && (
-                    <div>
-                      <p>Khối lớp của lớp: {item.grade}</p>
-                      <p className="font-medium">
-                        Hồ sơ sẽ thêm khối lớp ưu tiên: {profileChanges.preferredGrade}
-                      </p>
-                    </div>
-                  )}
-                  {adjustment === 'area' && (
-                    <div>
-                      <p>Khu vực dạy của lớp: {item.publicArea ?? 'Chưa công bố'}</p>
-                      <p className="font-medium">
-                        Hồ sơ sẽ thêm khu vực ưu tiên: {profileChanges.preferredArea}
-                      </p>
-                    </div>
-                  )}
-                  {adjustment === 'schedule' && (
-                    <div>
-                      {profileChanges.negotiableTime ? (
-                        <p className="font-medium">
-                          Hồ sơ sẽ bật “Có thể thương lượng lịch học”. Hệ thống không tự thêm các
-                          khung giờ này vào lịch rảnh định kỳ.
-                        </p>
-                      ) : (
-                        <p className="font-medium">
-                          Hồ sơ đã bật “Có thể thương lượng lịch học” từ trước. Lịch rảnh đã lưu vẫn
-                          chưa trùng khung giờ lớp; bạn cần xác nhận có thể sắp xếp riêng cho lớp
-                          này. Mục này trong hồ sơ sẽ không thay đổi.
-                        </p>
-                      )}
-                      <p className="font-medium">
-                        Lịch lớp mong muốn (múi giờ {item.schedule.timezone}):
-                      </p>
-                      {item.schedule.windows.length > 0 ? (
-                        <ul className="list-disc pl-5">
-                          {item.schedule.windows.map((window) => (
-                            <li key={`${window.weekday}-${window.startLocal}-${window.endLocal}`}>
-                              {WEEKDAY_LABELS[window.weekday] ?? `Ngày ${window.weekday}`} ·{' '}
-                              {window.startLocal}–{window.endLocal}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p>Chưa có khung giờ cụ thể; cần trao đổi lịch với người học.</p>
-                      )}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        }
-        confirmLabel={willUpdateProfile ? 'Cập nhật hồ sơ và gửi đơn' : 'Xác nhận lịch và gửi đơn'}
-        cancelLabel="Xem lại"
-        loading={apply.isPending}
-        onConfirm={() => applyWith(match.adjustments)}
-        onCancel={() => setAdjustmentDialogOpen(false)}
-      />
-    </section>
-  );
-}
-
-function Detail({ tutor }: { tutor: boolean }) {
+function Detail() {
   const { id } = useParams();
   const detail = usePublicClass(id);
-  const recommendation = useClassRecommendation(tutor ? id : undefined);
   const { user } = useSession();
-  const backTo = tutor ? '/tutor/new-classes' : '/lop-hoc';
+  const backTo = '/lop-hoc';
   const tutorPath = `/tutor/new-classes/${encodeURIComponent(id ?? '')}`;
 
   return (
@@ -452,56 +158,7 @@ function Detail({ tutor }: { tutor: boolean }) {
           </header>
           <ClassFacts item={detail.data} />
           <div className="border-t border-border">
-            {tutor ? (
-              recommendation.isPending ? (
-                <div className="p-5 sm:p-6">
-                  <PageLoading label="Đang tính điểm phù hợp…" />
-                </div>
-              ) : recommendation.isError ? (
-                <div className="p-5 sm:p-6">
-                  <Alert
-                    tone="warning"
-                    title="Chưa thể đánh giá để ứng tuyển"
-                    action={
-                      <Button variant="secondary" onClick={() => void recommendation.refetch()}>
-                        Thử lại
-                      </Button>
-                    }
-                  >
-                    {recommendation.error.message}
-                  </Alert>
-                </div>
-              ) : recommendation.data.class.version !== detail.data.version ? (
-                <div className="p-5 sm:p-6">
-                  <Alert
-                    tone="warning"
-                    title="Lớp vừa thay đổi"
-                    action={
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          void detail.refetch();
-                          void recommendation.refetch();
-                        }}
-                      >
-                        Cập nhật thông tin lớp
-                      </Button>
-                    }
-                  >
-                    Cần tính lại điểm phù hợp trước khi ứng tuyển.
-                  </Alert>
-                </div>
-              ) : (
-                <TutorApplicationForm
-                  item={detail.data}
-                  match={recommendation.data.match}
-                  refresh={() => {
-                    void detail.refetch();
-                    void recommendation.refetch();
-                  }}
-                />
-              )
-            ) : user?.role === 'tutor' ? (
+            {user?.role === 'tutor' ? (
               <div className="p-5 sm:p-6">
                 <ButtonLink
                   variant="accent"
@@ -536,9 +193,5 @@ function Detail({ tutor }: { tutor: boolean }) {
 }
 
 export function PublicClassDetailPage() {
-  return <Detail tutor={false} />;
-}
-
-export function TutorClassDetailPage() {
-  return <Detail tutor />;
+  return <Detail />;
 }

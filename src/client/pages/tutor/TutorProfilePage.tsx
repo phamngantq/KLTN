@@ -342,7 +342,7 @@ function ProfileForm({
           (option): option is TutorCustomOption & { kind: EditableOptionKind } =>
             option.kind === 'subject' || option.kind === 'grade',
         ),
-        tutorType: form.tutorType || null,
+        tutorType: form.tutorType,
         school: form.school.trim() || null,
         specialization: form.specialization.trim() || null,
         experienceYears: form.experienceYears.trim() ? Number(form.experienceYears) : null,

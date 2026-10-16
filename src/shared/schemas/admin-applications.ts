@@ -4,6 +4,7 @@ import {
   type ApplicationStatus,
   type ClassStatus,
   type FeeOptionKey,
+  type ApplicationAvailability,
   type ApplicationMatchSnapshot,
 } from './classes';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './discovery';
@@ -42,4 +43,6 @@ export interface AdminApplication {
   updatedAt: string;
   /** Tutor's own per-class adjustment commitment at submission time, not parental agreement. */
   matchSnapshot: ApplicationMatchSnapshot | null;
+  /** "Thời gian rảnh có thể đi dạy" the tutor gave for this class. */
+  availability: ApplicationAvailability | null;
 }

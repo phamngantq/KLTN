@@ -107,7 +107,7 @@ async function publishLocalTermsAndFees(admin: Page): Promise<string> {
     {
       optionKey: 'monthly_percent',
       title: 'E2E học phí tháng',
-      rateBasisPoints: 3000,
+      rateBasisPoints: 4000,
       depositBasisPoints: null,
     },
   ] as const;
@@ -127,7 +127,8 @@ async function publishLocalTermsAndFees(admin: Page): Promise<string> {
       { version: draft.version },
       200,
     );
-    if (formula.optionKey === 'first_lesson_percent') selectedFeeId = draft.id;
+    // "Phí nhận lớp" is always the monthly-percent policy (40% of a month's tuition).
+    if (formula.optionKey === 'monthly_percent') selectedFeeId = draft.id;
   }
   return selectedFeeId;
 }
@@ -258,28 +259,33 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect(JSON.stringify(publicClass)).not.toContain(address);
     expect(JSON.stringify(publicClass)).not.toContain('Học sinh E2E');
 
-    await tutor.goto(`/tutor/new-classes/${cls!.id}`);
-    await expect(
-      tutor.getByText('Chưa có đủ ba phương án phí nhận lớp được công bố cho lớp này.'),
-    ).toBeVisible();
-    const feeId = await publishLocalTermsAndFees(admin);
-    await tutor.goto('/tutor/terms');
-    await expect(tutor.getByRole('heading', { name: 'Điều khoản kiểm thử E2E' })).toBeVisible();
-    await tutor.getByRole('radio', { name: 'Đúng' }).check();
-    await tutor.getByRole('button', { name: 'Nộp bài kiểm tra' }).click();
-    await expect(tutor.getByText('Bạn đã vượt qua bài kiểm tra.')).toBeVisible();
-    await tutor.getByLabel(/Tôi đã đọc và đồng ý với phiên bản/).check();
-    await tutor.getByRole('button', { name: 'Xác nhận điều khoản' }).click();
-    await expect(tutor.getByText('Đã xác nhận điều khoản hiện hành')).toBeVisible();
+    const acceptPath = `/tutor/new-classes/${cls!.id}/nhan-lop`;
+    await tutor.goto(acceptPath);
+    await expect(tutor.getByText('Chưa có phí nhận lớp được công bố cho lớp này.')).toBeVisible();
+    await publishLocalTermsAndFees(admin);
 
+    // Class detail → "Nhận lớp" → terms checkbox → back to the acceptance form.
     await tutor.goto(`/tutor/new-classes/${cls!.id}`);
-    await tutor.getByLabel('Phương án phí nhận lớp').selectOption(feeId);
-    await tutor.getByRole('button', { name: 'Gửi đơn ứng tuyển' }).click();
+    await expect(tutor.getByRole('heading', { name: 'Chi tiết lớp học' })).toBeVisible();
+    await tutor.getByRole('link', { name: 'Nhận lớp' }).click();
+    await expect(tutor).toHaveURL(new RegExp(`${acceptPath}$`));
+    await tutor.getByRole('link', { name: 'Làm bài test điều khoản trách nhiệm' }).click();
+    await expect(tutor.getByRole('heading', { name: /Điều khoản kiểm thử E2E/ })).toBeVisible();
+    await tutor
+      .getByLabel('Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm.')
+      .check();
+    await tutor.getByRole('button', { name: 'Xác nhận' }).click();
+    await expect(tutor).toHaveURL(new RegExp(`${acceptPath}$`));
+    await expect(tutor.getByText('Đã xác nhận Điều khoản trách nhiệm')).toBeVisible();
+
+    await tutor.getByRole('button', { name: 'T2', exact: true }).click();
+    await tutor.getByLabel(/Giờ bắt đầu/).fill('17:30');
+    await tutor.getByLabel(/Giờ kết thúc/).fill('19:00');
+    await tutor.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }).click();
     const adjustmentDialog = tutor.getByRole('dialog', {
-      name: 'Bạn có thể điều chỉnh để dạy lớp này?',
+      name: 'Xác nhận điều chỉnh để nhận lớp',
     });
-    await expect(adjustmentDialog).toContainText('Dạy khối lớp này dù nằm ngoài khối lớp ưu tiên');
-    await expect(adjustmentDialog).toContainText('Lớp 10');
+    await expect(adjustmentDialog).toBeVisible();
     await tutor.setViewportSize({ width: 320, height: 900 });
     await expectNoHorizontalOverflow(tutor);
     await tutor.keyboard.press('Escape');
@@ -289,14 +295,15 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect(
       (await getData<{ preferredGrades: string[] }>(tutor, '/tutor/profile')).preferredGrades,
     ).not.toContain('Lớp 10');
-    await tutor.getByRole('button', { name: 'Gửi đơn ứng tuyển' }).click();
-    await adjustmentDialog.getByRole('button', { name: 'Cập nhật hồ sơ và gửi đơn' }).click();
-    await expect(tutor.getByText('Đã gửi đơn ứng tuyển')).toBeVisible();
+    await tutor.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }).click();
+    await adjustmentDialog.getByRole('button', { name: 'Xác nhận và gửi' }).click();
+    await expect(tutor.getByText('Đã gửi yêu cầu nhận lớp')).toBeVisible();
     expect(
       (await getData<{ preferredGrades: string[] }>(tutor, '/tutor/profile')).preferredGrades,
     ).toEqual(expect.arrayContaining(['Lớp 9', 'Lớp 10']));
     await admin.goto(`/admin/applications?classId=${cls!.id}`);
     const applicationCard = admin.getByRole('article').filter({ hasText: tutorName });
+    await expect(applicationCard).toContainText('T2 · 17:30–19:00');
     await applicationCard.getByRole('button', { name: 'Gán gia sư' }).click();
     await admin.getByRole('dialog').getByLabel('Học phí đã chốt (VNĐ/buổi)').fill('180000');
     await admin
@@ -341,7 +348,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await tutor.goto('/tutor/contracts');
     await tutor.getByRole('button', { name: 'Xem hợp đồng' }).click();
     await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
-      'E2E buổi đầu',
+      'E2E học phí tháng',
     );
     await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
       /180\.000\s*₫\/buổi/,

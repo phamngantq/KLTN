@@ -5,7 +5,7 @@ import type {
   AdminContractCandidate,
   AdminTermsQuiz,
   ClassContractRecord,
-  TutorTermsQuiz,
+  TutorTerms,
 } from '../../src/shared/schemas/terms-contracts';
 import { mockApi, renderRoute, sessionOf } from './helpers';
 
@@ -19,80 +19,63 @@ const contentId = '00000000-0000-4000-8000-000000000002';
 const attemptId = '00000000-0000-4000-8000-000000000003';
 
 describe('tutor terms and contracts', () => {
-  it('submits answers to the server and acknowledges only after a passed attempt', async () => {
-    let quiz: TutorTermsQuiz = {
-      quizId,
+  it('accepts the terms with one checkbox and returns to the class being accepted', async () => {
+    let terms: TutorTerms = {
       termsContentRevisionId: contentId,
       termsRevision: 2,
-      termsTitle: 'Điều khoản gia sư',
-      termsBodyText: 'Nội dung do kiểm duyệt viên công bố.',
-      questions: [
-        {
-          id: 'q1',
-          prompt: 'Câu hỏi về điều khoản?',
-          choices: [
-            { id: 'yes', text: 'Đồng ý' },
-            { id: 'no', text: 'Không' },
-          ],
-        },
-      ],
-      minimumCorrect: 1,
-      passed: false,
-      passedAttemptId: null,
-      acknowledgedAt: null,
+      termsTitle: 'Điều khoản trách nhiệm gia sư',
+      termsBodyText: 'Gia sư báo trước khi nghỉ và giữ bí mật thông tin người học.',
+      acceptedAt: null,
     };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === '/tutor/terms/quiz' && req.method === 'GET') return { data: quiz };
-      if (req.path === '/tutor/terms/attempts' && req.method === 'POST') {
-        quiz = { ...quiz, passed: true, passedAttemptId: attemptId };
-        return {
-          status: 201,
-          data: {
-            id: attemptId,
-            quizId,
-            termsContentRevisionId: contentId,
-            correctCount: 1,
-            questionCount: 1,
-            minimumCorrect: 1,
-            passed: true,
-            createdAt: '2026-10-11T00:00:00.000Z',
-          },
-        };
-      }
-      if (req.path === '/tutor/terms/acknowledgements' && req.method === 'POST') {
-        quiz = { ...quiz, acknowledgedAt: '2026-10-11T00:01:00.000Z' };
-        return {
-          status: 201,
-          data: { quizId, termsContentRevisionId: contentId, acknowledgedAt: quiz.acknowledgedAt },
-        };
+      if (req.path === '/tutor/terms') return { data: terms };
+      if (req.path === '/tutor/terms/consent') {
+        terms = { ...terms, acceptedAt: '2026-10-16T02:00:00.000Z' };
+        return { data: terms };
       }
       return undefined;
     });
-    renderRoute('/tutor/terms');
+    const next = '/tutor/new-classes/c-1/nhan-lop';
+    const { router } = renderRoute(`/tutor/terms?next=${encodeURIComponent(next)}`);
     const user = userEvent.setup();
-    expect(await screen.findByText('Nội dung do kiểm duyệt viên công bố.')).toBeTruthy();
-    expect(screen.queryByText(/correctChoiceId/)).toBeNull();
-    await user.click(screen.getByRole('radio', { name: 'Đồng ý' }));
-    await user.click(screen.getByRole('button', { name: 'Nộp bài kiểm tra' }));
-    expect(await screen.findByRole('checkbox', { name: /Tôi đã đọc và đồng ý/ })).toBeTruthy();
-    expect(calls.find((call) => call.path === '/tutor/terms/attempts')?.body).toEqual({
-      quizId,
-      answers: [{ questionId: 'q1', choiceId: 'yes' }],
+
+    expect(await screen.findByText(terms.termsBodyText)).toBeTruthy();
+    // No quiz: one checkbox, and the button waits for it.
+    expect(screen.queryByRole('radio')).toBeNull();
+    const confirm = screen.getByRole('button', { name: 'Xác nhận' }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(true);
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm.',
+      }),
+    );
+    await user.click(confirm);
+    await waitFor(() => expect(router.state.location.pathname).toBe(next));
+    expect(calls.find((call) => call.path === '/tutor/terms/consent')?.body).toEqual({
+      termsContentRevisionId: contentId,
+      accepted: true,
     });
-    await user.click(screen.getByRole('checkbox', { name: /Tôi đã đọc và đồng ý/ }));
-    await user.click(screen.getByRole('button', { name: 'Xác nhận điều khoản' }));
-    expect(await screen.findByText(/Đã xác nhận điều khoản hiện hành/)).toBeTruthy();
-    expect(calls.find((call) => call.path === '/tutor/terms/acknowledgements')?.body).toEqual({
-      quizId,
-      attemptId,
-      acknowledged: true,
+  });
+
+  it('ignores a return target outside the tutor area', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/terms')
+        return {
+          data: {
+            termsContentRevisionId: contentId,
+            termsRevision: 1,
+            termsTitle: 'Điều khoản',
+            termsBodyText: 'Nội dung.',
+            acceptedAt: '2026-10-16T02:00:00.000Z',
+          },
+        };
+      return undefined;
     });
-    expect(
-      calls
-        .find((call) => call.path === '/tutor/terms/acknowledgements')
-        ?.headers.get('X-CSRF-Token'),
-    ).toBe('csrf-test-token');
+    renderRoute(`/tutor/terms?next=${encodeURIComponent('https://example.com/x')}`);
+    expect(await screen.findByText('Bạn đã xác nhận điều khoản')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: 'Tiếp tục nhận lớp' })).toBeNull();
   });
 
   it('shows the issued contract, then records tutor acknowledgement without a payment claim', async () => {

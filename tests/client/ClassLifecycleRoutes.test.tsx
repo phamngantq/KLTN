@@ -33,6 +33,10 @@ const item: AdminClass = {
   publishedAt: '2026-10-11T00:00:00.000Z',
   createdAt: '2026-10-11T00:00:00.000Z',
   updatedAt: '2026-10-11T00:01:00.000Z',
+  sessionsPerWeek: 2,
+  tutorRequirements: null,
+  studentTraits: null,
+  placementFeeMinor: null,
 };
 
 describe('class lifecycle routes', () => {
