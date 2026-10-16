@@ -877,7 +877,7 @@ describe('published classes and tutor applications', () => {
       subjectIds: ['subj_history'],
       teachesOffline: true,
       preferredGrades: ['Lớp 10'],
-      preferredAreas: Array.from({ length: 12 }, (_, index) => `Khu ${index + 1}`),
+      preferredAreas: Array.from({ length: 40 }, (_, index) => `Khu ${index + 1}`),
     });
     await passAndAcknowledgeTutorTerms(fullTutor);
     const rejected = await apply(fullTutor, ['area']);
@@ -896,7 +896,7 @@ describe('published classes and tutor applications', () => {
       await env.DB.prepare('SELECT count(*) AS n FROM tutor_preference_areas WHERE tutor_id = ?')
         .bind(fullTutor.userId)
         .first<{ n: number }>(),
-    ).toMatchObject({ n: 12 });
+    ).toMatchObject({ n: 40 });
     expect(
       await env.DB.prepare(
         "SELECT count(*) AS n FROM audit_logs WHERE actor_id = ? AND action = 'application.submitted'",

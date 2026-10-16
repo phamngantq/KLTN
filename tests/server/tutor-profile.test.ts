@@ -125,6 +125,52 @@ describe('tutor profile', () => {
     expect(gradeRows.results.map((row) => row.grade)).toEqual(['Lớp 7']);
   });
 
+  it('saves tutor-added options, keeps grade/area selection in the preference lists', async () => {
+    const tutor = await register('tutor');
+    const saved = await patch(tutor, {
+      subjectIds: ['subj_math'],
+      teachesOnline: true,
+      preferredGrades: ['Lớp 9', 'Tiền tiểu học', 'Luyện thi chuyên'],
+      preferredAreas: ['Hà Nội', 'Phường Cầu Giấy, Hà Nội'],
+      customOptions: [
+        { kind: 'subject', label: 'Cờ vua', selected: true },
+        { kind: 'subject', label: 'Vẽ', selected: false },
+        { kind: 'grade', label: 'Luyện thi chuyên', selected: false },
+        { kind: 'grade', label: 'IELTS', selected: true },
+        { kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true },
+        { kind: 'area', label: 'Phường Cầu Giấy, Hà Nội', selected: false },
+        { kind: 'area', label: 'Xã Sóc Sơn, Hà Nội', selected: true },
+      ],
+    });
+    expect(saved.status).toBe(200);
+    const profile = await getProfile(tutor);
+    expect(profile?.preferredGrades).toEqual(
+      expect.arrayContaining(['Lớp 9', 'Tiền tiểu học', 'Luyện thi chuyên']),
+    );
+    // Grade/area flags follow the preference lists, not the client's flag.
+    expect(profile?.customOptions).toEqual([
+      { kind: 'area', label: 'Phường Cầu Giấy, Hà Nội', selected: true },
+      { kind: 'area', label: 'Xã Sóc Sơn, Hà Nội', selected: false },
+      { kind: 'grade', label: 'Luyện thi chuyên', selected: true },
+      { kind: 'grade', label: 'IELTS', selected: false },
+      { kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true },
+      { kind: 'subject', label: 'Cờ vua', selected: true },
+      { kind: 'subject', label: 'Vẽ', selected: false },
+    ]);
+
+    // A custom grade must exist among the tutor's options to be preferred.
+    const removed = await patch(tutor, {
+      preferredGrades: ['Luyện thi chuyên'],
+      customOptions: [{ kind: 'subject', label: 'Cờ vua', selected: true }],
+    });
+    expect(removed.status).toBe(422);
+    const kept = await patch(tutor, { preferredGrades: ['Lớp 1', 'Luyện thi chuyên'] });
+    expect(kept.status).toBe(200);
+    const cleared = await patch(tutor, { customOptions: [], preferredGrades: ['Lớp 1'] });
+    expect(cleared.status).toBe(200);
+    expect((await getProfile(tutor))?.customOptions).toEqual([]);
+  });
+
   it.each([
     ['rate not a multiple of 1000', { hourlyRateMinor: 250_500 }],
     ['rate below minimum', { hourlyRateMinor: 5_000 }],
@@ -136,7 +182,25 @@ describe('tutor profile', () => {
     ['owner override', { userId: 'someone-else' }],
     ['unknown grade', { preferredGrades: ['Lớp 13'] }],
     ['duplicate grade', { preferredGrades: ['Lớp 10', 'Lớp 10'] }],
-    ['too many areas', { preferredAreas: Array.from({ length: 13 }, (_, i) => `Area ${i}`) }],
+    ['too many areas', { preferredAreas: Array.from({ length: 41 }, (_, i) => `Area ${i}`) }],
+    ['empty custom option', { customOptions: [{ kind: 'subject', label: '  ', selected: true }] }],
+    [
+      'duplicate custom option',
+      {
+        customOptions: [
+          { kind: 'mode', label: 'Kèm cặp tại trung tâm', selected: true },
+          { kind: 'mode', label: 'kèm cặp  tại trung tâm', selected: false },
+        ],
+      },
+    ],
+    [
+      'custom option repeating a default',
+      { customOptions: [{ kind: 'subject', label: 'toán', selected: true }] },
+    ],
+    [
+      'custom option repeating a province',
+      { customOptions: [{ kind: 'area', label: 'Hà Nội', selected: true }] },
+    ],
     ['duplicate areas', { preferredAreas: ['Cầu Giấy', 'cầu giấy'] }],
     ['invalid negotiable time', { negotiableTime: 'yes' }],
   ])('rejects %s with 422', async (_label, body) => {

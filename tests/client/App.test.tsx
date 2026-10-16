@@ -124,12 +124,12 @@ describe('logout', () => {
     const error = await screen.findByRole('alert');
     expect(error.textContent).toContain('Máy chủ tạm gián đoạn.');
     expect(router.state.location.pathname).toBe('/account');
-    expect(screen.getByRole('link', { name: 'Khu vực gia sư' })).toBeTruthy();
+    expect(screen.getByLabelText(/Tài khoản của/)).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: 'Thử lại' }));
     await waitFor(() => expect(router.state.location.pathname).toBe('/'));
     expect(calls.filter((call) => call.path === '/auth/logout')).toHaveLength(2);
-    expect(screen.queryByRole('link', { name: 'Khu vực gia sư' })).toBeNull();
+    expect(screen.queryByLabelText(/Tài khoản của/)).toBeNull();
   });
 });
 

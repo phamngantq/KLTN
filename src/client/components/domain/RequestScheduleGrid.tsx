@@ -41,11 +41,13 @@ export function RequestScheduleGrid({
   onChange,
   maxWindows = Number.POSITIVE_INFINITY,
   disabled = false,
+  caption = 'Chọn thời gian học mong muốn theo tuần',
 }: {
   value: Window[];
   onChange: (windows: Window[]) => void;
   maxWindows?: number;
   disabled?: boolean;
+  caption?: string;
 }) {
   const valueRef = useRef(value);
   const dragRef = useRef<'add' | 'remove' | null>(null);
@@ -136,7 +138,7 @@ export function RequestScheduleGrid({
         onPointerCancel={() => (dragRef.current = null)}
       >
         <table className="w-full min-w-[440px] border-separate border-spacing-1 text-center">
-          <caption className="sr-only">Chọn thời gian học mong muốn theo tuần</caption>
+          <caption className="sr-only">{caption}</caption>
           <thead>
             <tr>
               <th scope="col" className="min-w-20" />

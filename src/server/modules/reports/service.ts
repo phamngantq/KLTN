@@ -196,23 +196,32 @@ export async function tutorDashboard(db: D1Database, tutorId: string): Promise<T
       .prepare(
         `SELECT
       COUNT(CASE WHEN status = 'submitted' THEN 1 END) AS submitted_applications,
-      COUNT(CASE WHEN status = 'selected' THEN 1 END) AS selected_applications
+      COUNT(CASE WHEN status = 'selected' THEN 1 END) AS selected_applications,
+      COUNT(DISTINCT CASE WHEN status <> 'withdrawn' THEN class_id END) AS registered_classes
       FROM tutor_applications WHERE tutor_user_id = ?`,
       )
       .bind(tutorId)
-      .first<{ submitted_applications: number; selected_applications: number }>(),
+      .first<{
+        submitted_applications: number;
+        selected_applications: number;
+        registered_classes: number;
+      }>(),
     db
       .prepare(
-        `SELECT COUNT(*) AS active_assignments FROM class_assignments a
+        `SELECT COUNT(CASE WHEN c.status = 'active' THEN 1 END) AS active_assignments,
+           COUNT(DISTINCT a.class_id) AS accepted_classes
+         FROM class_assignments a
          JOIN class_listings c ON c.id = a.class_id
-         WHERE a.tutor_user_id = ? AND a.status = 'active' AND c.status = 'active'`,
+         WHERE a.tutor_user_id = ? AND a.status = 'active'`,
       )
       .bind(tutorId)
-      .first<{ active_assignments: number }>(),
+      .first<{ active_assignments: number; accepted_classes: number }>(),
   ]);
   return {
     submittedApplications: applications?.submitted_applications ?? 0,
     selectedApplications: applications?.selected_applications ?? 0,
     activeAssignments: assignments?.active_assignments ?? 0,
+    registeredClasses: applications?.registered_classes ?? 0,
+    acceptedClasses: assignments?.accepted_classes ?? 0,
   };
 }

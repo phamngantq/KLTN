@@ -1,9 +1,11 @@
 import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import type { BatchItem } from 'drizzle-orm/batch';
-import type { ApprovalStatus, Subject } from '../../../shared/schemas/tutors';
+import type { ApprovalStatus, Subject, TutorCustomOption } from '../../../shared/schemas/tutors';
+import { optionKey } from '../../../shared/schemas/tutors';
 import type { Db } from '../../db/client';
 import {
   subjects,
+  tutorCustomOptions,
   tutorPreferenceAreas,
   tutorPreferenceGrades,
   tutorProfiles,
@@ -87,6 +89,19 @@ export async function classPreferencesByTutor(db: Db, userId: string) {
   };
 }
 
+export function customOptionsByTutor(db: Db, userId: string) {
+  return db
+    .select({
+      kind: tutorCustomOptions.kind,
+      label: tutorCustomOptions.label,
+      selected: tutorCustomOptions.selected,
+    })
+    .from(tutorCustomOptions)
+    .where(eq(tutorCustomOptions.tutorId, userId))
+    .orderBy(asc(tutorCustomOptions.kind), asc(tutorCustomOptions.position))
+    .all();
+}
+
 export async function subjectsByTutor(db: Db, tutorIds: string[]): Promise<Map<string, Subject[]>> {
   const map = new Map<string, Subject[]>();
   if (tutorIds.length === 0) return map;
@@ -127,6 +142,7 @@ export interface ProfileWrite {
   specialization?: string | null | undefined;
   experienceYears?: number | null | undefined;
   experienceSummary?: string | null | undefined;
+  customOptions?: TutorCustomOption[] | undefined;
 }
 
 /**
@@ -179,6 +195,24 @@ export async function upsertProfile(db: Db, write: ProfileWrite, now: string): P
     );
     for (const area of write.preferredAreas) {
       rest.push(db.insert(tutorPreferenceAreas).values({ tutorId: write.userId, area }));
+    }
+  }
+  if (write.customOptions !== undefined) {
+    rest.push(db.delete(tutorCustomOptions).where(eq(tutorCustomOptions.tutorId, write.userId)));
+    const positions = new Map<string, number>();
+    for (const option of write.customOptions) {
+      const position = positions.get(option.kind) ?? 0;
+      positions.set(option.kind, position + 1);
+      rest.push(
+        db.insert(tutorCustomOptions).values({
+          tutorId: write.userId,
+          kind: option.kind,
+          labelKey: optionKey(option.label),
+          label: option.label,
+          selected: option.selected,
+          position,
+        }),
+      );
     }
   }
   await db.batch([upsert, ...rest]);

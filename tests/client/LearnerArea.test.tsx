@@ -214,6 +214,34 @@ describe('learner handbook', () => {
   });
 });
 
+describe('tutor handbook', () => {
+  it('lists "gia-su-" articles under the tutor area without the learner-only category', async () => {
+    const tutorArticle = {
+      ...article,
+      id: 'a-2',
+      slug: 'gia-su-chuan-bi-buoi-dau',
+      title: 'Chuẩn Bị Cho Buổi Dạy Đầu Tiên',
+      category: 'skills' as const,
+    };
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path.startsWith('/content?'))
+        return { data: { items: [tutorArticle], total: 1, page: 1, pageSize: 6 } };
+      return undefined;
+    });
+    renderRoute('/tutor/cam-nang');
+    expect(await screen.findByRole('heading', { name: 'Cẩm nang dành cho gia sư' })).toBeTruthy();
+    expect((await screen.findByRole('link', { name: 'Đọc thêm' })).getAttribute('href')).toBe(
+      '/tutor/cam-nang/gia-su-chuan-bi-buoi-dau',
+    );
+    expect(screen.queryByRole('button', { name: 'Chọn gia sư' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Tìm lớp dạy ngay' }).getAttribute('href')).toBe(
+      '/tutor/new-classes',
+    );
+    expect(calls.some((call) => call.path.includes('slugPrefix=gia-su-'))).toBe(true);
+  });
+});
+
 describe('learner pricing', () => {
   it('shows tutor-type cards, grouped price lists and the reference note', async () => {
     const guides: LearnerPriceGuide[] = [

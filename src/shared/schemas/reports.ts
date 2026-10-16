@@ -83,4 +83,8 @@ export interface TutorDashboard {
   submittedApplications: number;
   selectedApplications: number;
   activeAssignments: number;
+  /** "Lớp đã đăng ký nhận": classes with an application that was not withdrawn. */
+  registeredClasses: number;
+  /** "Lớp đã hoàn tất nhận": classes the centre assigned to the tutor (not revoked). */
+  acceptedClasses: number;
 }

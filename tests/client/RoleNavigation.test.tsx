@@ -43,7 +43,7 @@ describe('role navigation', () => {
     expect(screen.queryByRole('navigation', { name: 'Điều hướng di động Người học' })).toBeNull();
   });
 
-  it('has no "Khu vực người học" item for parents but keeps the tutor portal link', async () => {
+  it('has no "Khu vực người học" or "Khu vực gia sư" item', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'student' });
       return undefined;
@@ -58,8 +58,81 @@ describe('role navigation', () => {
     vi.unstubAllGlobals();
 
     mockApi((req) => (req.path === '/me' ? sessionOf({ role: 'tutor' }) : undefined));
-    renderRoute('/');
+    renderRoute('/tutor/pricing');
     await screen.findByLabelText('Tài khoản của Nguyễn An');
-    expect(screen.getAllByText('Khu vực gia sư', { ignore: false }).length).toBeGreaterThan(0);
+    expect(screen.queryByText('Khu vực gia sư', { ignore: false })).toBeNull();
+    expect(
+      screen.getByRole('link', { name: 'Gia Sư Đỗ Hằng — Trang chủ' }).getAttribute('href'),
+    ).toBe('/tutor');
+  });
+
+  it('shows the tutor menu with collapsible groups and a nested contract group', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path.startsWith('/content/contract/tutor-class-contract'))
+        return {
+          data: {
+            id: 'c1',
+            kind: 'contract',
+            slug: 'tutor-class-contract',
+            audience: 'tutor',
+            title: 'Hợp đồng nhận lớp (mẫu)',
+            summary: '',
+            bodyText: 'Nội dung hợp đồng mẫu.',
+            category: null,
+            authorName: null,
+            revision: 1,
+            publishedAt: '2026-10-12T00:00:00.000Z',
+          },
+        };
+      return undefined;
+    });
+    renderRoute('/tutor/hop-dong-mau');
+    const user = userEvent.setup();
+    const menu = await screen.findByRole('navigation', { name: 'Điều hướng Gia sư' });
+    const topLevel = [...menu.querySelectorAll(':scope > ul > li')].map(
+      (item) => item.querySelector('a, summary')?.textContent,
+    );
+    expect(topLevel).toEqual([
+      'Tổng quan',
+      'Hồ sơ gia sư',
+      'Tìm kiếm lớp dạy',
+      'Nội dung',
+      'Bảng giá',
+      'Cẩm nang',
+      'Khiếu nại',
+    ]);
+
+    const search = within(menu).getByText('Tìm kiếm lớp dạy').closest('details')!;
+    expect(search.open).toBe(false);
+    await user.click(within(menu).getByText('Tìm kiếm lớp dạy'));
+    expect(search.open).toBe(true);
+    expect(
+      within(search)
+        .getAllByRole('link')
+        .map((link) => [link.textContent, link.getAttribute('href')]),
+    ).toEqual([
+      ['Danh sách lớp mới', '/tutor/new-classes'],
+      ['Yêu cầu nhận lớp', '/tutor/class-requests'],
+    ]);
+    await user.click(within(menu).getByText('Tìm kiếm lớp dạy'));
+    expect(search.open).toBe(false);
+
+    // The current page's group is highlighted and its nested group starts open.
+    const content = within(menu).getByText('Nội dung').closest('details')!;
+    expect(content.querySelector('summary')?.className).toContain('bg-accent');
+    await user.click(within(menu).getByText('Nội dung'));
+    const contracts = within(content).getByText('Hợp đồng').closest('details')!;
+    expect(contracts.open).toBe(true);
+    expect(
+      within(contracts)
+        .getAllByRole('link')
+        .map((link) => [link.textContent, link.getAttribute('href')]),
+    ).toEqual([
+      ['Hợp đồng mẫu', '/tutor/hop-dong-mau'],
+      ['Hợp đồng đã ký', '/tutor/contracts'],
+    ]);
+    expect(within(content).getByRole('link', { name: 'Cách thức nhận lớp' })).toBeTruthy();
+    expect(await screen.findByText('Nội dung hợp đồng mẫu.')).toBeTruthy();
   });
 });

@@ -1,13 +1,12 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   BookOpen,
-  CalendarDays,
   ChevronDown,
   CircleHelp,
   ClipboardList,
+  FileCheck2,
   FileText,
   GraduationCap,
-  Home,
   LayoutDashboard,
   MessageSquare,
   Search,
@@ -31,7 +30,8 @@ interface MenuLink {
 interface MenuGroup {
   label: string;
   icon: LucideIcon;
-  items: MenuLink[];
+  /** One nested level is supported (e.g. Nội dung › Hợp đồng › …). */
+  items: (MenuLink | MenuGroup)[];
 }
 
 type MenuEntry = MenuLink | MenuGroup;
@@ -52,44 +52,38 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
       { to: '/parent/khieu-nai', label: 'Khiếu nại', icon: MessageSquare },
     ],
   },
+  // Other tutor pages (offers, assigned classes, terms, …) stay reachable from these pages.
   tutor: {
     label: 'Gia sư',
     entries: [
-      { to: '/tutor', label: 'Trang chủ', icon: Home },
+      { to: '/tutor', label: 'Tổng quan', icon: LayoutDashboard },
       { to: '/tutor/profile', label: 'Hồ sơ gia sư', icon: UserRound },
       {
-        label: 'Lớp học',
-        icon: GraduationCap,
+        label: 'Tìm kiếm lớp dạy',
+        icon: Search,
         items: [
           { to: '/tutor/new-classes', label: 'Danh sách lớp mới', icon: GraduationCap },
-          { to: '/tutor/offers', label: 'Đăng lớp tìm học viên', icon: BookOpen },
-          { to: '/tutor/matched-classes', label: 'Lớp phù hợp', icon: Users },
-          { to: '/tutor/class-requests', label: 'Đơn nhận lớp', icon: ClipboardList },
-          { to: '/tutor/classes', label: 'Lớp của tôi', icon: BookOpen },
-          { to: '/tutor/class-history', label: 'Lịch sử lớp', icon: CalendarDays },
+          { to: '/tutor/class-requests', label: 'Yêu cầu nhận lớp', icon: ClipboardList },
         ],
       },
       {
         label: 'Nội dung',
         icon: FileText,
         items: [
-          { to: '/tutor/how-to-accept', label: 'Hướng dẫn nhận lớp', icon: CircleHelp },
-          { to: '/tutor/contracts', label: 'Hợp đồng', icon: FileText },
-          { to: '/tutor/terms', label: 'Điều khoản trách nhiệm', icon: ClipboardList },
-          { to: '/tutor/blog', label: 'Tin tức gia sư', icon: BookOpen },
+          { to: '/tutor/how-to-accept', label: 'Cách thức nhận lớp', icon: CircleHelp },
+          {
+            label: 'Hợp đồng',
+            icon: FileText,
+            items: [
+              { to: '/tutor/hop-dong-mau', label: 'Hợp đồng mẫu', icon: FileText },
+              { to: '/tutor/contracts', label: 'Hợp đồng đã ký', icon: FileCheck2 },
+            ],
+          },
         ],
       },
       { to: '/tutor/pricing', label: 'Bảng giá', icon: Wallet },
+      { to: '/tutor/cam-nang', label: 'Cẩm nang', icon: BookOpen },
       { to: '/tutor/khieu-nai', label: 'Khiếu nại', icon: MessageSquare },
-      { to: '/tutor/contact', label: 'Liên hệ', icon: MessageSquare },
-      {
-        label: 'Lịch cũ',
-        icon: CalendarDays,
-        items: [
-          { to: '/tutor/bookings', label: 'Lịch đặt hiện tại', icon: CalendarDays },
-          { to: '/tutor/availability', label: 'Lịch dạy', icon: ClipboardList },
-        ],
-      },
     ],
   },
   moderator: {
@@ -158,6 +152,12 @@ function isCurrentPath(pathname: string, to: string) {
   );
 }
 
+function groupIsCurrent(pathname: string, group: MenuGroup): boolean {
+  return group.items.some((item) =>
+    isGroup(item) ? groupIsCurrent(pathname, item) : isCurrentPath(pathname, item.to),
+  );
+}
+
 const linkClass = ({ isActive }: { isActive: boolean }) =>
   `inline-flex min-h-11 items-center gap-2 whitespace-nowrap rounded-md px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
     isActive ? 'bg-accent text-on-accent' : 'text-on-primary hover:bg-white/10'
@@ -219,7 +219,7 @@ export function RoleNavigation({
             );
           }
 
-          const isActive = entry.items.some((item) => isCurrentPath(pathname, item.to));
+          const isActive = groupIsCurrent(pathname, entry);
           return (
             <li
               key={entry.label}
@@ -251,14 +251,20 @@ export function RoleNavigation({
                 <ul
                   className={`z-40 mt-1 min-w-56 rounded-md border border-border bg-bg p-1 text-primary shadow-card ${mobile ? '' : 'absolute top-full left-0 max-h-[min(70dvh,32rem)] overflow-y-auto'}`}
                 >
-                  {entry.items.map((item) => (
-                    <li key={item.to}>
-                      <NavLink to={item.to} className={submenuLinkClass} onClick={onNavigate}>
-                        <MenuIcon icon={item.icon} />
-                        {item.label}
-                      </NavLink>
-                    </li>
-                  ))}
+                  {entry.items.map((item) =>
+                    isGroup(item) ? (
+                      <li key={item.label}>
+                        <SubmenuGroup group={item} pathname={pathname} onNavigate={onNavigate} />
+                      </li>
+                    ) : (
+                      <li key={item.to}>
+                        <NavLink to={item.to} className={submenuLinkClass} onClick={onNavigate}>
+                          <MenuIcon icon={item.icon} />
+                          {item.label}
+                        </NavLink>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </details>
             </li>
@@ -266,6 +272,48 @@ export function RoleNavigation({
         })}
       </ul>
     </nav>
+  );
+}
+
+/** Collapsible group inside a dropdown, open while one of its pages is current. */
+function SubmenuGroup({
+  group,
+  pathname,
+  onNavigate,
+}: {
+  group: MenuGroup;
+  pathname: string;
+  onNavigate?: (() => void) | undefined;
+}) {
+  const current = groupIsCurrent(pathname, group);
+  return (
+    <details open={current} className="group/sub">
+      <summary
+        className={`flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&::-webkit-details-marker]:hidden ${
+          current ? 'text-primary' : 'text-primary hover:bg-info-surface'
+        }`}
+      >
+        <MenuIcon icon={group.icon} />
+        <span>{group.label}</span>
+        <ChevronDown
+          aria-hidden="true"
+          size={14}
+          className="ml-auto transition-transform group-open/sub:rotate-180"
+        />
+      </summary>
+      <ul className="ml-4 border-l border-border pl-2">
+        {group.items.map((item) =>
+          isGroup(item) ? null : (
+            <li key={item.to}>
+              <NavLink to={item.to} className={submenuLinkClass} onClick={onNavigate}>
+                <MenuIcon icon={item.icon} />
+                {item.label}
+              </NavLink>
+            </li>
+          ),
+        )}
+      </ul>
+    </details>
   );
 }
 

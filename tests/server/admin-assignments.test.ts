@@ -939,10 +939,18 @@ describe('moderator applications and assignment', () => {
     const dashboardResponse = await api('/tutor/dashboard', {
       headers: { Cookie: state.tutorA.cookie },
     });
+    // A completed class no longer counts as active but stays a class the tutor took on.
     expect(
-      (await dashboardResponse.json<ApiSuccess<{ activeAssignments: number }>>()).data
-        .activeAssignments,
-    ).toBe(0);
+      (
+        await dashboardResponse.json<
+          ApiSuccess<{
+            activeAssignments: number;
+            registeredClasses: number;
+            acceptedClasses: number;
+          }>
+        >()
+      ).data,
+    ).toMatchObject({ activeAssignments: 0, registeredClasses: 1, acceptedClasses: 1 });
     const parentDashboard = await api('/parent/dashboard', {
       headers: { Cookie: state.parent.cookie },
     });

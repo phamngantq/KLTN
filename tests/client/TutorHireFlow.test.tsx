@@ -33,6 +33,7 @@ const profile: TutorProfile = {
   experienceYears: null,
   experienceSummary: null,
   hasPhoto: false,
+  customOptions: [],
 };
 
 describe('tutor profile form', () => {
@@ -40,6 +41,8 @@ describe('tutor profile form', () => {
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === '/subjects') return { data: profile.subjects };
+      if (req.path === '/tutor/availability')
+        return { data: { timezone: 'Asia/Ho_Chi_Minh', rules: [] } };
       if (req.path === '/tutor/profile' && req.method === 'GET') return { data: profile };
       if (req.path === '/tutor/profile' && req.method === 'PATCH')
         return { data: { ...profile, tutorType: 'teacher', school: 'THPT A' } };
@@ -72,6 +75,10 @@ describe('tutor profile form', () => {
       screen.getByLabelText('Tải ảnh đại diện'),
       new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], 'me.png', { type: 'image/png' }),
     );
+    // The new photo is previewed first; nothing is uploaded until "Cập nhật ảnh".
+    expect(await screen.findByAltText('Ảnh đại diện xem trước')).toBeTruthy();
+    expect(calls.some((call) => call.path === '/tutor/profile/photo')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Cập nhật ảnh' }));
     await waitFor(() => {
       const upload = calls.find((call) => call.path === '/tutor/profile/photo');
       expect(upload?.method).toBe('POST');

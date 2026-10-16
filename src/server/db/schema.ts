@@ -24,6 +24,7 @@ import {
   TUTOR_TYPES,
 } from '../../shared/schemas/pricing';
 import { TUTOR_OFFER_STATUSES } from '../../shared/schemas/tutor-offers';
+import { CUSTOM_OPTION_KINDS } from '../../shared/schemas/tutors';
 import { TUTOR_OFFER_JOIN_STATUSES } from '../../shared/schemas/tutor-offer-joins';
 import {
   type AnySQLiteColumn,
@@ -765,6 +766,22 @@ export const tutorPreferenceAreas = sqliteTable(
     area: text('area').notNull(),
   },
   (t) => [primaryKey({ columns: [t.tutorId, t.area] })],
+);
+
+/** Tutor-added "Đăng ký lớp học phù hợp" options; see migration 0033. */
+export const tutorCustomOptions = sqliteTable(
+  'tutor_custom_options',
+  {
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfiles.userId, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: CUSTOM_OPTION_KINDS }).notNull(),
+    labelKey: text('label_key').notNull(),
+    label: text('label').notNull(),
+    selected: integer('selected', { mode: 'boolean' }).notNull().default(false),
+    position: integer('position').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.tutorId, t.kind, t.labelKey] })],
 );
 
 export const subjects = sqliteTable(

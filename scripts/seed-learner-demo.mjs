@@ -213,6 +213,75 @@ const ARTICLES = [
   },
 ];
 
+/** "Cẩm nang dành cho gia sư": public blog articles with the "gia-su-" slug prefix. */
+const TUTOR_ARTICLES = [
+  {
+    slug: 'gia-su-chuan-bi-buoi-hoc-dau-tien',
+    category: 'skills',
+    author: 'Đỗ Hằng',
+    title: 'Chuẩn Bị Cho Buổi Dạy Đầu Tiên',
+    summary:
+      'Những việc nên làm trước, trong và sau buổi dạy đầu tiên để tạo ấn tượng tốt với người học và gia đình.',
+    days: 5,
+  },
+  {
+    slug: 'gia-su-xay-dung-lo-trinh-hoc',
+    category: 'study_methods',
+    author: 'Trần Minh',
+    title: 'Xây Dựng Lộ Trình Học Theo Năng Lực',
+    summary:
+      'Cách kiểm tra đầu vào, chia mục tiêu theo tháng và giao bài tập vừa sức cho từng học sinh.',
+    days: 11,
+  },
+  {
+    slug: 'gia-su-on-thi-vao-lop-10',
+    category: 'exam_prep',
+    author: 'Nguyễn Linh',
+    title: 'Kinh Nghiệm Kèm Ôn Thi Vào Lớp 10',
+    summary:
+      'Phân bổ thời gian giữa ôn kiến thức nền và luyện đề, cùng các lỗi học sinh hay mắc trong phòng thi.',
+    days: 19,
+  },
+  {
+    slug: 'gia-su-giu-dong-luc-cho-hoc-sinh',
+    category: 'motivation',
+    author: 'Đỗ Hằng',
+    title: 'Giữ Động Lực Cho Học Sinh Sau Mỗi Buổi Học',
+    summary:
+      'Ghi nhận tiến bộ nhỏ, đặt câu hỏi mở và trao đổi với phụ huynh để học sinh luôn hứng thú với môn học.',
+    days: 26,
+  },
+  {
+    slug: 'gia-su-trao-doi-voi-phu-huynh',
+    category: 'skills',
+    author: 'Trần Minh',
+    title: 'Trao Đổi Với Phụ Huynh Chuyên Nghiệp',
+    summary:
+      'Báo cáo kết quả định kỳ, thống nhất lịch học và xử lý khéo léo khi gia đình muốn thay đổi yêu cầu.',
+    days: 34,
+  },
+  {
+    slug: 'gia-su-day-online-hieu-qua',
+    category: 'study_methods',
+    author: 'Nguyễn Linh',
+    title: 'Dạy Trực Tuyến Hiệu Quả',
+    summary:
+      'Thiết bị cần có, cách dùng bảng trắng số và giữ tương tác khi học sinh học qua màn hình.',
+    days: 45,
+  },
+];
+
+function tutorArticleBody(article) {
+  return [
+    article.summary,
+    'Bài viết này là dữ liệu mẫu minh họa cho trang Cẩm nang dành cho gia sư. Nội dung tổng hợp kinh nghiệm giảng dạy phổ biến, không thay thế hướng dẫn trực tiếp từ trung tâm.',
+    'Trước mỗi lớp mới, hãy đọc kỹ yêu cầu của người học: mục tiêu, lịch học mong muốn và đặc điểm của học sinh. Chuẩn bị một bài kiểm tra ngắn để biết học sinh đang ở đâu trước khi lên kế hoạch dạy.',
+    'Trong quá trình dạy, chia nhỏ mục tiêu theo tuần, giao bài tập vừa sức và nhận xét cụ thể sau mỗi buổi. Học sinh tiến bộ nhanh hơn khi biết rõ mình làm tốt điều gì và cần cải thiện điều gì.',
+    'Giữ liên lạc đều đặn với gia đình: báo cáo kết quả theo tháng, thông báo sớm khi cần đổi lịch và tôn trọng các cam kết đã thống nhất trong hợp đồng nhận lớp.',
+    'Cuối cùng, cập nhật hồ sơ gia sư thường xuyên: môn học, lớp có thể dạy, khu vực và thời gian rảnh. Hồ sơ đầy đủ giúp trung tâm đề xuất bạn cho những lớp phù hợp nhất.',
+  ].join('\n\n');
+}
+
 function articleBody(article) {
   return [
     article.summary,
@@ -406,6 +475,20 @@ WHERE id = ${sql(id)} AND status = 'submitted';`);
   title, summary, body_text, category, author_name, created_by, published_by, published_at, created_at, updated_at)
 SELECT ${sql(id)}, 'blog', ${sql(article.slug)}, 'public', 1, 1, 'published', ${sql(article.title)},
   ${sql(article.summary)}, ${sql(articleBody(article))}, ${sql(article.category)}, ${sql(article.author)},
+  ${sql(adminId)}, ${sql(adminId)}, ${sql(at)}, ${sql(at)}, ${sql(at)}
+WHERE NOT EXISTS (SELECT 1 FROM content_revisions WHERE kind = 'blog' AND slug = ${sql(article.slug)} AND audience = 'public');`);
+    out.push(
+      audit(adminId, 'content.published', 'content_revision', id, { source: 'learner_demo' }, at),
+    );
+  });
+
+  TUTOR_ARTICLES.forEach((article, index) => {
+    const id = demoId(6, index + 1);
+    const at = ago(article.days);
+    out.push(`INSERT OR IGNORE INTO content_revisions (id, kind, slug, audience, revision, edit_version, status,
+  title, summary, body_text, category, author_name, created_by, published_by, published_at, created_at, updated_at)
+SELECT ${sql(id)}, 'blog', ${sql(article.slug)}, 'public', 1, 1, 'published', ${sql(article.title)},
+  ${sql(article.summary)}, ${sql(tutorArticleBody(article))}, ${sql(article.category)}, ${sql(article.author)},
   ${sql(adminId)}, ${sql(adminId)}, ${sql(at)}, ${sql(at)}, ${sql(at)}
 WHERE NOT EXISTS (SELECT 1 FROM content_revisions WHERE kind = 'blog' AND slug = ${sql(article.slug)} AND audience = 'public');`);
     out.push(

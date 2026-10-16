@@ -465,6 +465,34 @@ const tutorRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'hop-dong-mau',
+    ...page(async () => {
+      const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
+      return (
+        <PublishedContentPage
+          kind="contract"
+          slug="tutor-class-contract"
+          audience="tutor"
+          fallbackTitle="Hợp đồng mẫu"
+        />
+      );
+    }),
+  },
+  {
+    path: 'cam-nang',
+    ...page(async () => {
+      const { LearnerHandbookPage } = await import('../pages/parent/LearnerHandbookPage');
+      return <LearnerHandbookPage audience="tutor" />;
+    }),
+  },
+  {
+    path: 'cam-nang/:id',
+    ...page(async () => {
+      const { LearnerHandbookArticlePage } = await import('../pages/parent/LearnerHandbookPage');
+      return <LearnerHandbookArticlePage audience="tutor" />;
+    }),
+  },
+  {
     path: 'khieu-nai',
     ...page(async () => {
       const { ComplaintsPage } = await import('../pages/shared/ComplaintsPage');

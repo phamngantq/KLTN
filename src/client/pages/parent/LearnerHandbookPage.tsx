@@ -28,8 +28,46 @@ import { usePublishedContentList } from '../../features/content/api';
 import { requestDate } from '../../features/parent-requests/format';
 import { PublishedContentPage } from '../public/PublishedContentPage';
 
-/** Learner articles are the public blog collection with the "phu-huynh-" slug prefix. */
-const SLUG_PREFIX = 'phu-huynh-';
+/** Each handbook is the public blog collection with its own slug prefix. */
+type HandbookAudience = 'learner' | 'tutor';
+const HANDBOOKS: Record<
+  HandbookAudience,
+  {
+    slugPrefix: string;
+    base: string;
+    title: string;
+    subtitle: string;
+    categories: readonly ContentCategory[];
+    cta: { title: string; text: string; to: string; label: string };
+  }
+> = {
+  learner: {
+    slugPrefix: 'phu-huynh-',
+    base: '/parent/cam-nang',
+    title: 'Cẩm nang dành cho người học',
+    subtitle: 'Kinh nghiệm chọn gia sư, phương pháp học và bí quyết ôn thi hiệu quả',
+    categories: CONTENT_CATEGORIES,
+    cta: {
+      title: 'Cần Hỗ Trợ Tìm Gia Sư?',
+      text: 'Chúng tôi luôn sẵn sàng tư vấn và giúp bạn tìm gia sư phù hợp nhất',
+      to: '/parent/request',
+      label: 'Đăng ký tìm gia sư ngay',
+    },
+  },
+  tutor: {
+    slugPrefix: 'gia-su-',
+    base: '/tutor/cam-nang',
+    title: 'Cẩm nang dành cho gia sư',
+    subtitle: 'Kinh nghiệm giảng dạy, phương pháp truyền đạt và kỹ năng làm việc với phụ huynh',
+    categories: CONTENT_CATEGORIES.filter((category) => category !== 'choosing_tutor'),
+    cta: {
+      title: 'Sẵn Sàng Nhận Lớp Mới?',
+      text: 'Xem các lớp đang tìm gia sư và gửi yêu cầu nhận lớp phù hợp với bạn',
+      to: '/tutor/new-classes',
+      label: 'Tìm lớp dạy ngay',
+    },
+  },
+};
 const PAGE_SIZE = 6;
 
 // No article images are stored; each category gets an illustrated panel instead.
@@ -47,10 +85,11 @@ function readingMinutes(text: string): number {
   return Math.max(1, Math.round(text.trim().split(/\s+/).length / 200));
 }
 
-export function LearnerHandbookPage() {
+export function LearnerHandbookPage({ audience = 'learner' }: { audience?: HandbookAudience }) {
+  const handbook = HANDBOOKS[audience];
   const [params, setParams] = useSearchParams();
   const categoryParam = params.get('category');
-  const category = CONTENT_CATEGORIES.includes(categoryParam as ContentCategory)
+  const category = HANDBOOKS[audience].categories.includes(categoryParam as ContentCategory)
     ? (categoryParam as ContentCategory)
     : undefined;
   const q = params.get('q')?.slice(0, 100) ?? '';
@@ -60,7 +99,7 @@ export function LearnerHandbookPage() {
   const articles = usePublishedContentList({
     kind: 'blog',
     audience: 'public',
-    slugPrefix: SLUG_PREFIX,
+    slugPrefix: handbook.slugPrefix,
     category,
     q: q || undefined,
     page,
@@ -89,10 +128,8 @@ export function LearnerHandbookPage() {
   return (
     <section className="flex min-w-0 flex-col gap-8">
       <header className="text-center">
-        <h1 className="text-3xl font-bold text-primary md:text-4xl">Cẩm nang dành cho người học</h1>
-        <p className="mt-2 text-muted">
-          Kinh nghiệm chọn gia sư, phương pháp học và bí quyết ôn thi hiệu quả
-        </p>
+        <h1 className="text-3xl font-bold text-primary md:text-4xl">{handbook.title}</h1>
+        <p className="mt-2 text-muted">{handbook.subtitle}</p>
       </header>
 
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4">
@@ -118,7 +155,7 @@ export function LearnerHandbookPage() {
           <Button type="submit">Tìm kiếm</Button>
         </form>
         <div role="group" aria-label="Danh mục cẩm nang" className="flex flex-wrap gap-2">
-          {[null, ...CONTENT_CATEGORIES].map((value) => {
+          {[null, ...handbook.categories].map((value) => {
             const selected = (value ?? undefined) === category;
             return (
               <button
@@ -180,7 +217,9 @@ export function LearnerHandbookPage() {
             description="Thử từ khóa khác hoặc chọn danh mục khác."
           />
         ) : (
-          articles.data.items.map((article) => <ArticleCard key={article.id} article={article} />)
+          articles.data.items.map((article) => (
+            <ArticleCard key={article.id} article={article} base={handbook.base} />
+          ))
         )}
         {articles.data && totalPages > 1 && (
           <nav aria-label="Trang cẩm nang" className="flex items-center justify-center gap-3">
@@ -206,22 +245,20 @@ export function LearnerHandbookPage() {
       </div>
 
       <aside className="mx-auto w-full max-w-5xl rounded-xl bg-surface px-6 py-10 text-center">
-        <h2 className="text-2xl font-semibold text-primary">Cần Hỗ Trợ Tìm Gia Sư?</h2>
-        <p className="mt-3 text-muted">
-          Chúng tôi luôn sẵn sàng tư vấn và giúp bạn tìm gia sư phù hợp nhất
-        </p>
-        <ButtonLink to="/parent/request" variant="accent" className="mt-6">
-          Đăng ký tìm gia sư ngay
+        <h2 className="text-2xl font-semibold text-primary">{handbook.cta.title}</h2>
+        <p className="mt-3 text-muted">{handbook.cta.text}</p>
+        <ButtonLink to={handbook.cta.to} variant="accent" className="mt-6">
+          {handbook.cta.label}
         </ButtonLink>
       </aside>
     </section>
   );
 }
 
-function ArticleCard({ article }: { article: PublishedContent }) {
+function ArticleCard({ article, base }: { article: PublishedContent; base: string }) {
   const art = CATEGORY_ART[article.category ?? 'none'];
   const Icon = art.icon;
-  const to = `/parent/cam-nang/${encodeURIComponent(article.slug)}`;
+  const to = `${base}/${encodeURIComponent(article.slug)}`;
   return (
     <article className="grid overflow-hidden rounded-xl border border-border bg-bg shadow-card md:grid-cols-[16rem_minmax(0,1fr)]">
       <div
@@ -270,20 +307,25 @@ function ArticleCard({ article }: { article: PublishedContent }) {
   );
 }
 
-export function LearnerHandbookArticlePage() {
+export function LearnerHandbookArticlePage({
+  audience = 'learner',
+}: {
+  audience?: HandbookAudience;
+}) {
+  const handbook = HANDBOOKS[audience];
   const { id } = useParams();
-  if (!id?.startsWith(SLUG_PREFIX)) {
+  if (!id?.startsWith(handbook.slugPrefix)) {
     return (
       <EmptyState
         title="Không tìm thấy bài viết"
-        action={<ButtonLink to="/parent/cam-nang">Về cẩm nang</ButtonLink>}
+        action={<ButtonLink to={handbook.base}>Về cẩm nang</ButtonLink>}
       />
     );
   }
   return (
     <div className="flex flex-col gap-4">
       <Link
-        to="/parent/cam-nang"
+        to={handbook.base}
         className="inline-flex min-h-11 items-center gap-2 self-start text-sm font-medium text-primary underline-offset-4 hover:underline"
       >
         <ArrowLeft aria-hidden="true" className="size-4" />

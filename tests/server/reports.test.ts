@@ -161,6 +161,8 @@ describe('verified reports and role dashboards', () => {
       submittedApplications: 0,
       selectedApplications: 0,
       activeAssignments: 0,
+      registeredClasses: 0,
+      acceptedClasses: 0,
     });
     expect((await api('/parent/dashboard', { headers: { Cookie: tutor.cookie } })).status).toBe(
       403,

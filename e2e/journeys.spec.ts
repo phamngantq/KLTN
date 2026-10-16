@@ -150,12 +150,24 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await signUp(tutor, 'tutor', tutorName, uniqueEmail('tutor'));
     await tutor.goto('/tutor/profile');
     await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán trong kiểm thử local D1.');
-    await tutor.getByLabel('Toán').check();
-    await tutor.getByLabel('Lớp 9', { exact: true }).check();
     await tutor.getByLabel(/Học phí/).fill('200000');
-    await tutor.getByLabel('Trực tuyến').check();
-    await tutor.getByRole('button', { name: 'Lưu hồ sơ' }).click();
-    await expect(tutor.getByText('Đã lưu.')).toBeVisible();
+    // The second tab keeps the first tab's edits; one save stores both.
+    await tutor.getByRole('tab', { name: 'Đăng ký lớp học phù hợp' }).click();
+    await tutor.getByLabel('Toán', { exact: true }).check();
+    await tutor.getByLabel('Lớp 9', { exact: true }).check();
+    await tutor.getByLabel('Trực tuyến', { exact: true }).check();
+    await tutor.getByRole('button', { name: 'Thứ Hai, 17:30–19:00' }).click();
+    await tutor.setViewportSize({ width: 320, height: 900 });
+    await expectNoHorizontalOverflow(tutor);
+    await tutor.setViewportSize({ width: 1280, height: 900 });
+    await tutor.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    await expect(tutor.getByText('Đã lưu thay đổi.')).toBeVisible();
+    await tutor.reload();
+    await expect(tutor.getByLabel('Lớp 9', { exact: true })).toBeChecked();
+    await expect(tutor.getByRole('button', { name: 'Thứ Hai, 17:30–19:00' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await tutor.getByRole('button', { name: 'Gửi duyệt' }).click();
     await expect(tutor.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
 
@@ -434,11 +446,12 @@ test('tutor contract → public offer → parent join → private contact → co
     await signUp(tutor, 'tutor', tutorName, tutorEmail);
     await tutor.goto('/tutor/profile');
     await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán đăng lớp tìm học viên trong E2E.');
-    await tutor.getByLabel('Toán').check();
     await tutor.getByLabel(/Học phí/).fill('200000');
-    await tutor.getByLabel('Trực tiếp').check();
-    await tutor.getByRole('button', { name: 'Lưu hồ sơ' }).click();
-    await expect(tutor.getByText('Đã lưu.')).toBeVisible();
+    await tutor.getByRole('tab', { name: 'Đăng ký lớp học phù hợp' }).click();
+    await tutor.getByLabel('Toán', { exact: true }).check();
+    await tutor.getByLabel('Trực tiếp', { exact: true }).check();
+    await tutor.getByRole('button', { name: 'Lưu thay đổi' }).click();
+    await expect(tutor.getByText('Đã lưu thay đổi.')).toBeVisible();
     await tutor.getByRole('button', { name: 'Gửi duyệt' }).click();
     await expect(tutor.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
 

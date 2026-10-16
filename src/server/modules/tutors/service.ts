@@ -1,9 +1,12 @@
 import type {
   ProfileRequirement,
   Subject,
+  TutorCustomOption,
   TutorProfile,
   UpdateTutorProfileInput,
 } from '../../../shared/schemas/tutors';
+import { DEFAULT_MODE_OPTIONS, GRADE_OPTIONS, optionKey } from '../../../shared/schemas/tutors';
+import { VN_PROVINCES } from '../../../shared/schemas/provinces';
 import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
 import * as repo from './repository';
@@ -35,11 +38,15 @@ export async function getOwnProfile(db: Db, userId: string): Promise<TutorProfil
   const row = await repo.findProfileRow(db, userId);
   if (!row) return null;
   const subjects = sortSubjects((await repo.subjectsByTutor(db, [userId])).get(userId) ?? []);
-  const preferences = await repo.classPreferencesByTutor(db, userId);
+  const [preferences, customOptions] = await Promise.all([
+    repo.classPreferencesByTutor(db, userId),
+    repo.customOptionsByTutor(db, userId),
+  ]);
   return {
     ...row,
     hasPhoto: Boolean(row.hasPhoto),
     ...preferences,
+    customOptions,
     subjects,
     missing: missingRequirements(row, subjects),
   };
@@ -61,8 +68,13 @@ export async function updateOwnProfile(
     ]);
   }
   const existing = await repo.findProfileRow(db, userId);
+  const customOptions = await checkedCustomOptions(db, userId, input);
   const write = (slug: string) =>
-    repo.upsertProfile(db, { userId, slug, ...input }, now.toISOString());
+    repo.upsertProfile(
+      db,
+      { userId, slug, ...input, ...(customOptions && { customOptions }) },
+      now.toISOString(),
+    );
 
   if (existing) {
     await write(existing.slug);
@@ -79,6 +91,54 @@ export async function updateOwnProfile(
   const profile = await getOwnProfile(db, userId);
   if (!profile) throw new Error('Profile missing after upsert');
   return profile;
+}
+
+const invalid = (path: string, message: string) =>
+  new AppError(422, 'VALIDATION_ERROR', 'Dữ liệu không hợp lệ.', [{ path, message }]);
+
+/**
+ * Validates "Tự thêm lựa chọn": no option may repeat a built-in one, and every preferred grade
+ * must be a system grade or one of the tutor's own. Grade/area selection is taken from the
+ * preferred lists so matching and the checkboxes never disagree.
+ */
+async function checkedCustomOptions(
+  db: Db,
+  userId: string,
+  input: UpdateTutorProfileInput,
+): Promise<TutorCustomOption[] | undefined> {
+  if (input.customOptions === undefined && input.preferredGrades === undefined) return undefined;
+  const options = input.customOptions ?? (await repo.customOptionsByTutor(db, userId));
+  if (input.customOptions) {
+    const builtIn: Record<TutorCustomOption['kind'], Set<string>> = {
+      subject: new Set((await repo.listSubjects(db)).map((subject) => optionKey(subject.name))),
+      grade: new Set(GRADE_OPTIONS.map(optionKey)),
+      mode: new Set(DEFAULT_MODE_OPTIONS.map(optionKey)),
+      area: new Set(VN_PROVINCES.map(optionKey)),
+    };
+    const clash = input.customOptions.findIndex((option) =>
+      builtIn[option.kind].has(optionKey(option.label)),
+    );
+    if (clash >= 0) throw invalid(`customOptions.${clash}.label`, 'Lựa chọn đã có sẵn.');
+  }
+  if (input.preferredGrades) {
+    const allowed = new Set([
+      ...GRADE_OPTIONS,
+      ...options.filter((option) => option.kind === 'grade').map((option) => option.label),
+    ]);
+    const unknown = input.preferredGrades.findIndex((grade) => !allowed.has(grade));
+    if (unknown >= 0) throw invalid(`preferredGrades.${unknown}`, 'Lớp học không hợp lệ.');
+  }
+  if (!input.customOptions) return undefined;
+  const preferences = await repo.classPreferencesByTutor(db, userId);
+  const chosen = {
+    grade: new Set((input.preferredGrades ?? preferences.preferredGrades).map(optionKey)),
+    area: new Set((input.preferredAreas ?? preferences.preferredAreas).map(optionKey)),
+  };
+  return input.customOptions.map((option) =>
+    option.kind === 'grade' || option.kind === 'area'
+      ? { ...option, selected: chosen[option.kind].has(optionKey(option.label)) }
+      : option,
+  );
 }
 
 /** draft|rejected → pending, only when the profile is complete. */

@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, Trash2 } from 'lucide-react';
+import { Camera, Check, Trash2, X } from 'lucide-react';
 import { PROFILE_PHOTO_MAX_BYTES, PROFILE_PHOTO_TYPES } from '../../../shared/schemas/tutors';
 import { Button } from '../../components/ui/Button';
 import { OWN_PROFILE_KEY } from '../../features/tutor-profile/api';
@@ -51,19 +51,41 @@ export function ProfilePhotoField({
   const queryClient = useQueryClient();
   const [version, setVersion] = useState(0);
   const [error, setError] = useState('');
+  // A chosen photo is previewed first and uploaded only on "Cập nhật ảnh".
+  const [pending, setPending] = useState<{ file: File; url: string } | null>(null);
+  useEffect(
+    () => () => {
+      if (pending?.url) URL.revokeObjectURL(pending.url);
+    },
+    [pending],
+  );
   const refresh = () => {
     setVersion((value) => value + 1);
+    setPending(null);
     void queryClient.invalidateQueries({ queryKey: OWN_PROFILE_KEY });
   };
   const upload = useMutation({
     mutationFn: async (file: File) => {
       const form = new FormData();
-      form.set('file', await prepareAvatar(file));
+      form.set('file', file);
       return api.upload('/tutor/profile/photo', form);
     },
     onSuccess: refresh,
     onError: (cause) => setError(cause instanceof Error ? cause.message : 'Chưa tải được ảnh.'),
   });
+
+  async function choose(file: File) {
+    setError('');
+    try {
+      const prepared = await prepareAvatar(file);
+      setPending({
+        file: prepared,
+        url: typeof URL.createObjectURL === 'function' ? URL.createObjectURL(prepared) : '',
+      });
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Chưa đọc được ảnh.');
+    }
+  }
   const remove = useMutation({
     mutationFn: () => api.delete('/tutor/profile/photo'),
     onSuccess: refresh,
@@ -79,7 +101,13 @@ export function ProfilePhotoField({
 
   return (
     <div className="flex flex-wrap items-center gap-4">
-      {hasPhoto ? (
+      {pending ? (
+        <img
+          src={pending.url}
+          alt="Ảnh đại diện xem trước"
+          className="size-20 rounded-full border-2 border-accent object-cover"
+        />
+      ) : hasPhoto ? (
         <img
           src={`/api/v1/tutor/profile/photo?v=${version}`}
           alt="Ảnh đại diện hiện tại"
@@ -95,6 +123,29 @@ export function ProfilePhotoField({
       )}
       <div className="flex flex-col gap-2">
         <div className="flex flex-wrap gap-2">
+          {pending && (
+            <>
+              <Button
+                type="button"
+                loading={upload.isPending}
+                onClick={() => upload.mutate(pending.file)}
+                className="gap-2"
+              >
+                <Check aria-hidden="true" className="size-4" />
+                Cập nhật ảnh
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={upload.isPending}
+                onClick={() => setPending(null)}
+                className="gap-2"
+              >
+                <X aria-hidden="true" className="size-4" />
+                Hủy
+              </Button>
+            </>
+          )}
           <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border bg-surface px-4 text-sm font-medium text-primary focus-within:outline-2 focus-within:outline-focus hover:bg-info-surface">
             <Camera aria-hidden="true" className="size-4" />
             {hasPhoto ? 'Đổi ảnh đại diện' : 'Tải ảnh đại diện'}
@@ -106,13 +157,11 @@ export function ProfilePhotoField({
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = '';
-                if (!file) return;
-                setError('');
-                upload.mutate(file);
+                if (file) void choose(file);
               }}
             />
           </label>
-          {hasPhoto && (
+          {hasPhoto && !pending && (
             <Button
               type="button"
               variant="secondary"
@@ -126,6 +175,7 @@ export function ProfilePhotoField({
           )}
         </div>
         <p className="text-xs text-muted">
+          {pending && 'Đang xem trước ảnh mới — bấm “Cập nhật ảnh” để lưu. '}
           JPG, PNG hoặc WebP; ảnh được cắt vuông và thu nhỏ. Người học chỉ thấy ảnh khi bạn được đề
           xuất cho lớp của họ.
         </p>

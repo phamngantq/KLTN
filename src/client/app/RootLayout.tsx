@@ -35,7 +35,8 @@ const CLASS_NAV = PUBLIC_NAV.filter(
   (item) => item.to === '/lop-hoc' || item.to === '/lop-tim-hoc-vien',
 );
 
-// Parents reach their area from the logo and the role menu; no separate "Khu vực người học" item.
+// Parents and tutors reach their area from the logo and the role menu; only moderators keep a
+// separate "Khu vực kiểm duyệt" item.
 const ROLE_PORTAL: Record<UserRole, NavItem> = {
   student: { to: '/parent/dashboard', label: 'Khu vực người học' },
   tutor: { to: '/tutor', label: 'Khu vực gia sư' },
@@ -114,7 +115,7 @@ export function RootLayout() {
           <div className="mx-auto flex w-full max-w-[var(--container-max)] items-center gap-3 px-4 py-4">
             <Link
               to={
-                user && !preview && (roleArea || user.role === 'student')
+                user && !preview && (roleArea || user.role !== 'admin')
                   ? ROLE_PORTAL[user.role].to
                   : '/'
               }
@@ -235,7 +236,7 @@ export function RootLayout() {
                       <p className="px-3 py-2 text-xs font-semibold text-muted">
                         {ROLE_LABELS[user.role]}
                       </p>
-                      {user.role !== 'student' && (
+                      {user.role === 'admin' && (
                         <Link
                           to={ROLE_PORTAL[user.role].to}
                           className="flex min-h-11 items-center rounded-md px-3 text-sm hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-focus"
@@ -367,7 +368,7 @@ export function RootLayout() {
                 </NavLink>
                 {user && !preview && (
                   <>
-                    {user.role !== 'student' && (
+                    {user.role === 'admin' && (
                       <NavLink
                         to={ROLE_PORTAL[user.role].to}
                         className={publicNavClass}

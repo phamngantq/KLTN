@@ -1,7 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import type { LucideIcon } from 'lucide-react';
 import {
+  ArrowRight,
   BookOpen,
+  CalendarDays,
   CircleCheck,
   CircleX,
   ClipboardList,
@@ -10,17 +12,21 @@ import {
   Lightbulb,
   MapPin,
   Search,
+  Target,
   UserRound,
+  Wallet,
 } from 'lucide-react';
 import { Link } from 'react-router';
-import type { TutorAssignment } from '../../../shared/schemas/admin-assignments';
+import type { ClassRecommendation, PublicClass } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
 import type { ParentDashboard, TutorDashboard } from '../../../shared/schemas/reports';
 import { useSession } from '../../app/auth';
 import { Button } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
-import { api } from '../../lib/api-client';
+import { classScheduleText } from '../../components/domain/ClassCard';
+import { api, toQuery } from '../../lib/api-client';
+import { formatVnd } from '../../lib/format';
 
 type TileTone = 'primary' | 'accent' | 'success' | 'warning';
 
@@ -42,13 +48,15 @@ function WelcomeBanner({ title, description }: { title: string; description: str
 
 function MetricTile({
   label,
+  hint,
   value,
   to,
   icon: Icon,
   tone = 'primary',
 }: {
   label: string;
-  value: number;
+  hint?: string;
+  value: number | null;
   to: string;
   icon: LucideIcon;
   tone?: TileTone;
@@ -66,9 +74,10 @@ function MetricTile({
       </span>
       <span className="min-w-0">
         <span className="block text-2xl font-bold text-primary">
-          {value.toLocaleString('vi-VN')}
+          {value === null ? '…' : value.toLocaleString('vi-VN')}
         </span>
-        <span className="block text-sm text-muted">{label}</span>
+        <span className="block text-sm font-medium text-fg">{label}</span>
+        {hint && <span className="mt-0.5 block text-xs text-muted">{hint}</span>}
       </span>
     </Link>
   );
@@ -204,30 +213,71 @@ export function ParentDashboardPage() {
   );
 }
 
+const TUTOR_TIPS = [
+  'Hoàn thiện hồ sơ, bổ sung minh chứng năng lực.',
+  'Cập nhật môn học và khối lớp có thể dạy.',
+  'Chọn lớp phù hợp với lịch rảnh.',
+  'Phản hồi nhanh khi có lớp phù hợp.',
+  'Duy trì chất lượng và uy tín giảng dạy.',
+];
+
+const NEW_CLASS_LIMIT = 4;
+
+/** Newest open classes, the tutor's best matches first, each listed once. */
+function useNewClassesForTutor(enabled: boolean) {
+  const recommendations = useQuery({
+    queryKey: ['tutor-dashboard', 'recommendations'],
+    queryFn: ({ signal }) =>
+      api.get<Page<ClassRecommendation>>(
+        `/tutor/classes/recommendations${toQuery({ page: 1, pageSize: NEW_CLASS_LIMIT })}`,
+        { signal },
+      ),
+    enabled,
+  });
+  const latest = useQuery({
+    queryKey: ['tutor-dashboard', 'latest-classes'],
+    queryFn: ({ signal }) =>
+      api.get<Page<PublicClass>>(`/classes${toQuery({ page: 1, pageSize: NEW_CLASS_LIMIT * 2 })}`, {
+        signal,
+      }),
+    enabled,
+  });
+  const matched = recommendations.data?.items ?? [];
+  const seen = new Set(matched.map((item) => item.class.id));
+  const items: { item: PublicClass; score: number | null }[] = [
+    ...matched.map((item) => ({ item: item.class, score: item.match.score })),
+    ...(latest.data?.items ?? [])
+      .filter((item) => !seen.has(item.id))
+      .map((item) => ({ item, score: null })),
+  ].slice(0, NEW_CLASS_LIMIT);
+  return {
+    items,
+    matchedTotal: recommendations.data?.total ?? null,
+    isPending: recommendations.isPending || latest.isPending,
+    error: recommendations.error ?? latest.error,
+    refetch: () => {
+      void recommendations.refetch();
+      void latest.refetch();
+    },
+  };
+}
+
 export function TutorDashboardPage() {
   const { user } = useSession();
+  const isTutor = user?.role === 'tutor';
   const report = useQuery({
     queryKey: ['tutor-dashboard', 'metrics', user?.id],
     queryFn: ({ signal }) => api.get<TutorDashboard>('/tutor/dashboard', { signal }),
-    enabled: user?.role === 'tutor',
+    enabled: isTutor,
   });
-  const recentClasses = useQuery({
-    queryKey: ['tutor-dashboard', 'recent-assignments', user?.id],
-    queryFn: ({ signal }) =>
-      api.get<Page<TutorAssignment>>('/tutor/assignments?page=1&pageSize=2', { signal }),
-    enabled: user?.role === 'tutor',
-  });
+  const classes = useNewClassesForTutor(isTutor);
 
   return (
     <section className="space-y-8">
       <WelcomeBanner
         title="Chào mừng gia sư!"
-        description="Xem đơn nhận lớp và lớp học đang hoạt động của bạn."
+        description="Theo dõi lớp đã đăng ký, lớp phù hợp và tìm lớp dạy mới tại đây."
       />
-      <div>
-        <h2 className="text-2xl font-semibold text-primary">Tổng quan nhận lớp</h2>
-        <p className="mt-1 text-sm text-muted">Số liệu được cập nhật từ đơn và lớp của bạn.</p>
-      </div>
       {report.isPending ? (
         <PageLoading label="Đang tải tổng quan…" />
       ) : report.isError ? (
@@ -242,116 +292,154 @@ export function TutorDashboardPage() {
           {report.error.message}
         </Alert>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-3">
           <MetricTile
-            label="Đơn đang chờ"
-            value={report.data.submittedApplications}
-            to="/tutor/class-requests?status=submitted"
+            label="Lớp đã đăng ký nhận"
+            hint="Tổng số lớp bạn đã gửi yêu cầu nhận"
+            value={report.data.registeredClasses}
+            to="/tutor/class-requests"
             icon={ClipboardList}
             tone="warning"
           />
           <MetricTile
-            label="Đơn được chọn"
-            value={report.data.selectedApplications}
-            to="/tutor/class-requests?status=selected"
-            icon={CircleCheck}
-            tone="success"
+            label="Lớp phù hợp"
+            hint="Lớp khớp với hồ sơ và chuyên môn của bạn"
+            value={classes.matchedTotal}
+            to="/tutor/matched-classes"
+            icon={Target}
+            tone="primary"
           />
           <MetricTile
-            label="Lớp đang hoạt động"
-            value={report.data.activeAssignments}
+            label="Lớp đã hoàn tất nhận"
+            hint="Lớp trung tâm đã xác nhận bạn nhận dạy"
+            value={report.data.acceptedClasses}
             to="/tutor/classes"
-            icon={GraduationCap}
-            tone="accent"
+            icon={CircleCheck}
+            tone="success"
           />
         </div>
       )}
       <section aria-labelledby="tutor-actions-title">
         <h2 id="tutor-actions-title" className="mb-4 text-2xl font-semibold text-primary">
-          Lối tắt
+          Lối tắt chức năng
         </h2>
         <div className="grid gap-4 md:grid-cols-3">
           <ActionCard
             title="Tìm lớp học"
-            description="Xem lớp mới và gửi đơn ứng tuyển khi bạn đủ điều kiện."
+            description="Xem danh sách lớp mới và gửi yêu cầu nhận lớp phù hợp."
             to="/tutor/new-classes"
             icon={Search}
           />
           <ActionCard
             title="Hồ sơ của tôi"
-            description="Cập nhật thông tin và gửi hồ sơ để kiểm duyệt."
+            description="Cập nhật thông tin, môn học, khu vực và thời gian có thể dạy."
             to="/tutor/profile"
-            icon={FileText}
+            icon={UserRound}
           />
           <ActionCard
-            title="Blog gia sư"
-            description="Đọc nội dung đã được công bố dành cho gia sư."
-            to="/tutor/blog"
+            title="Cẩm nang gia sư"
+            description="Kinh nghiệm giảng dạy và làm việc với phụ huynh."
+            to="/tutor/cam-nang"
             icon={BookOpen}
           />
         </div>
       </section>
       <section
-        aria-labelledby="tutor-recent-title"
+        aria-labelledby="tutor-new-classes-title"
         className="rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 id="tutor-recent-title" className="text-2xl font-semibold text-primary">
-            Lớp học gần đây
-          </h2>
+          <div>
+            <h2 id="tutor-new-classes-title" className="text-2xl font-semibold text-primary">
+              Lớp học mới
+            </h2>
+            <p className="mt-1 text-sm text-muted">Lớp mới đăng, ưu tiên lớp phù hợp với bạn.</p>
+          </div>
           <Link
-            to="/tutor/classes"
-            className="inline-flex min-h-11 items-center rounded-md px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+            to="/tutor/new-classes"
+            className="inline-flex min-h-11 items-center gap-1 rounded-md px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
-            Xem tất cả lớp của tôi
+            Xem tất cả lớp học
+            <ArrowRight aria-hidden="true" className="size-4" />
           </Link>
         </div>
-        {recentClasses.isPending ? (
+        {classes.isPending ? (
           <div className="mt-4">
-            <PageLoading label="Đang tải lớp gần đây…" />
+            <PageLoading label="Đang tải lớp học mới…" />
           </div>
-        ) : recentClasses.isError ? (
+        ) : classes.error ? (
           <div className="mt-4">
             <Alert
               tone="danger"
-              title="Không tải được lớp gần đây"
+              title="Không tải được lớp học mới"
               action={
-                <Button variant="secondary" onClick={() => void recentClasses.refetch()}>
+                <Button variant="secondary" onClick={classes.refetch}>
                   Thử lại
                 </Button>
               }
             >
-              {recentClasses.error.message}
+              {classes.error.message}
             </Alert>
           </div>
-        ) : recentClasses.data.items.length === 0 ? (
+        ) : classes.items.length === 0 ? (
           <p className="mt-4 text-sm text-muted">
-            Chưa có lớp được gán. Lớp sẽ xuất hiện ở đây sau khi kiểm duyệt viên chọn bạn.
+            Chưa có lớp mới. Lớp sẽ xuất hiện ở đây khi trung tâm đăng lớp tìm gia sư.
           </p>
         ) : (
-          <ul className="mt-4 space-y-3">
-            {recentClasses.data.items.map((item) => (
+          <ul className="mt-4 grid gap-3 lg:grid-cols-2">
+            {classes.items.map(({ item, score }) => (
               <li
                 key={item.id}
-                className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-border p-4"
+                className="flex min-w-0 flex-col gap-3 rounded-lg border border-border p-4"
               >
-                <div className="min-w-0">
+                <div className="flex flex-wrap items-start justify-between gap-2">
                   <h3 className="font-semibold text-primary">
                     {item.subjectName} - {item.grade}
                   </h3>
-                  <p className="mt-1 text-sm text-muted">Mã lớp: {item.classCode}</p>
-                  <p className="mt-1 inline-flex flex-wrap items-center gap-1 text-sm text-muted">
-                    <MapPin aria-hidden="true" className="size-4 shrink-0 text-primary" />
-                    {item.mode === 'online'
-                      ? 'Trực tuyến'
-                      : `Trực tiếp · ${item.publicArea ?? 'Khu vực chưa công bố'}`}
-                  </p>
+                  {score !== null && (
+                    <span className="rounded-full bg-success-surface px-2.5 py-0.5 text-xs font-semibold text-success">
+                      Phù hợp {score}%
+                    </span>
+                  )}
                 </div>
+                <dl className="grid gap-1.5 text-sm text-muted">
+                  <div className="flex items-start gap-2">
+                    <dt className="sr-only">Khu vực</dt>
+                    <MapPin aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <dd>
+                      {item.mode === 'online'
+                        ? 'Trực tuyến'
+                        : `Trực tiếp · ${item.publicArea ?? 'Khu vực chưa công bố'}`}
+                    </dd>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <dt className="sr-only">Lịch học</dt>
+                    <CalendarDays
+                      aria-hidden="true"
+                      className="mt-0.5 size-4 shrink-0 text-primary"
+                    />
+                    <dd>{classScheduleText(item)}</dd>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <dt className="sr-only">Mức thù lao</dt>
+                    <Wallet aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                    <dd>
+                      {item.expectedBudgetMinor === null ? (
+                        'Thù lao thỏa thuận'
+                      ) : (
+                        <strong className="text-primary">
+                          {formatVnd(item.expectedBudgetMinor)}/buổi
+                        </strong>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
                 <Link
-                  to="/tutor/classes"
-                  className="inline-flex min-h-11 items-center rounded-md border border-primary px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                  to={`/tutor/new-classes/${encodeURIComponent(item.id)}`}
+                  aria-label={`Xem chi tiết lớp ${item.code}`}
+                  className="inline-flex min-h-11 items-center self-start rounded-md border border-primary px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
                 >
-                  Xem lớp
+                  Xem chi tiết
                 </Link>
               </li>
             ))}
@@ -360,34 +448,23 @@ export function TutorDashboardPage() {
       </section>
       <section
         aria-labelledby="tutor-tips-title"
-        className="rounded-xl border border-accent bg-bg p-5 shadow-card sm:p-6"
+        className="rounded-xl border border-accent bg-warning-surface p-5 shadow-card sm:p-6"
       >
         <h2
           id="tutor-tips-title"
           className="flex items-center gap-2 text-xl font-semibold text-primary"
         >
-          <Lightbulb aria-hidden="true" className="size-5 text-primary" />
+          <Lightbulb aria-hidden="true" className="size-6 text-warning" />
           Mẹo tăng cơ hội nhận lớp
         </h2>
-        <ul className="mt-4 list-inside list-disc space-y-2 text-sm text-fg">
-          <li>Cập nhật hồ sơ gia sư để kiểm duyệt viên xem xét.</li>
-          <li>Đọc, vượt bài kiểm tra và xác nhận điều khoản trước khi ứng tuyển.</li>
-          <li>Xem lớp mới và theo dõi trạng thái đơn nhận lớp của bạn.</li>
+        <ul className="mt-4 grid gap-2 text-sm text-fg sm:grid-cols-2">
+          {TUTOR_TIPS.map((tip) => (
+            <li key={tip} className="flex items-start gap-2">
+              <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
+              {tip}
+            </li>
+          ))}
         </ul>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Link
-            to="/tutor/how-to-accept"
-            className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 text-sm font-medium text-on-primary hover:bg-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            Xem hướng dẫn nhận lớp
-          </Link>
-          <Link
-            to="/tutor/terms"
-            className="inline-flex min-h-11 items-center rounded-md border border-primary px-4 text-sm font-medium text-primary hover:bg-info-surface focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
-          >
-            Điều khoản trách nhiệm
-          </Link>
-        </div>
       </section>
     </section>
   );

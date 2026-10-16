@@ -6,15 +6,66 @@ export const MAX_HOURLY_RATE = 10_000_000;
 export const RATE_STEP = 1_000;
 export const MAX_SUBJECTS_PER_TUTOR = 10;
 export const MAX_BIO_LENGTH = 2_000;
-export const GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp ${i + 1}`).concat([
+/** Grades offered as checkboxes ("Lớp học có thể dạy"). */
+export const DEFAULT_GRADE_OPTIONS = Array.from({ length: 12 }, (_, i) => `Lớp ${i + 1}`).concat([
+  'Tiền tiểu học',
   'Ôn thi đại học',
-  'Tiếng Anh giao tiếp',
 ]);
-export const MAX_PREFERRED_AREAS = 12;
+/** System grades; the last one is legacy, kept valid for profiles that already chose it. */
+export const GRADE_OPTIONS = [...DEFAULT_GRADE_OPTIONS, 'Tiếng Anh giao tiếp'];
+export const MAX_PREFERRED_AREAS = 40;
 
+/** "Tự thêm lựa chọn": tutor-added options per group, at most MAX_CUSTOM_OPTIONS each. */
+export const CUSTOM_OPTION_KINDS = ['subject', 'grade', 'mode', 'area'] as const;
+export type CustomOptionKind = (typeof CUSTOM_OPTION_KINDS)[number];
+export const MAX_CUSTOM_OPTIONS = 20;
+/** Built-in "Hình thức có thể dạy"; they map to teachesOffline / teachesOnline. */
+export const DEFAULT_MODE_OPTIONS = ['Trực tiếp', 'Trực tuyến'] as const;
+export const MAX_PREFERRED_GRADES = GRADE_OPTIONS.length + MAX_CUSTOM_OPTIONS;
+
+/** Case-insensitive identity of an option label, also used to reject duplicates. */
+export function optionKey(label: string): string {
+  return label.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi');
+}
+
+export interface TutorCustomOption {
+  kind: CustomOptionKind;
+  label: string;
+  selected: boolean;
+}
+
+const customOptionsSchema = z
+  .array(
+    z
+      .strictObject({
+        kind: z.enum(CUSTOM_OPTION_KINDS),
+        label: z.string().trim().min(1, 'Lựa chọn không được để trống.').max(80),
+        selected: z.boolean(),
+      })
+      .refine((option) => option.kind !== 'grade' || option.label.length <= 40, {
+        message: 'Lớp học tối đa 40 ký tự.',
+        path: ['label'],
+      }),
+  )
+  .max(CUSTOM_OPTION_KINDS.length * MAX_CUSTOM_OPTIONS)
+  .refine(
+    (options) =>
+      CUSTOM_OPTION_KINDS.every(
+        (kind) => options.filter((option) => option.kind === kind).length <= MAX_CUSTOM_OPTIONS,
+      ),
+    `Mỗi nhóm chỉ thêm tối đa ${MAX_CUSTOM_OPTIONS} lựa chọn.`,
+  )
+  .refine(
+    (options) =>
+      new Set(options.map((option) => `${option.kind}:${optionKey(option.label)}`)).size ===
+      options.length,
+    'Lựa chọn bị trùng.',
+  );
+
+// Custom grades are checked against the tutor's own options by the service.
 const preferredGradesSchema = z
-  .array(z.string().refine((grade) => GRADE_OPTIONS.includes(grade), 'Lớp học không hợp lệ.'))
-  .max(GRADE_OPTIONS.length)
+  .array(z.string().trim().min(1).max(40))
+  .max(MAX_PREFERRED_GRADES)
   .refine((grades) => new Set(grades).size === grades.length, 'Lớp học bị trùng.');
 const preferredAreasSchema = z
   .array(z.string().trim().min(1).max(80))
@@ -42,6 +93,7 @@ export const updateTutorProfileSchema = z
     preferredGrades: preferredGradesSchema,
     preferredAreas: preferredAreasSchema,
     negotiableTime: z.boolean(),
+    customOptions: customOptionsSchema,
     tutorType: z.enum(['university_student', 'pedagogy_student', 'teacher']).nullable(),
     school: z.string().trim().min(1).max(120).nullable(),
     specialization: z.string().trim().min(1).max(160).nullable(),
@@ -87,6 +139,8 @@ export interface TutorProfile {
   experienceYears: number | null;
   experienceSummary: string | null;
   hasPhoto: boolean;
+  /** Tutor-added options; grade/area ones are selected when listed in preferredGrades/Areas. */
+  customOptions: TutorCustomOption[];
 }
 
 export const PROFILE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
