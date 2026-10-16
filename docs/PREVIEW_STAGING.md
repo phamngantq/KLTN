@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Thông tin cơ bản, giấy tờ xác minh và menu Nội dung của gia sư ngày 2026-10-16
+
+Commit `43ec76d` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `a280f434-b008-4232-a817-57419c8df7bf`. Hồ sơ gia sư không còn khung trạng thái (hồ sơ đủ thông tin tự gửi duyệt khi lưu); tab "Thông tin cơ bản" theo thiết kế gồm thông tin cá nhân có ảnh đại diện, trình độ học vấn, kinh nghiệm giảng dạy, thẻ căn cước (xác minh tại trung tâm hoặc upload ảnh hai mặt) và minh chứng, bằng cấp. Menu "Nội dung" gồm Cách thức nhận lớp, Hợp đồng, Bảng giá, Cẩm nang.
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **513/513**, Playwright **4/4**, `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0034` (chuyên ngành, năm tốt nghiệp; bảng riêng tư `tutor_private_profiles`; tệp `tutor_documents`) đã áp dụng. Không tạo dữ liệu giấy tờ mẫu.
+- Sau phát hành: smoke chỉ đọc PASS; `PRAGMA foreign_key_check` 0 hàng; gia sư mẫu đọc hồ sơ có email và cách xác minh mặc định; API xác minh của kiểm duyệt viên trả 401 cho khách và 403 cho gia sư; `/tutor/profile`, `/tutor/cam-nang` trả 200.
+
 ## Menu, tổng quan và hồ sơ gia sư ngày 2026-10-16
 
 Commit `25f2a4f` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `55fe59fc-bb3e-4de6-85b6-d9ee0ecaac05`. Gia sư có menu mới (Tổng quan, Hồ sơ gia sư, Tìm kiếm lớp dạy, Nội dung › Hợp đồng mẫu/đã ký, Bảng giá, Cẩm nang, Khiếu nại; không còn "Khu vực gia sư"), trang Tổng quan với 3 thẻ số liệu, lối tắt, lớp mới (ưu tiên lớp phù hợp) và mẹo nhận lớp; hồ sơ có 2 tab, xem trước ảnh đại diện, nhóm lựa chọn dạng ô checkbox với "+ Thêm lựa chọn", 34 tỉnh/thành phố và khu vực cụ thể, ma trận thời gian dạy lưu qua API lịch rảnh.
