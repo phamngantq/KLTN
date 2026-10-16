@@ -10,7 +10,10 @@ import { ok } from '../../lib/respond';
 import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
+import type { TutorVerification } from '../../../shared/schemas/admin';
+import * as documents from '../tutors/documents';
 import * as photos from '../tutors/photos';
+import { tutorVerification } from '../tutors/service';
 import * as service from './service';
 import { adminRequestRoutes } from './requests-routes';
 import { adminApplicationRoutes } from './applications-routes';
@@ -30,6 +33,14 @@ adminRoutes.get('/tutors', async (c) => {
 });
 
 adminRoutes.get('/tutors/:id/photo', (c) => photos.photoResponse(c.env.DB, c.req.param('id')));
+
+/** Private contact, citizen-ID facts and uploaded documents, for verifying a tutor. */
+adminRoutes.get('/tutors/:id/verification', async (c) =>
+  ok<TutorVerification>(c, await tutorVerification(c.var.db, c.env.DB, c.req.param('id'))),
+);
+adminRoutes.get('/tutors/:id/documents/:documentId', (c) =>
+  documents.documentResponse(c.env.DB, c.req.param('id'), c.req.param('documentId')),
+);
 
 adminRoutes.post('/tutors/:id/:action{approve|reject|hide}', async (c) => {
   const action = c.req.param('action') as ModerationAction;

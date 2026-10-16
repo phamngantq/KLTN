@@ -8,6 +8,7 @@ import {
   type AdminTutor,
   type AdminTutorFilter,
   type ModerationAction,
+  type TutorVerification,
 } from '../../../shared/schemas/admin';
 import type { Page } from '../../../shared/schemas/discovery';
 import { teachingModes } from '../../components/domain/TutorCard';
@@ -204,6 +205,7 @@ export function AdminTutorsPage() {
                   <p className="whitespace-pre-line rounded-md bg-surface p-3 text-sm text-muted">
                     {tutor.bio || '(Chưa có giới thiệu)'}
                   </p>
+                  <VerificationDetails tutorId={tutor.userId} />
                   {tutor.moderationNote && (
                     <p className="rounded-md border-l-4 border-warning bg-warning-surface p-3 text-sm">
                       <strong>Ghi chú kiểm duyệt:</strong> {tutor.moderationNote}
@@ -302,5 +304,83 @@ export function AdminTutorsPage() {
         )}
       </ConfirmDialog>
     </section>
+  );
+}
+
+const ID_DOCUMENT_LABELS = {
+  id_front: 'CCCD mặt trước',
+  id_back: 'CCCD mặt sau',
+  credential: 'Minh chứng',
+} as const;
+
+/** Private contact and citizen-ID facts, loaded only when the moderator opens them. */
+function VerificationDetails({ tutorId }: { tutorId: string }) {
+  const [open, setOpen] = useState(false);
+  const verification = useQuery({
+    queryKey: ['admin-tutor-verification', tutorId],
+    queryFn: ({ signal }) =>
+      api.get<TutorVerification>(`/admin/tutors/${encodeURIComponent(tutorId)}/verification`, {
+        signal,
+      }),
+    enabled: open,
+  });
+  const data = verification.data;
+  return (
+    <details
+      className="rounded-md border border-border p-3 text-sm"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="min-h-11 cursor-pointer content-center font-medium text-primary">
+        Thông tin xác minh
+      </summary>
+      {verification.isPending ? (
+        <p className="mt-2 text-muted">Đang tải…</p>
+      ) : verification.isError ? (
+        <p role="alert" className="mt-2 text-danger">
+          {verification.error.message}
+        </p>
+      ) : data ? (
+        <div className="mt-2 flex flex-col gap-2">
+          <dl className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
+            {(
+              [
+                ['Số điện thoại', data.phone],
+                ['Ngày sinh', data.dateOfBirth],
+                ['Số CCCD', data.idNumber],
+                ['Ngày cấp', data.idIssuedOn],
+                ['Nơi thường trú', data.idResidence],
+                [
+                  'Cách xác minh',
+                  data.idVerification === 'upload' ? 'Upload ảnh CCCD' : 'Tại trung tâm',
+                ],
+              ] as const
+            ).map(([label, value]) => (
+              <div key={label}>
+                <dt className="text-xs text-muted">{label}</dt>
+                <dd>{value ?? 'Chưa cung cấp'}</dd>
+              </div>
+            ))}
+          </dl>
+          {data.documents.length === 0 ? (
+            <p className="text-muted">Chưa tải giấy tờ.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {data.documents.map((doc) => (
+                <li key={doc.id}>
+                  <a
+                    href={`/api/v1/admin/tutors/${encodeURIComponent(tutorId)}/documents/${encodeURIComponent(doc.id)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary underline-offset-4 hover:underline"
+                  >
+                    {ID_DOCUMENT_LABELS[doc.kind]}: {doc.fileName}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : null}
+    </details>
   );
 }

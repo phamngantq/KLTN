@@ -6,6 +6,7 @@ import type { Db } from '../../db/client';
 import {
   subjects,
   tutorCustomOptions,
+  tutorPrivateProfiles,
   tutorPreferenceAreas,
   tutorPreferenceGrades,
   tutorProfiles,
@@ -60,6 +61,9 @@ export function findProfileRow(db: Db, userId: string) {
       specialization: tutorProfiles.specialization,
       experienceYears: tutorProfiles.experienceYears,
       experienceSummary: tutorProfiles.experienceSummary,
+      major: tutorProfiles.major,
+      graduationYear: tutorProfiles.graduationYear,
+      email: users.email,
       hasPhoto: sql<number>`EXISTS (SELECT 1 FROM profile_photos p WHERE p.user_id = ${tutorProfiles.userId})`,
     })
     .from(tutorProfiles)
@@ -87,6 +91,31 @@ export async function classPreferencesByTutor(db: Db, userId: string) {
     preferredGrades: grades.map((row) => row.grade),
     preferredAreas: areas.map((row) => row.area),
   };
+}
+
+const PRIVATE_DEFAULTS = {
+  phone: null,
+  dateOfBirth: null,
+  idNumber: null,
+  idIssuedOn: null,
+  idResidence: null,
+  idVerification: 'center' as const,
+};
+
+export async function privateProfile(db: Db, userId: string) {
+  const row = await db
+    .select({
+      phone: tutorPrivateProfiles.phone,
+      dateOfBirth: tutorPrivateProfiles.dateOfBirth,
+      idNumber: tutorPrivateProfiles.idNumber,
+      idIssuedOn: tutorPrivateProfiles.idIssuedOn,
+      idResidence: tutorPrivateProfiles.idResidence,
+      idVerification: tutorPrivateProfiles.idVerification,
+    })
+    .from(tutorPrivateProfiles)
+    .where(eq(tutorPrivateProfiles.tutorId, userId))
+    .get();
+  return row ?? PRIVATE_DEFAULTS;
 }
 
 export function customOptionsByTutor(db: Db, userId: string) {
@@ -143,6 +172,14 @@ export interface ProfileWrite {
   experienceYears?: number | null | undefined;
   experienceSummary?: string | null | undefined;
   customOptions?: TutorCustomOption[] | undefined;
+  major?: string | null | undefined;
+  graduationYear?: number | null | undefined;
+  phone?: string | null | undefined;
+  dateOfBirth?: string | null | undefined;
+  idNumber?: string | null | undefined;
+  idIssuedOn?: string | null | undefined;
+  idResidence?: string | null | undefined;
+  idVerification?: 'center' | 'upload' | undefined;
 }
 
 /**
@@ -161,6 +198,8 @@ export async function upsertProfile(db: Db, write: ProfileWrite, now: string): P
     ...(write.specialization !== undefined && { specialization: write.specialization }),
     ...(write.experienceYears !== undefined && { experienceYears: write.experienceYears }),
     ...(write.experienceSummary !== undefined && { experienceSummary: write.experienceSummary }),
+    ...(write.major !== undefined && { major: write.major }),
+    ...(write.graduationYear !== undefined && { graduationYear: write.graduationYear }),
   };
   const upsert = db
     .insert(tutorProfiles)
@@ -196,6 +235,26 @@ export async function upsertProfile(db: Db, write: ProfileWrite, now: string): P
     for (const area of write.preferredAreas) {
       rest.push(db.insert(tutorPreferenceAreas).values({ tutorId: write.userId, area }));
     }
+  }
+  const privateFields = {
+    ...(write.phone !== undefined && { phone: write.phone }),
+    ...(write.dateOfBirth !== undefined && { dateOfBirth: write.dateOfBirth }),
+    ...(write.idNumber !== undefined && { idNumber: write.idNumber }),
+    ...(write.idIssuedOn !== undefined && { idIssuedOn: write.idIssuedOn }),
+    ...(write.idResidence !== undefined && { idResidence: write.idResidence }),
+    ...(write.idVerification !== undefined && { idVerification: write.idVerification }),
+  };
+  if (Object.keys(privateFields).length > 0) {
+    // After the profile upsert in the same batch, so the foreign key holds on first save.
+    rest.push(
+      db
+        .insert(tutorPrivateProfiles)
+        .values({ tutorId: write.userId, ...privateFields, updatedAt: now })
+        .onConflictDoUpdate({
+          target: tutorPrivateProfiles.tutorId,
+          set: { ...privateFields, updatedAt: now },
+        }),
+    );
   }
   if (write.customOptions !== undefined) {
     rest.push(db.delete(tutorCustomOptions).where(eq(tutorCustomOptions.tutorId, write.userId)));

@@ -34,6 +34,16 @@ const profile: TutorProfile = {
   experienceSummary: null,
   hasPhoto: false,
   customOptions: [],
+  major: null,
+  graduationYear: null,
+  email: 'tutor@example.com',
+  phone: null,
+  dateOfBirth: null,
+  idNumber: null,
+  idIssuedOn: null,
+  idResidence: null,
+  idVerification: 'center',
+  documents: [],
 };
 
 describe('tutor profile form', () => {
@@ -48,19 +58,23 @@ describe('tutor profile form', () => {
         return { data: { ...profile, tutorType: 'teacher', school: 'THPT A' } };
       if (req.path === '/tutor/profile/photo' && req.method === 'POST')
         return { data: { saved: true } };
+      if (req.path === '/tutor/profile/submit')
+        return { data: { ...profile, approvalStatus: 'pending' } };
       return undefined;
     });
     renderRoute('/tutor/profile');
     const user = userEvent.setup();
-    const section = await screen.findByRole('region', { name: 'Trình độ & kinh nghiệm' });
+    const personal = await screen.findByRole('region', { name: 'Thông tin cá nhân' });
     await user.selectOptions(
-      within(section).getByRole('combobox', { name: 'Trình độ' }),
+      within(personal).getByRole('combobox', { name: 'Loại gia sư' }),
       'teacher',
     );
-    await user.type(within(section).getByLabelText('Trường học'), 'THPT A');
-    await user.type(within(section).getByLabelText('Chuyên môn'), 'Toán THPT');
-    await user.type(within(section).getByLabelText('Số năm kinh nghiệm giảng dạy'), '5');
-    await user.click(screen.getByRole('button', { name: /Lưu/ }));
+    const education = screen.getByRole('region', { name: 'Trình độ học vấn' });
+    await user.type(within(education).getByLabelText('Trường'), 'THPT A');
+    const experience = screen.getByRole('region', { name: 'Kinh nghiệm giảng dạy' });
+    await user.type(within(experience).getByLabelText('Môn dạy'), 'Toán THPT');
+    await user.selectOptions(within(experience).getByLabelText('Số năm kinh nghiệm'), '5');
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     await waitFor(() =>
       expect(calls.find((call) => call.method === 'PATCH')?.body).toMatchObject({
         tutorType: 'teacher',

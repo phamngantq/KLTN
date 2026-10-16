@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent, type KeyboardEvent } from 'react';
-import { BookOpen, CircleCheck, GraduationCap, UserRound } from 'lucide-react';
+import { BookOpen, CircleCheck, UserRound } from 'lucide-react';
 import { useSearchParams } from 'react-router';
 import {
   DEFAULT_TIMEZONE,
@@ -10,7 +10,6 @@ import {
 import { HANOI_CITY, HANOI_WARDS } from '../../../shared/schemas/hanoi-wards';
 import { provinceOfArea, VN_PROVINCES } from '../../../shared/schemas/provinces';
 import {
-  APPROVAL_STATUS_LABELS,
   DEFAULT_GRADE_OPTIONS,
   DEFAULT_MODE_OPTIONS,
   GRADE_OPTIONS,
@@ -19,14 +18,11 @@ import {
   MAX_SUBJECTS_PER_TUTOR,
   optionKey,
   PROFILE_REQUIREMENT_LABELS,
-  RATE_STEP,
-  type ApprovalStatus,
   type CustomOptionKind,
   type Subject,
   type TutorCustomOption,
   type TutorProfile,
 } from '../../../shared/schemas/tutors';
-import { TUTOR_TYPE_LABELS, TUTOR_TYPES } from '../../../shared/schemas/pricing';
 import { useSession } from '../../app/auth';
 import { OptionTiles } from '../../components/domain/OptionTiles';
 import {
@@ -34,8 +30,8 @@ import {
   RequestScheduleGrid,
 } from '../../components/domain/RequestScheduleGrid';
 import { Button } from '../../components/ui/Button';
-import { Alert, Badge } from '../../components/ui/Feedback';
-import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
+import { Alert } from '../../components/ui/Feedback';
+import { SelectField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useSaveWeekly, useWeeklyAvailability } from '../../features/availability/api';
 import {
@@ -45,26 +41,18 @@ import {
   useUpdateProfile,
 } from '../../features/tutor-profile/api';
 import { fieldErrors } from '../../lib/api-client';
-import { formatVnd, WEEKDAY_LABELS } from '../../lib/format';
-import { ProfilePhotoField } from './ProfilePhotoField';
+import { WEEKDAY_LABELS } from '../../lib/format';
+import { BasicInfoFields, basicFieldsOf, issuedOn, type BasicFields } from './TutorBasicInfo';
 
 type GridWindow = { weekday: number; startLocal: string; endLocal: string };
 
-interface FormState {
-  displayName: string;
-  bio: string;
+interface FormState extends BasicFields {
   subjectIds: string[];
-  hourlyRate: string; // raw input; validated by the server
   teachesOnline: boolean;
   teachesOffline: boolean;
   preferredGrades: string[];
   preferredAreas: string[];
   negotiableTime: boolean;
-  tutorType: '' | 'university_student' | 'pedagogy_student' | 'teacher';
-  school: string;
-  specialization: string;
-  experienceYears: string;
-  experienceSummary: string;
   /** Tutor-added options, selected flags included for every kind. */
   customOptions: TutorCustomOption[];
   /** "Thời gian có thể dạy" cells of the weekly grid. */
@@ -87,6 +75,13 @@ const SUBJECT_ORDER = [
 ];
 const PROVINCES_SHOWN = 6;
 const INLINE_ERROR_FIELDS = new Set([
+  'phone',
+  'dateOfBirth',
+  'major',
+  'graduationYear',
+  'idNumber',
+  'idIssuedOn',
+  'idResidence',
   'displayName',
   'bio',
   'hourlyRateMinor',
@@ -123,20 +118,13 @@ function toForm(
     area: new Set(preferredAreas.map(optionKey)),
   };
   return {
-    displayName: profile?.displayName ?? fallbackName,
-    bio: profile?.bio ?? '',
+    ...basicFieldsOf(profile, fallbackName),
     subjectIds: profile?.subjects.map((s) => s.id) ?? [],
-    hourlyRate: profile?.hourlyRateMinor != null ? String(profile.hourlyRateMinor) : '',
     teachesOnline: profile?.teachesOnline ?? false,
     teachesOffline: profile?.teachesOffline ?? false,
     preferredGrades: profile?.preferredGrades ?? [],
     preferredAreas,
     negotiableTime: profile?.negotiableTime ?? false,
-    tutorType: profile?.tutorType ?? '',
-    school: profile?.school ?? '',
-    specialization: profile?.specialization ?? '',
-    experienceYears: profile?.experienceYears != null ? String(profile.experienceYears) : '',
-    experienceSummary: profile?.experienceSummary ?? '',
     customOptions: [...customOptions, ...legacyAreas].map((option) =>
       option.kind === 'grade' || option.kind === 'area'
         ? { ...option, selected: chosen[option.kind].has(optionKey(option.label)) }
@@ -148,20 +136,6 @@ function toForm(
     otherRules: availability.rules.filter((rule) => !isGridRule(rule)),
   };
 }
-
-const STATUS_TONE: Record<ApprovalStatus, 'neutral' | 'info' | 'success' | 'danger'> = {
-  draft: 'neutral',
-  pending: 'info',
-  approved: 'success',
-  rejected: 'danger',
-};
-
-const STATUS_HELP: Record<ApprovalStatus, string> = {
-  draft: 'Hồ sơ chưa công khai. Hoàn thiện thông tin rồi gửi duyệt.',
-  pending: 'Kiểm duyệt viên đang xem xét hồ sơ. Hồ sơ chưa xuất hiện trong tìm kiếm.',
-  approved: 'Hồ sơ đã được duyệt.',
-  rejected: 'Hồ sơ bị từ chối. Hãy chỉnh sửa và gửi duyệt lại.',
-};
 
 type Tab = 'basic' | 'preferences';
 const TABS: { key: Tab; label: string; icon: typeof UserRound }[] = [
@@ -235,6 +209,7 @@ function ProfileForm({
   const [showAllProvinces, setShowAllProvinces] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [dateError, setDateError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const update = useUpdateProfile();
   const saveWeekly = useSaveWeekly();
@@ -243,7 +218,6 @@ function ProfileForm({
 
   const hasUnsavedChanges = JSON.stringify(form) !== JSON.stringify(initial);
   const errors = fieldErrors(update.error);
-  const rate = Number(form.hourlyRate);
   const status = profile?.approvalStatus ?? 'draft';
   const saving = update.isPending || saveWeekly.isPending;
   const custom = (kind: CustomOptionKind) =>
@@ -341,6 +315,12 @@ function ProfileForm({
       setLocalError(`Chỉ được chọn tối đa ${MAX_PREFERRED_AREAS} khu vực.`);
       return;
     }
+    const issued = issuedOn(form);
+    if (issued.error) {
+      setDateError(issued.error);
+      selectTab('basic');
+      return;
+    }
     setSaveError(null);
     try {
       const confirmed = await update.mutateAsync({
@@ -358,7 +338,15 @@ function ProfileForm({
         specialization: form.specialization.trim() || null,
         experienceYears: form.experienceYears.trim() ? Number(form.experienceYears) : null,
         experienceSummary: form.experienceSummary.trim() || null,
-        ...(form.hourlyRate.trim() !== '' && { hourlyRateMinor: rate }),
+        major: form.major.trim() || null,
+        graduationYear: form.graduationYear ? Number(form.graduationYear) : null,
+        phone: form.phone.trim() || null,
+        dateOfBirth: form.dateOfBirth || null,
+        idNumber: form.idNumber.trim() || null,
+        idIssuedOn: issued.value,
+        idResidence: form.idResidence.trim() || null,
+        idVerification: form.idVerification,
+        ...(form.hourlyRate.trim() !== '' && { hourlyRateMinor: Number(form.hourlyRate) }),
       });
       let weekly = availability;
       const scheduleChanged =
@@ -383,6 +371,13 @@ function ProfileForm({
           ],
         });
       }
+      // A complete draft (or a rejected profile after edits) goes to review on save.
+      if (
+        confirmed.missing.length === 0 &&
+        (confirmed.approvalStatus === 'draft' || confirmed.approvalStatus === 'rejected')
+      ) {
+        await submit.mutateAsync();
+      }
       // Re-initialise from what the server confirmed.
       const next = toForm(confirmed, weekly, confirmed.displayName);
       setInitial(next);
@@ -393,15 +388,11 @@ function ProfileForm({
     }
   }
 
-  const submitBlocker = !profile
-    ? 'Hãy lưu hồ sơ trước.'
-    : hasUnsavedChanges
-      ? 'Bạn có thay đổi chưa lưu.'
-      : profile.missing.length > 0
-        ? `Còn thiếu: ${profile.missing.map((m) => PROFILE_REQUIREMENT_LABELS[m]).join(', ')}.`
-        : status === 'pending' || status === 'approved'
-          ? null
-          : '';
+  // Shown under the save button until the profile can be sent for review.
+  const reviewHint =
+    profile && profile.missing.length > 0 && status !== 'approved' && status !== 'pending'
+      ? `Bổ sung ${profile.missing.map((m) => PROFILE_REQUIREMENT_LABELS[m].toLowerCase()).join(', ')} để hồ sơ được gửi duyệt.`
+      : null;
 
   const orderedSubjects = [...subjects].sort((a, b) => {
     const rank = (subject: Subject) =>
@@ -445,11 +436,17 @@ function ProfileForm({
   );
 
   // Each tab has its own save button; the confirmation shows only in the open tab.
-  const saveBar = (label: string, panel: Tab) => (
-    <div className="flex flex-wrap items-center gap-3 border-t border-border pt-4">
-      <Button type="submit" loading={saving} disabled={!hasUnsavedChanges}>
-        {label}
+  const saveBar = (panel: Tab) => (
+    <div className="flex flex-col gap-2">
+      <Button
+        type="submit"
+        loading={saving || submit.isPending}
+        disabled={!hasUnsavedChanges}
+        className="w-full"
+      >
+        Lưu thay đổi
       </Button>
+      {tab === panel && reviewHint && <p className="text-sm text-muted">{reviewHint}</p>}
       {tab === panel && hasUnsavedChanges && (
         <span className="text-sm text-warning">Có thay đổi chưa lưu</span>
       )}
@@ -466,50 +463,14 @@ function ProfileForm({
     <section className="flex flex-col gap-6">
       <header>
         <h1 className="text-3xl font-bold text-primary">Hồ sơ gia sư</h1>
-        <p className="mt-2 text-muted">
-          Cập nhật thông tin giảng dạy và đăng ký lớp học phù hợp. Hồ sơ chỉ được công khai sau khi
-          duyệt.
-        </p>
+        <p className="mt-2 text-muted">Quản lý thông tin và đăng ký nhận lớp phù hợp</p>
       </header>
 
-      <div className="flex flex-col gap-3 rounded-xl border border-primary/20 border-l-4 border-l-accent bg-bg p-5 shadow-card">
-        <div className="flex items-center gap-2">
-          <CircleCheck aria-hidden="true" size={20} className="text-primary" />
-          <span className="text-sm text-muted">Trạng thái:</span>
-          <Badge tone={STATUS_TONE[status]}>{APPROVAL_STATUS_LABELS[status]}</Badge>
-          {profile?.visibility === 'public' && <Badge tone="success">Đang công khai</Badge>}
-        </div>
-        <p className="text-sm text-muted">
-          {status === 'approved' && profile?.visibility === 'private'
-            ? 'Hồ sơ đã được duyệt nhưng đang bị ẩn khỏi tìm kiếm.'
-            : STATUS_HELP[status]}
-        </p>
-        {profile?.moderationNote && (status === 'rejected' || profile.visibility === 'private') && (
-          <Alert tone="warning" title="Phản hồi từ kiểm duyệt viên">
-            {profile.moderationNote}
-          </Alert>
-        )}
-        {submitBlocker !== null && (
-          <div className="flex flex-col items-start gap-2">
-            <Button
-              variant="secondary"
-              disabled={submitBlocker !== ''}
-              loading={submit.isPending}
-              onClick={() => submit.mutate()}
-              aria-describedby={submitBlocker ? 'submit-blocker' : undefined}
-            >
-              Gửi duyệt
-            </Button>
-            {submitBlocker && (
-              <p id="submit-blocker" className="text-sm text-muted">
-                {submitBlocker}
-              </p>
-            )}
-          </div>
-        )}
-        {submit.isError && <Alert tone="danger">{submit.error.message}</Alert>}
-        {submit.isSuccess && <Alert tone="success">Đã gửi hồ sơ để duyệt.</Alert>}
-      </div>
+      {profile?.moderationNote && (status === 'rejected' || profile.visibility === 'private') && (
+        <Alert tone="warning" title="Phản hồi từ kiểm duyệt viên">
+          {profile.moderationNote}
+        </Alert>
+      )}
 
       <div
         role="tablist"
@@ -552,128 +513,17 @@ function ProfileForm({
           hidden={tab !== 'basic'}
           className="flex flex-col gap-6"
         >
-          <section
-            aria-labelledby="profile-basic-title"
-            className="flex flex-col gap-5 rounded-xl border border-primary/20 bg-bg p-5 shadow-card md:p-6"
-          >
-            <div className="flex items-center gap-3 border-b border-border pb-4">
-              <span
-                aria-hidden="true"
-                className="flex size-11 items-center justify-center rounded-lg bg-accent text-on-accent"
-              >
-                <UserRound size={22} />
-              </span>
-              <h2 id="profile-basic-title" className="text-xl font-semibold text-primary">
-                Thông tin cá nhân
-              </h2>
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className="text-sm font-medium">Ảnh đại diện</span>
-              {profile ? (
-                <ProfilePhotoField hasPhoto={profile.hasPhoto} displayName={form.displayName} />
-              ) : (
-                <p className="text-sm text-muted">Lưu hồ sơ lần đầu để tải ảnh đại diện.</p>
-              )}
-            </div>
-            <TextField
-              label="Tên hiển thị"
-              required
-              maxLength={100}
-              value={form.displayName}
-              onChange={(e) => patch({ displayName: e.target.value })}
-              error={errors.displayName}
-            />
-            <TextareaField
-              label="Giới thiệu"
-              hint="Kinh nghiệm, phương pháp dạy, thành tích. Tối đa 2.000 ký tự."
-              maxLength={2000}
-              value={form.bio}
-              onChange={(e) => patch({ bio: e.target.value })}
-              error={errors.bio}
-            />
-            <TextField
-              label="Học phí (₫/giờ)"
-              inputMode="numeric"
-              type="number"
-              min={10000}
-              step={RATE_STEP}
-              value={form.hourlyRate}
-              onChange={(e) => patch({ hourlyRate: e.target.value })}
-              hint={
-                form.hourlyRate && Number.isFinite(rate)
-                  ? `${formatVnd(rate)} mỗi giờ. Bội số của 1.000 ₫.`
-                  : 'Bội số của 1.000 ₫, tối thiểu 10.000 ₫.'
-              }
-              error={errors.hourlyRateMinor}
-            />
-          </section>
-
-          <section
-            aria-labelledby="profile-experience-title"
-            className="flex flex-col gap-5 rounded-xl border border-primary/20 bg-bg p-5 shadow-card md:p-6"
-          >
-            <div className="flex items-center gap-3 border-b border-border pb-4">
-              <span
-                aria-hidden="true"
-                className="flex size-11 items-center justify-center rounded-lg bg-accent text-on-accent"
-              >
-                <GraduationCap size={22} />
-              </span>
-              <h2 id="profile-experience-title" className="text-xl font-semibold text-primary">
-                Trình độ &amp; kinh nghiệm
-              </h2>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <SelectField
-                label="Trình độ"
-                value={form.tutorType}
-                onChange={(e) => patch({ tutorType: e.target.value as FormState['tutorType'] })}
-                error={errors.tutorType}
-              >
-                <option value="">Chọn trình độ</option>
-                {TUTOR_TYPES.map((type) => (
-                  <option key={type} value={type}>
-                    {TUTOR_TYPE_LABELS[type]}
-                  </option>
-                ))}
-              </SelectField>
-              <TextField
-                label="Trường học"
-                placeholder="Ví dụ: Trường Đại học Sư phạm Hà Nội"
-                maxLength={120}
-                value={form.school}
-                onChange={(e) => patch({ school: e.target.value })}
-                error={errors.school}
-              />
-              <TextField
-                label="Chuyên môn"
-                placeholder="Ví dụ: Toán, Vật lý THCS - THPT"
-                maxLength={160}
-                value={form.specialization}
-                onChange={(e) => patch({ specialization: e.target.value })}
-                error={errors.specialization}
-              />
-              <TextField
-                label="Số năm kinh nghiệm giảng dạy"
-                type="number"
-                inputMode="numeric"
-                min={0}
-                max={60}
-                value={form.experienceYears}
-                onChange={(e) => patch({ experienceYears: e.target.value })}
-                error={errors.experienceYears}
-              />
-            </div>
-            <TextareaField
-              label="Kinh nghiệm giảng dạy"
-              hint="Lớp đã dạy, thành tích học sinh, chứng chỉ. Tối đa 500 ký tự."
-              maxLength={500}
-              value={form.experienceSummary}
-              onChange={(e) => patch({ experienceSummary: e.target.value })}
-              error={errors.experienceSummary}
-            />
-          </section>
-          {saveBar('Lưu hồ sơ', 'basic')}
+          <BasicInfoFields
+            profile={profile}
+            fields={form}
+            onChange={(next) => {
+              setDateError(null);
+              patch(next);
+            }}
+            errors={errors}
+            localErrors={dateError ? { idIssuedOn: dateError } : {}}
+          />
+          {saveBar('basic')}
         </div>
 
         <div
@@ -911,7 +761,7 @@ function ProfileForm({
               </label>
             </fieldset>
           </section>
-          {saveBar('Lưu thay đổi', 'preferences')}
+          {saveBar('preferences')}
         </div>
       </form>
     </section>

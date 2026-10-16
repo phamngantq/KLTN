@@ -1,3 +1,4 @@
+import type { IdVerificationMethod, TutorDocument } from './tutors';
 import { z } from 'zod';
 import type { ApprovalStatus, Subject, Visibility } from './tutors';
 
@@ -47,3 +48,14 @@ export const ADMIN_FILTER_LABELS: Record<AdminTutorFilter, string> = {
   rejected: 'Bị từ chối',
   draft: 'Bản nháp',
 };
+
+/** Moderator-only view of a tutor's private facts and uploaded documents. */
+export interface TutorVerification {
+  phone: string | null;
+  dateOfBirth: string | null;
+  idNumber: string | null;
+  idIssuedOn: string | null;
+  idResidence: string | null;
+  idVerification: IdVerificationMethod;
+  documents: TutorDocument[];
+}

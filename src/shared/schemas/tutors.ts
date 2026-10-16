@@ -75,6 +75,35 @@ const preferredAreasSchema = z
     'Khu vực bị trùng.',
   );
 
+/** "Thẻ căn cước": checked at the centre, or from uploaded front/back photos. */
+export const ID_VERIFICATION_METHODS = ['center', 'upload'] as const;
+export type IdVerificationMethod = (typeof ID_VERIFICATION_METHODS)[number];
+export const TUTOR_DOCUMENT_KINDS = ['id_front', 'id_back', 'credential'] as const;
+export type TutorDocumentKind = (typeof TUTOR_DOCUMENT_KINDS)[number];
+export const TUTOR_DOCUMENT_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'application/pdf',
+] as const;
+export type TutorDocumentType = (typeof TUTOR_DOCUMENT_TYPES)[number];
+export const TUTOR_DOCUMENT_MAX_BYTES = 1_572_864;
+export const MAX_TUTOR_CREDENTIALS = 10;
+
+export interface TutorDocument {
+  id: string;
+  kind: TutorDocumentKind;
+  fileName: string;
+  contentType: TutorDocumentType;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+const pastDate = z.iso
+  .date('Ngày không hợp lệ.')
+  .refine((value) => value <= todayIso(), 'Ngày không được ở tương lai.');
+
 export const updateTutorProfileSchema = z
   .strictObject({
     displayName: z.string().trim().min(1).max(100),
@@ -99,6 +128,23 @@ export const updateTutorProfileSchema = z
     specialization: z.string().trim().min(1).max(160).nullable(),
     experienceYears: z.number().int().min(0).max(60).nullable(),
     experienceSummary: z.string().trim().min(1).max(500).nullable(),
+    major: z.string().trim().min(1).max(120).nullable(),
+    graduationYear: z.number().int().min(1950).max(2100).nullable(),
+    // Private: shown only to the tutor and moderators.
+    phone: z
+      .string()
+      .trim()
+      .regex(/^\+?[0-9]{8,15}$/, 'Số điện thoại không hợp lệ.')
+      .nullable(),
+    dateOfBirth: pastDate.nullable(),
+    idNumber: z
+      .string()
+      .trim()
+      .regex(/^[0-9]{12}$/, 'Số thẻ CCCD gồm 12 chữ số.')
+      .nullable(),
+    idIssuedOn: pastDate.nullable(),
+    idResidence: z.string().trim().min(1).max(200).nullable(),
+    idVerification: z.enum(ID_VERIFICATION_METHODS),
   })
   .partial();
 export type UpdateTutorProfileInput = z.infer<typeof updateTutorProfileSchema>;
@@ -141,6 +187,18 @@ export interface TutorProfile {
   hasPhoto: boolean;
   /** Tutor-added options; grade/area ones are selected when listed in preferredGrades/Areas. */
   customOptions: TutorCustomOption[];
+  major: string | null;
+  graduationYear: number | null;
+  /** Account email; changed only through the account, not the profile. */
+  email: string;
+  // Private facts below are returned only to the owner (and moderators).
+  phone: string | null;
+  dateOfBirth: string | null;
+  idNumber: string | null;
+  idIssuedOn: string | null;
+  idResidence: string | null;
+  idVerification: IdVerificationMethod;
+  documents: TutorDocument[];
 }
 
 export const PROFILE_PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;

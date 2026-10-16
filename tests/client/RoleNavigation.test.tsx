@@ -98,8 +98,6 @@ describe('role navigation', () => {
       'Hồ sơ gia sư',
       'Tìm kiếm lớp dạy',
       'Nội dung',
-      'Bảng giá',
-      'Cẩm nang',
       'Khiếu nại',
     ]);
 
@@ -132,7 +130,18 @@ describe('role navigation', () => {
       ['Hợp đồng mẫu', '/tutor/hop-dong-mau'],
       ['Hợp đồng đã ký', '/tutor/contracts'],
     ]);
-    expect(within(content).getByRole('link', { name: 'Cách thức nhận lớp' })).toBeTruthy();
+    // Nội dung: Cách thức nhận lớp, Hợp đồng (nested), Bảng giá, Cẩm nang — in this order.
+    expect(
+      [...content.querySelectorAll(':scope > ul > li')].map(
+        (item) => item.querySelector('a, summary')?.textContent,
+      ),
+    ).toEqual(['Cách thức nhận lớp', 'Hợp đồng', 'Bảng giá', 'Cẩm nang']);
+    expect(within(content).getByRole('link', { name: 'Bảng giá' }).getAttribute('href')).toBe(
+      '/tutor/pricing',
+    );
+    expect(within(content).getByRole('link', { name: 'Cẩm nang' }).getAttribute('href')).toBe(
+      '/tutor/cam-nang',
+    );
     expect(await screen.findByText('Nội dung hợp đồng mẫu.')).toBeTruthy();
   });
 });

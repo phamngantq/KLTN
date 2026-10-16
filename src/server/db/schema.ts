@@ -24,7 +24,12 @@ import {
   TUTOR_TYPES,
 } from '../../shared/schemas/pricing';
 import { TUTOR_OFFER_STATUSES } from '../../shared/schemas/tutor-offers';
-import { CUSTOM_OPTION_KINDS } from '../../shared/schemas/tutors';
+import {
+  CUSTOM_OPTION_KINDS,
+  ID_VERIFICATION_METHODS,
+  TUTOR_DOCUMENT_KINDS,
+  TUTOR_DOCUMENT_TYPES,
+} from '../../shared/schemas/tutors';
 import { TUTOR_OFFER_JOIN_STATUSES } from '../../shared/schemas/tutor-offer-joins';
 import {
   type AnySQLiteColumn,
@@ -738,6 +743,8 @@ export const tutorProfiles = sqliteTable(
     specialization: text('specialization'),
     experienceYears: integer('experience_years'),
     experienceSummary: text('experience_summary'),
+    major: text('major'),
+    graduationYear: integer('graduation_year'),
   },
   (t) => [
     uniqueIndex('tutor_profiles_slug_uq').on(t.slug),
@@ -766,6 +773,45 @@ export const tutorPreferenceAreas = sqliteTable(
     area: text('area').notNull(),
   },
   (t) => [primaryKey({ columns: [t.tutorId, t.area] })],
+);
+
+/** Owner/moderator-only contact and citizen-ID facts of a tutor; see migration 0034. */
+export const tutorPrivateProfiles = sqliteTable('tutor_private_profiles', {
+  tutorId: text('tutor_id')
+    .primaryKey()
+    .references(() => tutorProfiles.userId, { onDelete: 'cascade' }),
+  phone: text('phone'),
+  dateOfBirth: text('date_of_birth'),
+  idNumber: text('id_number'),
+  idIssuedOn: text('id_issued_on'),
+  idResidence: text('id_residence'),
+  idVerification: text('id_verification', { enum: ID_VERIFICATION_METHODS })
+    .notNull()
+    .default('center'),
+  updatedAt: text('updated_at').notNull(),
+});
+
+/** Citizen-ID photos and credentials, read and written as bytes with raw D1 statements. */
+export const tutorDocuments = sqliteTable(
+  'tutor_documents',
+  {
+    id: text('id').primaryKey(),
+    tutorId: text('tutor_id')
+      .notNull()
+      .references(() => tutorProfiles.userId, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: TUTOR_DOCUMENT_KINDS }).notNull(),
+    fileName: text('file_name').notNull(),
+    contentType: text('content_type', { enum: TUTOR_DOCUMENT_TYPES }).notNull(),
+    sizeBytes: integer('size_bytes').notNull(),
+    data: blob('data', { mode: 'buffer' }).notNull(),
+    createdAt: text('created_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('tutor_documents_id_side_uq')
+      .on(t.tutorId, t.kind)
+      .where(sql`${t.kind} <> 'credential'`),
+    index('tutor_documents_tutor_idx').on(t.tutorId, t.createdAt),
+  ],
 );
 
 /** Tutor-added "Đăng ký lớp học phù hợp" options; see migration 0033. */

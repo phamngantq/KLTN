@@ -264,3 +264,135 @@ describe('POST /tutor/profile/submit', () => {
     expect((await api(`${PATH}/submit`, jsonInit('POST', {}, tutor))).status).toBe(200);
   });
 });
+
+const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+const PDF = new TextEncoder().encode('%PDF-1.4\n%mock\n');
+
+function uploadDocument(session: Session, kind: string, file: File) {
+  const form = new FormData();
+  form.set('kind', kind);
+  form.set('file', file);
+  return api(`${PATH}/documents`, {
+    method: 'POST',
+    body: form,
+    headers: { Cookie: session.cookie, 'X-CSRF-Token': session.csrfToken },
+  });
+}
+
+describe('tutor identity and documents', () => {
+  it('keeps contact and citizen-ID facts private to the owner and moderators', async () => {
+    const tutor = await register('tutor');
+    const saved = await patch(tutor, {
+      ...COMPLETE,
+      major: 'Toán học',
+      graduationYear: 2022,
+      phone: '0123456789',
+      dateOfBirth: '1998-01-01',
+      idNumber: '008305000649',
+      idIssuedOn: '2021-01-21',
+      idResidence: 'Tân An',
+      idVerification: 'upload',
+    });
+    expect(saved.status).toBe(200);
+    expect(await getProfile(tutor)).toMatchObject({
+      email: expect.stringContaining('@'),
+      major: 'Toán học',
+      graduationYear: 2022,
+      phone: '0123456789',
+      idNumber: '008305000649',
+      idVerification: 'upload',
+      documents: [],
+    });
+    for (const [label, body] of [
+      ['short CCCD', { idNumber: '12345' }],
+      ['letters in CCCD', { idNumber: '00830500064A' }],
+      ['future birth date', { dateOfBirth: '2999-01-01' }],
+      ['bad phone', { phone: 'abc' }],
+      ['unknown method', { idVerification: 'post' }],
+    ] as const) {
+      expect({ label, status: (await patch(tutor, body)).status }).toEqual({ label, status: 422 });
+    }
+
+    // Public discovery never carries the private facts.
+    await env.DB.prepare(
+      "UPDATE tutor_profiles SET approval_status = 'approved', visibility = 'public' WHERE user_id = ?",
+    )
+      .bind(tutor.userId)
+      .run();
+    const listing = await (await api('/tutors?pageSize=50')).text();
+    expect(listing).not.toContain('008305000649');
+    expect(listing).not.toContain('0123456789');
+
+    const moderator = await register('parent');
+    await env.DB.prepare("UPDATE users SET role = 'admin' WHERE id = ?")
+      .bind(moderator.userId)
+      .run();
+    const verification = await api(`/admin/tutors/${tutor.userId}/verification`, {
+      headers: { Cookie: moderator.cookie },
+    });
+    expect(verification.status).toBe(200);
+    expect((await verification.json<ApiSuccess<{ idNumber: string }>>()).data.idNumber).toBe(
+      '008305000649',
+    );
+    const other = await register('tutor');
+    expect(
+      (
+        await api(`/admin/tutors/${tutor.userId}/verification`, {
+          headers: { Cookie: other.cookie },
+        })
+      ).status,
+    ).toBe(403);
+  });
+
+  it('stores ID photos one per side and credentials, signature-checked and owner-scoped', async () => {
+    const tutor = await register('tutor');
+    expect((await uploadDocument(tutor, 'credential', new File([PDF], 'bang.pdf'))).status).toBe(
+      409,
+    );
+    await patch(tutor, { bio: 'Hồ sơ' });
+
+    const front = await uploadDocument(tutor, 'id_front', new File([PNG], 'mat-truoc.png'));
+    expect(front.status).toBe(201);
+    const replaced = await uploadDocument(tutor, 'id_front', new File([PNG], 'moi.png'));
+    expect(replaced.status).toBe(201);
+    expect((await uploadDocument(tutor, 'id_back', new File([PDF], 'mat-sau.pdf'))).status).toBe(
+      422,
+    );
+    expect((await uploadDocument(tutor, 'credential', new File(['<html>'], 'x.pdf'))).status).toBe(
+      422,
+    );
+    expect((await uploadDocument(tutor, 'passport', new File([PNG], 'p.png'))).status).toBe(422);
+    const credential = await uploadDocument(
+      tutor,
+      'credential',
+      new File([PDF], 'bang tot nghiep.pdf'),
+    );
+    expect(credential.status).toBe(201);
+    const credentialId = (await credential.json<ApiSuccess<{ id: string }>>()).data.id;
+
+    const profile = await getProfile(tutor);
+    expect(profile?.documents.map((doc) => [doc.kind, doc.fileName])).toEqual([
+      ['id_front', 'moi.png'],
+      ['credential', 'bang tot nghiep.pdf'],
+    ]);
+    const download = await api(`${PATH}/documents/${credentialId}`, {
+      headers: { Cookie: tutor.cookie },
+    });
+    expect(download.status).toBe(200);
+    expect(download.headers.get('Content-Disposition')).toMatch(/^attachment/);
+    expect(download.headers.get('X-Content-Type-Options')).toBe('nosniff');
+
+    const other = await register('tutor');
+    expect(
+      (await api(`${PATH}/documents/${credentialId}`, { headers: { Cookie: other.cookie } }))
+        .status,
+    ).toBe(404);
+    expect(
+      (await api(`${PATH}/documents/${credentialId}`, jsonInit('DELETE', {}, other))).status,
+    ).toBe(404);
+    expect(
+      (await api(`${PATH}/documents/${credentialId}`, jsonInit('DELETE', {}, tutor))).status,
+    ).toBe(200);
+    expect((await getProfile(tutor))?.documents).toHaveLength(1);
+  });
+});

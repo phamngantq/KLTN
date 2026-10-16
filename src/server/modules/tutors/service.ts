@@ -9,6 +9,8 @@ import { DEFAULT_MODE_OPTIONS, GRADE_OPTIONS, optionKey } from '../../../shared/
 import { VN_PROVINCES } from '../../../shared/schemas/provinces';
 import type { Db } from '../../db/client';
 import { AppError, isUniqueViolation } from '../../lib/errors';
+import type { TutorVerification } from '../../../shared/schemas/admin';
+import { listDocuments } from './documents';
 import * as repo from './repository';
 import { slugWithSuffix } from './slug';
 
@@ -34,18 +36,26 @@ export function missingRequirements(row: ProfileRow, subjects: Subject[]): Profi
   return missing;
 }
 
-export async function getOwnProfile(db: Db, userId: string): Promise<TutorProfile | null> {
+export async function getOwnProfile(
+  db: Db,
+  userId: string,
+  d1?: D1Database,
+): Promise<TutorProfile | null> {
   const row = await repo.findProfileRow(db, userId);
   if (!row) return null;
   const subjects = sortSubjects((await repo.subjectsByTutor(db, [userId])).get(userId) ?? []);
-  const [preferences, customOptions] = await Promise.all([
+  const [preferences, customOptions, privateFacts, documents] = await Promise.all([
     repo.classPreferencesByTutor(db, userId),
     repo.customOptionsByTutor(db, userId),
+    repo.privateProfile(db, userId),
+    d1 ? listDocuments(d1, userId) : Promise.resolve([]),
   ]);
   return {
     ...row,
     hasPhoto: Boolean(row.hasPhoto),
     ...preferences,
+    ...privateFacts,
+    documents,
     customOptions,
     subjects,
     missing: missingRequirements(row, subjects),
@@ -58,6 +68,7 @@ export async function updateOwnProfile(
   userId: string,
   input: UpdateTutorProfileInput,
   now = new Date(),
+  d1?: D1Database,
 ): Promise<TutorProfile> {
   if (
     input.subjectIds &&
@@ -88,9 +99,25 @@ export async function updateOwnProfile(
       await write(slugWithSuffix(nameForSlug)); // random suffix collision: retry once
     }
   }
-  const profile = await getOwnProfile(db, userId);
+  const profile = await getOwnProfile(db, userId, d1);
   if (!profile) throw new Error('Profile missing after upsert');
   return profile;
+}
+
+/** Moderator view of a tutor's private facts and documents. */
+export async function tutorVerification(
+  db: Db,
+  d1: D1Database,
+  tutorId: string,
+): Promise<TutorVerification> {
+  if (!(await repo.findProfileRow(db, tutorId))) {
+    throw new AppError(404, 'PROFILE_NOT_FOUND', 'Không tìm thấy hồ sơ gia sư.');
+  }
+  const [privateFacts, documents] = await Promise.all([
+    repo.privateProfile(db, tutorId),
+    listDocuments(d1, tutorId),
+  ]);
+  return { ...privateFacts, documents };
 }
 
 const invalid = (path: string, message: string) =>

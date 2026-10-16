@@ -149,7 +149,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
   try {
     await signUp(tutor, 'tutor', tutorName, uniqueEmail('tutor'));
     await tutor.goto('/tutor/profile');
-    await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán trong kiểm thử local D1.');
+    await tutor.getByLabel('Giới thiệu bản thân').fill('Gia sư Toán trong kiểm thử local D1.');
     await tutor.getByLabel(/Học phí/).fill('200000');
     // The second tab keeps the first tab's edits; one save stores both.
     await tutor.getByRole('tab', { name: 'Đăng ký lớp học phù hợp' }).click();
@@ -168,8 +168,14 @@ test('parent → moderator → tutor → class, private contact, contract and ve
       'aria-pressed',
       'true',
     );
-    await tutor.getByRole('button', { name: 'Gửi duyệt' }).click();
-    await expect(tutor.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
+    // A complete profile is sent for review when saved; there is no separate status block.
+    await expect(tutor.getByRole('button', { name: 'Gửi duyệt' })).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          (await getData<{ approvalStatus: string }>(tutor, '/tutor/profile')).approvalStatus,
+      )
+      .toBe('pending');
 
     await signIn(admin, E2E_ADMIN.email, E2E_ADMIN.password);
     expect((await tutor.context().request.get('/api/v1/admin/requests')).status()).toBe(403);
@@ -445,15 +451,23 @@ test('tutor contract → public offer → parent join → private contact → co
   try {
     await signUp(tutor, 'tutor', tutorName, tutorEmail);
     await tutor.goto('/tutor/profile');
-    await tutor.getByLabel('Giới thiệu').fill('Gia sư Toán đăng lớp tìm học viên trong E2E.');
+    await tutor
+      .getByLabel('Giới thiệu bản thân')
+      .fill('Gia sư Toán đăng lớp tìm học viên trong E2E.');
     await tutor.getByLabel(/Học phí/).fill('200000');
     await tutor.getByRole('tab', { name: 'Đăng ký lớp học phù hợp' }).click();
     await tutor.getByLabel('Toán', { exact: true }).check();
     await tutor.getByLabel('Trực tiếp', { exact: true }).check();
     await tutor.getByRole('button', { name: 'Lưu thay đổi' }).click();
     await expect(tutor.getByText('Đã lưu thay đổi.')).toBeVisible();
-    await tutor.getByRole('button', { name: 'Gửi duyệt' }).click();
-    await expect(tutor.getByText('Đã gửi hồ sơ để duyệt.')).toBeVisible();
+    // A complete profile is sent for review when saved; there is no separate status block.
+    await expect(tutor.getByRole('button', { name: 'Gửi duyệt' })).toHaveCount(0);
+    await expect
+      .poll(
+        async () =>
+          (await getData<{ approvalStatus: string }>(tutor, '/tutor/profile')).approvalStatus,
+      )
+      .toBe('pending');
 
     await signIn(admin, E2E_ADMIN.email, E2E_ADMIN.password);
     await admin.goto('/admin/tutors');

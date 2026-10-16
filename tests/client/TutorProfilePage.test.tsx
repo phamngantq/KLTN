@@ -42,6 +42,16 @@ function profile(overrides: Partial<TutorProfile> = {}): TutorProfile {
     experienceSummary: null,
     hasPhoto: false,
     customOptions: [],
+    major: null,
+    graduationYear: null,
+    email: 'tutor@example.com',
+    phone: null,
+    dateOfBirth: null,
+    idNumber: null,
+    idIssuedOn: null,
+    idResidence: null,
+    idVerification: 'center',
+    documents: [],
     ...overrides,
   };
 }
@@ -59,18 +69,22 @@ function mockProfile(
     if (req.path === '/subjects') return { data: SUBJECTS };
     if (req.path === '/tutor/profile' && req.method === 'GET') return { data: current() };
     if (req.path === '/tutor/availability' && req.method === 'GET') return { data: week() };
-    return extra(req);
+    const handled = extra(req);
+    if (handled) return handled;
+    if (req.path === '/tutor/profile/submit')
+      return { data: { ...current()!, approvalStatus: 'pending' } };
+    return undefined;
   });
 }
 
 describe('TutorProfilePage — Thông tin cơ bản', () => {
-  it('loads the profile, saves edits and shows server-confirmed state', async () => {
+  it('shows the design sections without a status block, saves every field and sends for review', async () => {
     let current = profile({ missing: ['hourlyRate'], hourlyRateMinor: null });
     const { calls } = mockProfile(
       () => current,
       (req) => {
         if (req.path === '/tutor/profile' && req.method === 'PATCH') {
-          current = profile({ hourlyRateMinor: 300_000 });
+          current = profile({ ...(req.body as Partial<TutorProfile>), missing: [] });
           return { data: current };
         }
         return undefined;
@@ -83,31 +97,136 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
     expect(
       screen.getByRole('tab', { name: 'Thông tin cơ bản' }).getAttribute('aria-selected'),
     ).toBe('true');
+    for (const title of [
+      'Thông tin cá nhân',
+      'Trình độ học vấn',
+      'Kinh nghiệm giảng dạy',
+      'Thẻ căn cước',
+      'Minh chứng & Bằng cấp',
+    ]) {
+      expect(screen.getByRole('region', { name: title })).toBeTruthy();
+    }
     expect(screen.getByText('Ảnh đại diện')).toBeTruthy();
-    expect(screen.getByText('Bản nháp')).toBeTruthy();
-    expect(screen.getByText(/Còn thiếu: Học phí theo giờ/)).toBeTruthy();
-    expect((screen.getByRole('button', { name: 'Gửi duyệt' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-    expect((screen.getByRole('button', { name: 'Lưu hồ sơ' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
+    // No profile status block or manual "Gửi duyệt".
+    expect(screen.queryByText(/Trạng thái/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Gửi duyệt' })).toBeNull();
+    expect(screen.getByText('Bổ sung học phí theo giờ để hồ sơ được gửi duyệt.')).toBeTruthy();
+    expect((screen.getByLabelText('Email') as HTMLInputElement).readOnly).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: 'Lưu thay đổi' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
 
+    await user.type(screen.getByLabelText('Số điện thoại'), '0123456789');
+    await user.type(screen.getByLabelText('Ngày sinh'), '1998-01-01');
+    await user.selectOptions(screen.getByLabelText('Loại gia sư'), 'university_student');
+    await user.type(screen.getByLabelText('Chuyên ngành'), 'Toán học');
+    await user.selectOptions(screen.getByLabelText('Năm tốt nghiệp'), '2022');
+    await user.selectOptions(screen.getByLabelText('Số năm kinh nghiệm'), '2');
+    await user.type(screen.getByLabelText('Thành tích'), 'Giải Nhất Olympic Toán');
     await user.type(screen.getByLabelText(/Học phí/), '300000');
-    expect(screen.getAllByText('Có thay đổi chưa lưu').length).toBeGreaterThan(0);
-    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    await user.type(screen.getByLabelText(/Số thẻ CCCD/), '0083a05000649');
+    await user.type(screen.getByLabelText('Ngày'), '21');
+    await user.type(screen.getByLabelText('Tháng'), '01');
+    await user.type(screen.getByLabelText('Năm'), '2021');
+    await user.type(screen.getByLabelText(/Nơi thường trú/), 'Tân An');
+    await user.click(screen.getByRole('radio', { name: 'Xác minh bằng cách upload ảnh' }));
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
 
     expect((await screen.findAllByText('Đã lưu thay đổi.')).length).toBeGreaterThan(0);
     const body = calls.find((c) => c.method === 'PATCH')?.body as Record<string, unknown>;
-    expect(body).toMatchObject({ hourlyRateMinor: 300_000, subjectIds: ['subj_math'] });
+    expect(body).toMatchObject({
+      hourlyRateMinor: 300_000,
+      subjectIds: ['subj_math'],
+      phone: '0123456789',
+      dateOfBirth: '1998-01-01',
+      tutorType: 'university_student',
+      major: 'Toán học',
+      graduationYear: 2022,
+      experienceYears: 2,
+      experienceSummary: 'Giải Nhất Olympic Toán',
+      idNumber: '008305000649',
+      idIssuedOn: '2021-01-21',
+      idResidence: 'Tân An',
+      idVerification: 'upload',
+    });
     expect(body).not.toHaveProperty('approvalStatus');
-    // Nothing in the schedule changed, so availability is not rewritten.
+    // Complete after saving, so it was sent for review; the schedule was not rewritten.
+    expect(calls.some((c) => c.path === '/tutor/profile/submit')).toBe(true);
     expect(calls.some((c) => c.method === 'PUT')).toBe(false);
-    await waitFor(() =>
-      expect(
-        (screen.getByRole('button', { name: 'Gửi duyệt' }) as HTMLButtonElement).disabled,
-      ).toBe(false),
+    expect(screen.getByRole('region', { name: 'Thẻ căn cước' }).textContent).toContain(
+      'Ảnh CCCD mặt trước',
     );
+  }, 30_000);
+
+  it('refuses an impossible issue date before sending anything', async () => {
+    const { calls } = mockProfile(() => profile());
+    renderRoute('/tutor/profile');
+    const user = userEvent.setup();
+    await user.type(await screen.findByLabelText('Ngày'), '31');
+    await user.type(screen.getByLabelText('Tháng'), '02');
+    await user.type(screen.getByLabelText('Năm'), '2021');
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+    expect(await screen.findByText('Ngày cấp CCCD không hợp lệ.')).toBeTruthy();
+    expect(calls.some((c) => c.method === 'PATCH')).toBe(false);
+  });
+
+  it('uploads, lists and removes ID photos and credentials', async () => {
+    let documents: TutorProfile['documents'] = [
+      {
+        id: 'd-front',
+        kind: 'id_front',
+        fileName: 'mat-truoc.png',
+        contentType: 'image/png',
+        sizeBytes: 10,
+        createdAt: '2026-10-16T00:00:00.000Z',
+      },
+    ];
+    const { calls } = mockProfile(
+      () => profile({ idVerification: 'upload', documents }),
+      (req) => {
+        if (req.path === '/tutor/profile/documents' && req.method === 'POST') {
+          const doc = {
+            id: `d-${documents.length}`,
+            kind: (req.body as FormData).get('kind') as 'credential',
+            fileName: ((req.body as FormData).get('file') as File).name,
+            contentType: 'application/pdf' as const,
+            sizeBytes: 10,
+            createdAt: '2026-10-16T00:00:00.000Z',
+          };
+          documents = [...documents, doc];
+          return { status: 201, data: doc };
+        }
+        if (req.path.startsWith('/tutor/profile/documents/') && req.method === 'DELETE') {
+          documents = documents.filter((doc) => !req.path.endsWith(doc.id));
+          return { data: { deleted: true } };
+        }
+        return undefined;
+      },
+    );
+    renderRoute('/tutor/profile');
+    const user = userEvent.setup({ applyAccept: false });
+
+    const front = await screen.findByAltText('Ảnh CCCD mặt trước');
+    expect(front.getAttribute('src')).toBe('/api/v1/tutor/profile/documents/d-front');
+    expect(screen.getByLabelText('Tải ảnh cccd mặt sau')).toBeTruthy();
+
+    await user.upload(
+      screen.getByLabelText('Chọn file'),
+      new File(['%PDF-1.4'], 'bang-tot-nghiep.pdf', { type: 'application/pdf' }),
+    );
+    const upload = await waitFor(() => {
+      const call = calls.find((c) => c.path === '/tutor/profile/documents');
+      expect(call).toBeTruthy();
+      return call!;
+    });
+    expect((upload.body as FormData).get('kind')).toBe('credential');
+    expect(await screen.findByRole('link', { name: 'bang-tot-nghiep.pdf' })).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Xóa tệp bang-tot-nghiep.pdf' }));
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: 'bang-tot-nghiep.pdf' })).toBeNull(),
+    );
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(true);
   });
 
   it('renders server field errors next to the field', async () => {
@@ -130,24 +249,9 @@ describe('TutorProfilePage — Thông tin cơ bản', () => {
     renderRoute('/tutor/profile');
     const user = userEvent.setup();
     await user.type(await screen.findByLabelText(/Học phí/), '250500');
-    await user.click(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+    await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
     expect(await screen.findByText('Học phí phải là bội số của 1.000 ₫.')).toBeTruthy();
     expect(screen.getByLabelText(/Học phí/).getAttribute('aria-invalid')).toBe('true');
-  });
-
-  it('submits a complete profile for review', async () => {
-    mockProfile(
-      () => profile(),
-      (req) =>
-        req.path === '/tutor/profile/submit'
-          ? { data: profile({ approvalStatus: 'pending' }) }
-          : undefined,
-    );
-    renderRoute('/tutor/profile');
-    const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Gửi duyệt' }));
-    expect(await screen.findByText('Đã gửi hồ sơ để duyệt.')).toBeTruthy();
-    expect(screen.getByText('Chờ duyệt')).toBeTruthy();
   });
 
   it('is forbidden for students', async () => {
