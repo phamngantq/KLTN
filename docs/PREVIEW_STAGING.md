@@ -1,5 +1,14 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Menu, tổng quan và hồ sơ gia sư ngày 2026-10-16
+
+Commit `25f2a4f` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `55fe59fc-bb3e-4de6-85b6-d9ee0ecaac05`. Gia sư có menu mới (Tổng quan, Hồ sơ gia sư, Tìm kiếm lớp dạy, Nội dung › Hợp đồng mẫu/đã ký, Bảng giá, Cẩm nang, Khiếu nại; không còn "Khu vực gia sư"), trang Tổng quan với 3 thẻ số liệu, lối tắt, lớp mới (ưu tiên lớp phù hợp) và mẹo nhận lớp; hồ sơ có 2 tab, xem trước ảnh đại diện, nhóm lựa chọn dạng ô checkbox với "+ Thêm lựa chọn", 34 tỉnh/thành phố và khu vực cụ thể, ma trận thời gian dạy lưu qua API lịch rảnh.
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **506/506**, Playwright **4/4**, `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0033` (lựa chọn tự thêm của gia sư, nâng giới hạn khu vực 40 và lớp học 35) đã áp dụng.
+- Dữ liệu mẫu: 6 bài "Cẩm nang dành cho gia sư" (slug `gia-su-`).
+- Sau phát hành: smoke chỉ đọc PASS; `PRAGMA foreign_key_check` 0 hàng; gia sư mẫu đăng nhập thấy tổng quan 3 lớp đã đăng ký / 10 lớp phù hợp / 3 lớp đã hoàn tất nhận, hồ sơ trả `customOptions`, hợp đồng mẫu đọc được; `/tutor`, `/tutor/profile`, `/tutor/cam-nang`, `/tutor/hop-dong-mau` trả 200.
+
 ## Danh sách gia sư được đề xuất và luồng danh sách yêu cầu ngày 2026-10-13
 
 Commit `8c5b89b` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `584634e9-4ce5-419e-b3a1-95fe03e80f06`. "Tìm kiếm gia sư" chỉ hiện danh sách yêu cầu với nút "+ Tạo yêu cầu tìm gia sư"; gửi xong quay về danh sách ở tab "Đang tìm gia sư" kèm thông báo. Chi tiết yêu cầu ở tab "Đã tìm được gia sư" hiện "Danh sách gia sư được đề xuất" (chỉ điểm trên 80, xếp giảm dần; không có thì hiện thông báo chưa có gia sư phù hợp), "Xem hồ sơ" và "Xác nhận thuê" qua hộp thoại. Khiếu nại đã gửi của người học đều hiện "Đã gửi".
