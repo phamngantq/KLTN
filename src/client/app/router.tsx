@@ -453,15 +453,8 @@ const tutorRoutes: RouteObject[] = [
   {
     path: 'how-to-accept',
     ...page(async () => {
-      const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
-      return (
-        <PublishedContentPage
-          kind="guide"
-          slug="how-to-accept"
-          audience="tutor"
-          fallbackTitle="Hướng dẫn nhận lớp"
-        />
-      );
+      const { TutorHowToAcceptPage } = await import('../pages/tutor/TutorHowToAcceptPage');
+      return <TutorHowToAcceptPage />;
     }),
   },
   {
