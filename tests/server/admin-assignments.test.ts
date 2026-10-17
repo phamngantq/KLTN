@@ -130,7 +130,12 @@ async function apply(tutor: Session, cls: AdminClass, feeOptionVersionId: string
     `/classes/${cls.id}/applications`,
     jsonInit(
       'POST',
-      { feeOptionVersionId, classVersion: cls.version, availability: AVAILABILITY },
+      {
+        feeOptionVersionId,
+        classVersion: cls.version,
+        availability: AVAILABILITY,
+        termsAgreed: true,
+      },
       tutor,
       {
         'Idempotency-Key': crypto.randomUUID(),

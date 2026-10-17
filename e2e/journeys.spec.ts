@@ -264,24 +264,40 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     await expect(tutor.getByText('Chưa có phí nhận lớp được công bố cho lớp này.')).toBeVisible();
     await publishLocalTermsAndFees(admin);
 
-    // Class detail → "Nhận lớp" → terms checkbox → back to the acceptance form.
+    // Class detail (no fee) → "Nhận lớp" → terms test → agreement tick → back to acceptance.
     await tutor.goto(`/tutor/new-classes/${cls!.id}`);
     await expect(tutor.getByRole('heading', { name: 'Chi tiết lớp học' })).toBeVisible();
+    await expect(tutor.getByText(/Phí nhận lớp/)).toHaveCount(0);
     await tutor.getByRole('link', { name: 'Nhận lớp' }).click();
     await expect(tutor).toHaveURL(new RegExp(`${acceptPath}$`));
+    await expect(tutor.getByText('Phí nhận lớp', { exact: true })).toBeVisible();
     await tutor.getByRole('link', { name: 'Làm bài test điều khoản trách nhiệm' }).click();
     await expect(tutor.getByRole('heading', { name: /Điều khoản kiểm thử E2E/ })).toBeVisible();
+    await tutor.getByRole('radio', { name: 'Đúng' }).check();
+    await tutor.getByRole('button', { name: 'Nộp bài test' }).click();
+    await expect(
+      tutor.getByText('Bạn đã hoàn thành bài test điều khoản trách nhiệm.').first(),
+    ).toBeVisible();
     await tutor
-      .getByLabel('Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm.')
+      .getByLabel('Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm')
       .check();
-    await tutor.getByRole('button', { name: 'Xác nhận' }).click();
+    await tutor.getByRole('button', { name: 'Xác nhận', exact: true }).click();
     await expect(tutor).toHaveURL(new RegExp(`${acceptPath}$`));
-    await expect(tutor.getByText('Đã xác nhận Điều khoản trách nhiệm')).toBeVisible();
+    await expect(
+      tutor.getByText('Bạn đã hoàn thành bài test điều khoản trách nhiệm.'),
+    ).toBeVisible();
 
-    await tutor.getByRole('button', { name: 'T2', exact: true }).click();
-    await tutor.getByLabel(/Giờ bắt đầu/).fill('17:30');
-    await tutor.getByLabel(/Giờ kết thúc/).fill('19:00');
-    await tutor.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }).click();
+    // The matrix starts from the profile grid (Monday 17:30–19:00, chosen earlier).
+    await expect(tutor.getByRole('button', { name: 'Thứ Hai, 17:30–19:00' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    const acceptButton = tutor.getByRole('button', { name: 'Xác nhận nhận lớp' });
+    await expect(acceptButton).toBeDisabled();
+    await tutor
+      .getByLabel('Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm')
+      .check();
+    await acceptButton.click();
     const adjustmentDialog = tutor.getByRole('dialog', {
       name: 'Xác nhận điều chỉnh để nhận lớp',
     });
@@ -295,7 +311,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     expect(
       (await getData<{ preferredGrades: string[] }>(tutor, '/tutor/profile')).preferredGrades,
     ).not.toContain('Lớp 10');
-    await tutor.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }).click();
+    await acceptButton.click();
     await adjustmentDialog.getByRole('button', { name: 'Xác nhận và gửi' }).click();
     await expect(tutor.getByText('Đã gửi yêu cầu nhận lớp')).toBeVisible();
     expect(
@@ -303,7 +319,7 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     ).toEqual(expect.arrayContaining(['Lớp 9', 'Lớp 10']));
     await admin.goto(`/admin/applications?classId=${cls!.id}`);
     const applicationCard = admin.getByRole('article').filter({ hasText: tutorName });
-    await expect(applicationCard).toContainText('T2 · 17:30–19:00');
+    await expect(applicationCard).toContainText('T2 17:30–19:00');
     await applicationCard.getByRole('button', { name: 'Gán gia sư' }).click();
     await admin.getByRole('dialog').getByLabel('Học phí đã chốt (VNĐ/buổi)').fill('180000');
     await admin

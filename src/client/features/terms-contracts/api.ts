@@ -6,7 +6,6 @@ import type {
   ClassContractRecord,
   QuizQuestion,
   TutorQuizAttempt,
-  TutorTerms,
   TutorTermsAcknowledgement,
   TutorTermsQuiz,
 } from '../../../shared/schemas/terms-contracts';
@@ -161,28 +160,5 @@ export function useRecordPlacementFee() {
         { amountMinor: input.amountMinor },
       ),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: contractsKey }),
-  });
-}
-
-export const TUTOR_TERMS_KEY = ['tutor-terms', 'consent'] as const;
-
-/** "Điều khoản trách nhiệm" and when the tutor accepted the current revision. */
-export function useTutorTerms() {
-  const { user } = useSession();
-  return useQuery({
-    queryKey: [...TUTOR_TERMS_KEY, user?.id],
-    queryFn: ({ signal }) => api.get<TutorTerms>('/tutor/terms', { signal }),
-    enabled: user?.role === 'tutor',
-    retry: false,
-  });
-}
-
-export function useAcceptTerms() {
-  const queryClient = useQueryClient();
-  const { user } = useSession();
-  return useMutation({
-    mutationFn: (termsContentRevisionId: string) =>
-      api.post<TutorTerms>('/tutor/terms/consent', { termsContentRevisionId, accepted: true }),
-    onSuccess: (terms) => queryClient.setQueryData([...TUTOR_TERMS_KEY, user?.id], terms),
   });
 }

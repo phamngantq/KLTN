@@ -119,5 +119,10 @@ export async function createPublicTutor(
   return { ...tutor, slug: data.slug };
 }
 
-/** "Thời gian rảnh có thể đi dạy" sent with every test application. */
-export const AVAILABILITY = { weekdays: [2, 4], start: '18:00', end: '20:00' } as const;
+/** "Thời gian rảnh có thể đi dạy" (matrix cells) sent with every test application. */
+export const AVAILABILITY = {
+  windows: [
+    { weekday: 2, startLocal: '17:30', endLocal: '19:00' },
+    { weekday: 4, startLocal: '17:30', endLocal: '19:00' },
+  ],
+};

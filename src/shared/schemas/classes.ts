@@ -137,6 +137,14 @@ export const PLACEMENT_FEE_OPTION_KEY = 'monthly_percent' as const;
 /** Weeks counted in one month of tuition for the placement fee. */
 export const PLACEMENT_FEE_WEEKS = 4;
 
+/** Sessions per week for the fee: the request's own count, else its weekly time slots. */
+export function feeSessionsPerWeek(
+  sessionsPerWeek: number | null,
+  weeklyWindows: number,
+): number | null {
+  return sessionsPerWeek ?? (weeklyWindows > 0 ? weeklyWindows : null);
+}
+
 export function placementFee(
   budgetMinor: number | null,
   sessionsPerWeek: number | null,
@@ -230,27 +238,37 @@ export interface FeeOptionVersion {
 
 const clockTime = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Giờ không hợp lệ.');
 
-/** "Thời gian rảnh có thể đi dạy" for one application. */
-export const applicationAvailabilitySchema = z
+const availabilityWindow = z
   .strictObject({
-    weekdays: z
-      .array(z.number().int().min(1).max(7))
-      .min(1, 'Chọn ít nhất một ngày trong tuần.')
-      .max(7)
-      .refine((days) => new Set(days).size === days.length, 'Ngày bị trùng.'),
-    start: clockTime,
-    end: clockTime,
+    weekday: z.number().int().min(1).max(7),
+    startLocal: clockTime,
+    endLocal: clockTime,
   })
-  .refine((value) => value.start < value.end, {
+  .refine((window) => window.startLocal < window.endLocal, {
     message: 'Giờ kết thúc phải sau giờ bắt đầu.',
-    path: ['end'],
+    path: ['endLocal'],
   });
+
+/** "Thời gian rảnh có thể đi dạy" for one application: cells of the weekly matrix. */
+export const applicationAvailabilitySchema = z.strictObject({
+  windows: z
+    .array(availabilityWindow)
+    .min(1, 'Chọn ít nhất một khung giờ có thể dạy.')
+    .max(49)
+    .refine(
+      (windows) =>
+        new Set(windows.map((w) => `${w.weekday}-${w.startLocal}`)).size === windows.length,
+      'Khung giờ bị trùng.',
+    ),
+});
 export type ApplicationAvailability = z.infer<typeof applicationAvailabilitySchema>;
 
 export const applyClassSchema = z.strictObject({
   feeOptionVersionId: z.uuid(),
   classVersion: z.number().int().min(1),
   availability: applicationAvailabilitySchema,
+  /** "Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm". */
+  termsAgreed: z.literal(true, 'Cần xác nhận đồng ý với Điều khoản trách nhiệm.'),
   acceptedAdjustments: z
     .array(z.enum(MATCH_ADJUSTMENTS))
     .max(MATCH_ADJUSTMENTS.length)

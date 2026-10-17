@@ -29,6 +29,7 @@ import type {
 } from '../../../shared/schemas/classes';
 import {
   FEE_OPTION_KEYS,
+  feeSessionsPerWeek,
   PLACEMENT_FEE_OPTION_KEY,
   placementFee,
 } from '../../../shared/schemas/classes';
@@ -122,7 +123,7 @@ async function withSchedules(db: Db, rows: ActualClassRow[]): Promise<AdminClass
       studentTraits: studentTraits.trim() || null,
       placementFeeMinor: placementFee(
         row.expectedBudgetMinor,
-        row.sessionsPerWeek,
+        feeSessionsPerWeek(row.sessionsPerWeek, grouped.get(row.sourceRequestId)?.length ?? 0),
         placementRateBp,
       ),
       schedule: { timezone, discussLater, windows: grouped.get(row.sourceRequestId) ?? [] },
@@ -930,9 +931,13 @@ export async function insertApplication(
   },
   availability: ApplicationAvailability | null = null,
 ): Promise<boolean> {
-  const weekdays = availability ? [...availability.weekdays].sort().join(',') : null;
-  const availableStart = availability?.start ?? null;
-  const availableEnd = availability?.end ?? null;
+  const availabilityJson = availability
+    ? JSON.stringify(
+        [...availability.windows].sort(
+          (a, b) => a.weekday - b.weekday || a.startLocal.localeCompare(b.startLocal),
+        ),
+      )
+    : null;
   const mutationId = crypto.randomUUID();
   const matchSnapshotJson = JSON.stringify(matchSnapshot);
   const scores = matchScores(tutorId);
@@ -941,7 +946,7 @@ export async function insertApplication(
     .select(
       sql`SELECT ${id}, ${classId}, ${tutorId},
     ${feeOptionVersionId}, 'submitted', NULL, 1, ${mutationId}, ${now}, ${now}, ${matchSnapshotJson},
-    ${weekdays}, ${availableStart}, ${availableEnd}
+    NULL, NULL, NULL, ${availabilityJson}
     WHERE EXISTS (
       SELECT 1 FROM class_listings
       JOIN parent_requests ON parent_requests.id = class_listings.source_request_id
@@ -959,7 +964,7 @@ export async function insertApplication(
   // idempotency key can be marked completed. The invalid status trips a CHECK.
   const assertInserted = db.insert(tutorApplications)
     .select(sql`SELECT ${crypto.randomUUID()}, ${classId}, ${tutorId},
-    ${feeOptionVersionId}, 'invalid', NULL, 1, ${mutationId}, ${now}, ${now}, '{}', NULL, NULL, NULL
+    ${feeOptionVersionId}, 'invalid', NULL, 1, ${mutationId}, ${now}, ${now}, '{}', NULL, NULL, NULL, NULL
     WHERE NOT EXISTS (SELECT 1 FROM tutor_applications WHERE id = ${id} AND mutation_id = ${mutationId})`);
   const profileChanges: BatchItem<'sqlite'>[] = [];
   const changes = matchSnapshot.profileChanges;
@@ -1005,13 +1010,23 @@ export async function insertApplication(
   return true;
 }
 
-export function availabilityOf(
-  weekdays: string | null,
-  start: string | null,
-  end: string | null,
-): ApplicationAvailability | null {
-  if (!weekdays || !start || !end) return null;
-  return { weekdays: weekdays.split(',').map(Number), start, end };
+/** Matrix windows of an application; 0035 rows (days + one range) read as the same shape. */
+export function availabilityOf(row: {
+  availabilityJson: string | null;
+  availableWeekdays: string | null;
+  availableStart: string | null;
+  availableEnd: string | null;
+}): ApplicationAvailability | null {
+  if (row.availabilityJson) return { windows: JSON.parse(row.availabilityJson) };
+  const { availableWeekdays, availableStart, availableEnd } = row;
+  if (!availableWeekdays || !availableStart || !availableEnd) return null;
+  return {
+    windows: availableWeekdays.split(',').map((day) => ({
+      weekday: Number(day),
+      startLocal: availableStart,
+      endLocal: availableEnd,
+    })),
+  };
 }
 
 export async function findOwnApplication(
@@ -1033,6 +1048,7 @@ export async function findOwnApplication(
       availableWeekdays: tutorApplications.availableWeekdays,
       availableStart: tutorApplications.availableStart,
       availableEnd: tutorApplications.availableEnd,
+      availabilityJson: tutorApplications.availabilityJson,
     })
     .from(tutorApplications)
     .where(and(eq(tutorApplications.id, id), eq(tutorApplications.tutorUserId, tutorId)))
@@ -1040,12 +1056,23 @@ export async function findOwnApplication(
   if (!row) return null;
   const cls = await findAdminClass(db, row.classId);
   if (!cls) return null;
-  const { matchSnapshotJson, availableWeekdays, availableStart, availableEnd, ...application } =
-    row;
+  const {
+    matchSnapshotJson,
+    availableWeekdays,
+    availableStart,
+    availableEnd,
+    availabilityJson,
+    ...application
+  } = row;
   return {
     ...application,
     matchSnapshot: matchSnapshotJson === '{}' ? null : JSON.parse(matchSnapshotJson),
-    availability: availabilityOf(availableWeekdays, availableStart, availableEnd),
+    availability: availabilityOf({
+      availabilityJson,
+      availableWeekdays,
+      availableStart,
+      availableEnd,
+    }),
     class: publicProjection(cls),
   };
 }

@@ -456,6 +456,7 @@ export const tutorApplications = sqliteTable(
     availableWeekdays: text('available_weekdays'),
     availableStart: text('available_start'),
     availableEnd: text('available_end'),
+    availabilityJson: text('availability_json'),
   },
   (t) => [
     uniqueIndex('tutor_applications_live_uq')

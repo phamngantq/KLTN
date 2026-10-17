@@ -302,6 +302,7 @@ describe('published classes and tutor applications', () => {
       feeOptionVersionId: crypto.randomUUID(),
       classVersion: cls.version,
       availability: AVAILABILITY,
+      termsAgreed: true,
     };
     const apply = (session: Session, payload: unknown = body) =>
       api(
@@ -371,6 +372,7 @@ describe('published classes and tutor applications', () => {
           feeOptionVersionId: fee.id,
           classVersion: cls.version,
           availability: AVAILABILITY,
+          termsAgreed: true,
         })
       ).status,
     ).toBe(409);
@@ -411,6 +413,7 @@ describe('published classes and tutor applications', () => {
       feeOptionVersionId: fee.id,
       classVersion: cls.version,
       availability: AVAILABILITY,
+      termsAgreed: true,
     };
     const path = `/classes/${cls.id}/applications`;
     const key = `apply-${crypto.randomUUID()}`;
@@ -647,6 +650,7 @@ describe('published classes and tutor applications', () => {
             feeOptionVersionId: fee.id,
             classVersion: lower.version,
             availability: AVAILABILITY,
+            termsAgreed: true,
             acceptedAdjustments,
           },
           tutor,
@@ -858,6 +862,7 @@ describe('published classes and tutor applications', () => {
             feeOptionVersionId: fee.id,
             classVersion: cls.version,
             availability: AVAILABILITY,
+            termsAgreed: true,
             acceptedAdjustments,
           },
           session,
@@ -982,7 +987,7 @@ describe('published classes and tutor applications', () => {
   });
 });
 
-describe('class acceptance: terms checkbox, placement fee and free time', () => {
+describe('class acceptance: terms test, placement fee and free time', () => {
   it('shows request details and the placement fee to tutors only, and filters by keyword', async () => {
     const parent = await register('parent');
     const admin = await moderator();
@@ -1033,7 +1038,35 @@ describe('class acceptance: terms checkbox, placement fee and free time', () => 
     expect(await search('100%_không-có')).toEqual([]);
   });
 
-  it('accepts terms with one checkbox and applies only with the monthly fee and free time', async () => {
+  it('counts weekly time slots for the fee when the request has no sessions per week', async () => {
+    const parent = await register('parent');
+    const admin = await moderator();
+    const request = await createSubmittedRequest(parent, {
+      schedule: {
+        timezone: 'Asia/Ho_Chi_Minh',
+        discussLater: false,
+        windows: [
+          { weekday: 2, startLocal: '18:00', endLocal: '19:30' },
+          { weekday: 5, startLocal: '18:00', endLocal: '19:30' },
+        ],
+      },
+    });
+    const cls = await publishClass(
+      admin,
+      (await (await createClass(admin, request)).json<ApiSuccess<AdminClass>>()).data,
+    );
+    await createPublishedFee(admin);
+    const tutor = await createPublicTutor();
+    const view = (
+      await (
+        await api(`/classes/${cls.id}`, { headers: { Cookie: tutor.cookie } })
+      ).json<ApiSuccess<PublicClass>>()
+    ).data;
+    // 40% × 180.000 ₫ × 2 slots/week × 4 weeks.
+    expect(view).toMatchObject({ sessionsPerWeek: null, placementFeeMinor: 576_000 });
+  });
+
+  it('requires the passed terms test, the agreement tick, the monthly fee and matrix free time', async () => {
     const parent = await register('parent');
     const admin = await moderator();
     const request = await createSubmittedRequest(parent, { sessionsPerWeek: 2 });
@@ -1062,6 +1095,7 @@ describe('class acceptance: terms checkbox, placement fee and free time', () => 
             feeOptionVersionId: monthly.id,
             classVersion: cls.version,
             availability: AVAILABILITY,
+            termsAgreed: true,
             ...(recommendation.match.adjustments.length > 0 && {
               acceptedAdjustments: recommendation.match.adjustments,
             }),
@@ -1072,27 +1106,10 @@ describe('class acceptance: terms checkbox, placement fee and free time', () => 
         ),
       );
 
-    // Terms first: one checkbox, no quiz.
-    const before = await api('/tutor/terms', { headers: { Cookie: tutor.cookie } });
-    const terms = (
-      await before.json<ApiSuccess<{ termsContentRevisionId: string; acceptedAt: string | null }>>()
-    ).data;
-    expect(terms.acceptedAt).toBeNull();
-    const notApplied = await apply({});
-    expect(notApplied.status).toBe(409);
-    expect(await errorCode(notApplied)).toBe('TERMS_ACK_REQUIRED');
-    expect(
-      (
-        await api(
-          '/tutor/terms/consent',
-          jsonInit(
-            'POST',
-            { termsContentRevisionId: terms.termsContentRevisionId, accepted: false },
-            tutor,
-          ),
-        )
-      ).status,
-    ).toBe(422);
+    // The terms test comes first; the 0035 checkbox endpoint no longer exists.
+    const notTested = await apply({});
+    expect(notTested.status).toBe(409);
+    expect(await errorCode(notTested)).toBe('TERMS_ACK_REQUIRED');
     expect(
       (
         await api(
@@ -1100,59 +1117,53 @@ describe('class acceptance: terms checkbox, placement fee and free time', () => 
           jsonInit('POST', { termsContentRevisionId: crypto.randomUUID(), accepted: true }, tutor),
         )
       ).status,
-    ).toBe(409);
-    const consent = await api(
-      '/tutor/terms/consent',
-      jsonInit(
-        'POST',
-        { termsContentRevisionId: terms.termsContentRevisionId, accepted: true },
-        tutor,
-      ),
-    );
-    expect(consent.status).toBe(200);
-    const acceptedAt = (await consent.json<ApiSuccess<{ acceptedAt: string }>>()).data.acceptedAt;
-    expect(acceptedAt).toEqual(expect.any(String));
-    const again = await api(
-      '/tutor/terms/consent',
-      jsonInit(
-        'POST',
-        { termsContentRevisionId: terms.termsContentRevisionId, accepted: true },
-        tutor,
-      ),
-    );
-    expect((await again.json<ApiSuccess<{ acceptedAt: string }>>()).data.acceptedAt).toBe(
-      acceptedAt,
-    );
+    ).toBe(404);
+    await passAndAcknowledgeTutorTerms(tutor);
+    const quiz = await api('/tutor/terms/quiz', { headers: { Cookie: tutor.cookie } });
+    expect(
+      (await quiz.json<ApiSuccess<{ acknowledgedAt: string | null }>>()).data.acknowledgedAt,
+    ).toEqual(expect.any(String));
 
-    // Only the monthly-percent placement fee, and free time is required and checked.
+    // Every acceptance still needs the agreement tick.
+    for (const termsAgreed of [undefined, false]) {
+      expect((await apply({ termsAgreed })).status).toBe(422);
+    }
     const otherFee = await apply({ feeOptionVersionId: firstLesson.id });
     expect(otherFee.status).toBe(409);
     expect(await errorCode(otherFee)).toBe('FEE_OPTION_UNAVAILABLE');
     for (const availability of [
       undefined,
-      { weekdays: [], start: '18:00', end: '20:00' },
-      { weekdays: [8], start: '18:00', end: '20:00' },
-      { weekdays: [2], start: '20:00', end: '18:00' },
-      { weekdays: [2], start: '25:00', end: '26:00' },
+      { windows: [] },
+      { windows: [{ weekday: 8, startLocal: '18:00', endLocal: '19:30' }] },
+      { windows: [{ weekday: 2, startLocal: '20:00', endLocal: '18:00' }] },
+      {
+        windows: [
+          { weekday: 2, startLocal: '18:00', endLocal: '19:30' },
+          { weekday: 2, startLocal: '18:00', endLocal: '19:30' },
+        ],
+      },
+      { weekdays: [2], start: '18:00', end: '20:00' },
     ]) {
       expect((await apply({ availability })).status).toBe(422);
     }
-    const created = await apply({
-      availability: { weekdays: [6, 2], start: '17:00', end: '19:00' },
-    });
+    const windows = [
+      { weekday: 6, startLocal: '09:00', endLocal: '10:30' },
+      { weekday: 2, startLocal: '17:30', endLocal: '19:00' },
+    ];
+    const created = await apply({ availability: { windows } });
     expect(created.status).toBe(201);
-    const application = (await created.json<ApiSuccess<TutorApplication>>()).data;
-    expect(application.availability).toEqual({ weekdays: [2, 6], start: '17:00', end: '19:00' });
+    const sorted = { windows: [windows[1], windows[0]] };
+    expect((await created.json<ApiSuccess<TutorApplication>>()).data.availability).toEqual(sorted);
     const adminList = await api(`/admin/applications?classId=${cls.id}`, {
       headers: { Cookie: admin.cookie },
     });
     expect(
       (await adminList.json<ApiSuccess<Page<{ availability: unknown }>>>()).data.items[0]
         ?.availability,
-    ).toEqual({ weekdays: [2, 6], start: '17:00', end: '19:00' });
+    ).toEqual(sorted);
 
-    // D1 itself refuses an application under another fee option.
-    await expect(
+    // D1 itself refuses an application under another fee option, and without the terms test.
+    const insert = (tutorId: string, feeId: string) =>
       env.DB.prepare(
         `INSERT INTO tutor_applications (id, class_id, tutor_user_id, fee_option_version_id, status,
            version, mutation_id, created_at, updated_at, match_snapshot_json)
@@ -1161,13 +1172,16 @@ describe('class acceptance: terms checkbox, placement fee and free time', () => 
         .bind(
           crypto.randomUUID(),
           cls.id,
-          (await createPublicTutor()).userId,
-          firstLesson.id,
+          tutorId,
+          feeId,
           crypto.randomUUID(),
           new Date().toISOString(),
           new Date().toISOString(),
         )
-        .run(),
-    ).rejects.toThrow();
+        .run();
+    const untested = await createPublicTutor();
+    await expect(insert(untested.userId, monthly.id)).rejects.toThrow();
+    await passAndAcknowledgeTutorTerms(untested);
+    await expect(insert(untested.userId, firstLesson.id)).rejects.toThrow();
   });
 });

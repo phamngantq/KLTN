@@ -320,10 +320,12 @@ export function AdminApplicationsPage() {
                       <div className="sm:col-span-2">
                         <dt className="text-xs text-muted">Thời gian rảnh có thể đi dạy</dt>
                         <dd className="font-medium text-primary">
-                          {item.availability.weekdays
-                            .map((day) => (day === 7 ? 'CN' : `T${day + 1}`))
-                            .join(', ')}{' '}
-                          · {item.availability.start}–{item.availability.end}
+                          {item.availability.windows
+                            .map(
+                              (window) =>
+                                `${window.weekday === 7 ? 'CN' : `T${window.weekday + 1}`} ${window.startLocal}–${window.endLocal}`,
+                            )
+                            .join(', ')}
                         </dd>
                       </div>
                     )}

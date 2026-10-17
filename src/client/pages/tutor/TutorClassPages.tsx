@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Link, useParams, useSearchParams } from 'react-router';
 import {
+  feeSessionsPerWeek,
   PLACEMENT_FEE_OPTION_KEY,
   PLACEMENT_FEE_WEEKS,
   type ApplicationAvailability,
@@ -39,9 +40,16 @@ import {
   usePublicClasses,
   type MatchAdjustment,
 } from '../../features/classes/api';
-import { useTutorTerms } from '../../features/terms-contracts/api';
+import { useWeeklyAvailability } from '../../features/availability/api';
+import { useTutorTermsQuiz } from '../../features/terms-contracts/api';
+import {
+  isRequestGridWindow,
+  RequestScheduleGrid,
+} from '../../components/domain/RequestScheduleGrid';
 import { useSubjects } from '../../features/tutor-profile/api';
 import { formatDate } from '../../lib/format';
+
+type GridWindow = ApplicationAvailability['windows'][number];
 
 const NEW_DAYS = 7;
 const PAGE_SIZES = [12, 24, 48] as const;
@@ -57,30 +65,66 @@ const DAYS = [
 
 /** "150,000đ" as in the design. */
 const money = (minor: number) => `${minor.toLocaleString('en-US')}đ`;
-const hour = (value: string) => value.replace(/^0/, '').replace(':00', 'h').replace(':', 'h');
 
 function isNew(item: PublicClass): boolean {
   if (!item.publishedAt) return false;
   return Date.now() - new Date(item.publishedAt).getTime() < NEW_DAYS * 86_400_000;
 }
 
-/** "3 buổi/tuần, tối 19h-21h"; several different times fall back to the day list. */
+const DAY_NAMES: Record<number, string> = {
+  1: 'Thứ Hai',
+  2: 'Thứ Ba',
+  3: 'Thứ Tư',
+  4: 'Thứ Năm',
+  5: 'Thứ Sáu',
+  6: 'Thứ Bảy',
+  7: 'Chủ nhật',
+};
+const shortDay = (weekday: number) => DAYS.find(([day]) => day === weekday)?.[1] ?? `T${weekday}`;
+
+/** Sessions per week: the request's own count, else its weekly time slots. */
+export function sessionsOf(item: PublicClass): number | null {
+  return feeSessionsPerWeek(item.sessionsPerWeek, item.schedule.windows.length);
+}
+
+/** "2 buổi/tuần · T3, T6 (17:00–19:00)"; days sharing a time range are grouped. */
 export function classSchedule(item: PublicClass): string {
-  const sessions = item.sessionsPerWeek ? `${item.sessionsPerWeek} buổi/tuần` : null;
+  const sessions = sessionsOf(item);
+  const head = sessions ? `${sessions} buổi/tuần` : null;
   const { windows, discussLater } = item.schedule;
   if (discussLater || windows.length === 0)
-    return [sessions, 'trao đổi lịch sau'].filter(Boolean).join(', ');
-  const [first] = windows;
-  const same = windows.every(
-    (w) => w.startLocal === first!.startLocal && w.endLocal === first!.endLocal,
-  );
-  if (!same) {
-    const days = windows.map((w) => DAYS.find(([day]) => day === w.weekday)?.[1]).join(', ');
-    return [sessions ?? `${windows.length} buổi/tuần`, days].join(', ');
+    return [head, 'trao đổi lịch sau'].filter(Boolean).join(' · ');
+  const groups = new Map<string, number[]>();
+  for (const window of windows) {
+    const range = `${window.startLocal}–${window.endLocal}`;
+    groups.set(range, [...(groups.get(range) ?? []), window.weekday]);
   }
-  const startHour = Number(first!.startLocal.slice(0, 2));
-  const period = startHour < 12 ? 'sáng' : startHour < 18 ? 'chiều' : 'tối';
-  return `${sessions ?? `${windows.length} buổi/tuần`}, ${period} ${hour(first!.startLocal)}-${hour(first!.endLocal)}`;
+  const times = [...groups]
+    .map(([range, days]) => `${days.map(shortDay).join(', ')} (${range})`)
+    .join('; ');
+  return [head, times].filter(Boolean).join(' · ');
+}
+
+/** One line per weekly slot, for the detail page. */
+function ScheduleLines({ item }: { item: PublicClass }) {
+  const sessions = sessionsOf(item);
+  const { windows, discussLater } = item.schedule;
+  return (
+    <div className="flex flex-col gap-1">
+      {sessions && <p className="text-lg font-medium">{sessions} buổi/tuần</p>}
+      {discussLater || windows.length === 0 ? (
+        <p className="text-muted">Trao đổi lịch học sau</p>
+      ) : (
+        <ul aria-label="Thời gian có thể học" className="flex flex-col gap-0.5">
+          {windows.map((window) => (
+            <li key={`${window.weekday}-${window.startLocal}`}>
+              {DAY_NAMES[window.weekday]}: {window.startLocal}–{window.endLocal}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function Badges({ item, dark = false }: { item: PublicClass; dark?: boolean }) {
@@ -413,7 +457,9 @@ export function TutorClassDetailPage() {
               </Fact>
               <Fact icon={<CalendarDays className="size-6" />}>
                 <dt className="text-sm text-muted">Lịch học</dt>
-                <dd className="text-lg font-medium">{classSchedule(item)}</dd>
+                <dd>
+                  <ScheduleLines item={item} />
+                </dd>
               </Fact>
               <Fact icon={<DollarSign className="size-6" />}>
                 <dt className="text-sm text-muted">Học phí / buổi</dt>
@@ -423,12 +469,6 @@ export function TutorClassDetailPage() {
                       ? 'Thỏa thuận'
                       : `${money(item.expectedBudgetMinor)}/buổi`}
                   </p>
-                  {item.placementFeeMinor !== null && (
-                    <p className="text-sm text-muted">
-                      Phí nhận lớp:{' '}
-                      <strong className="text-primary">{money(item.placementFeeMinor)}</strong>
-                    </p>
-                  )}
                 </dd>
               </Fact>
               <Fact icon={<BookOpen className="size-6" />}>
@@ -512,11 +552,12 @@ export function TutorAcceptClassPage() {
   const { id, detail, fallback } = useClassPage();
   const recommendation = useClassRecommendation(id);
   const feeOptions = useFeeOptions(id, Boolean(id));
-  const terms = useTutorTerms();
+  const quiz = useTutorTermsQuiz();
+  const weekly = useWeeklyAvailability();
   const apply = useApplyForClass();
-  const [weekdays, setWeekdays] = useState<number[]>([]);
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+  // Free time starts from the tutor's saved weekly grid and can be changed for this class.
+  const [windows, setWindows] = useState<GridWindow[] | null>(null);
+  const [agreed, setAgreed] = useState(false);
   const [timeError, setTimeError] = useState('');
   const [confirming, setConfirming] = useState(false);
   const idempotencyKey = useRef<string | null>(null);
@@ -526,29 +567,28 @@ export function TutorAcceptClassPage() {
     (option) => option.optionKey === PLACEMENT_FEE_OPTION_KEY,
   );
   const match = recommendation.data?.match;
-  const accepted = Boolean(terms.data?.acceptedAt);
+  const passed = Boolean(quiz.data?.acknowledgedAt);
   const here = `/tutor/new-classes/${encodeURIComponent(id!)}/nhan-lop`;
+  const saved = (weekly.data?.rules ?? [])
+    .filter((rule) => !rule.effectiveFrom && !rule.effectiveTo)
+    .map((rule) => ({ weekday: rule.weekday, startLocal: rule.start, endLocal: rule.end }))
+    .filter(isRequestGridWindow);
+  const chosen = windows ?? saved;
+  const sessions = sessionsOf(item);
+  const rate = placement ? placement.rateBasisPoints / 100 : null;
 
   function availability(): ApplicationAvailability | null {
-    if (weekdays.length === 0) {
-      setTimeError('Chọn ít nhất một ngày trong tuần.');
-      return null;
-    }
-    if (!start || !end) {
-      setTimeError('Nhập giờ bắt đầu và giờ kết thúc.');
-      return null;
-    }
-    if (start >= end) {
-      setTimeError('Giờ kết thúc phải sau giờ bắt đầu.');
+    if (chosen.length === 0) {
+      setTimeError('Chọn ít nhất một khung giờ có thể dạy trong bảng.');
       return null;
     }
     setTimeError('');
-    return { weekdays: [...weekdays].sort(), start, end };
+    return { windows: chosen };
   }
 
   function send(adjustments: MatchAdjustment[]) {
     const times = availability();
-    if (!times || !placement || !recommendation.data || apply.isPending) return;
+    if (!times || !placement || !recommendation.data || !agreed || apply.isPending) return;
     idempotencyKey.current ??= crypto.randomUUID();
     apply.mutate(
       {
@@ -557,6 +597,7 @@ export function TutorAcceptClassPage() {
         classVersion: recommendation.data.class.version,
         idempotencyKey: idempotencyKey.current,
         availability: times,
+        termsAgreed: true,
         ...(adjustments.length > 0 && { acceptedAdjustments: adjustments }),
       },
       {
@@ -573,7 +614,7 @@ export function TutorAcceptClassPage() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!availability() || !accepted) return;
+    if (!availability() || !passed || !agreed) return;
     if (match && match.adjustments.length > 0) setConfirming(true);
     else send([]);
   }
@@ -610,9 +651,9 @@ export function TutorAcceptClassPage() {
             <div>
               <p className="text-sm text-warning">Phí nhận lớp</p>
               <p className="text-2xl font-bold text-primary">
-                {item.placementFeeMinor === null
-                  ? 'Trao đổi với trung tâm'
-                  : money(item.placementFeeMinor)}
+                {item.placementFeeMinor !== null
+                  ? money(item.placementFeeMinor)
+                  : `${rate ?? 40}% học phí một tháng`}
               </p>
             </div>
           </div>
@@ -620,17 +661,27 @@ export function TutorAcceptClassPage() {
             <p className="text-sm text-warning">Học phí gia sư nhận được</p>
             <p className="text-lg font-medium text-primary">
               {item.expectedBudgetMinor === null
-                ? 'Thỏa thuận'
+                ? 'Thỏa thuận với phụ huynh'
                 : `${money(item.expectedBudgetMinor)}/buổi`}
             </p>
           </div>
         </div>
-        {placement && (
-          <p className="-mt-2 text-xs text-muted">
-            Phí nhận lớp = {placement.rateBasisPoints / 100}% × học phí 1 buổi × số buổi/tuần ×{' '}
-            {PLACEMENT_FEE_WEEKS} tuần.
-          </p>
-        )}
+        <dl className="-mt-1 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+          <div className="flex gap-2">
+            <dt className="text-muted">Cách tính:</dt>
+            <dd>
+              {rate ?? 40}% × học phí 1 buổi × số buổi/tuần × {PLACEMENT_FEE_WEEKS} tuần
+            </dd>
+          </div>
+          <div className="flex gap-2">
+            <dt className="text-muted">Áp dụng cho lớp này:</dt>
+            <dd className="font-medium">
+              {item.expectedBudgetMinor !== null && sessions
+                ? `${rate ?? 40}% × ${money(item.expectedBudgetMinor)} × ${sessions} buổi × ${PLACEMENT_FEE_WEEKS}`
+                : 'Trung tâm xác nhận học phí với phụ huynh rồi thông báo mức phí cụ thể'}
+            </dd>
+          </div>
+        </dl>
         <div>
           <h3 className="mb-3 font-semibold text-primary">Quy trình thực hiện</h3>
           <ol className="flex flex-col gap-4 text-sm">
@@ -672,56 +723,19 @@ export function TutorAcceptClassPage() {
         title="Thời gian rảnh có thể đi dạy"
         icon={<Clock aria-hidden="true" className="size-5" />}
       >
-        <fieldset>
-          <legend className="mb-2 text-sm font-medium">
-            Các ngày trong tuần <span className="text-danger">*</span>
-          </legend>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
-            {DAYS.map(([day, label]) => {
-              const on = weekdays.includes(day);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => {
-                    setTimeError('');
-                    setWeekdays(on ? weekdays.filter((d) => d !== day) : [...weekdays, day]);
-                  }}
-                  className={`min-h-11 rounded-xl border text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-                    on
-                      ? 'border-primary bg-primary text-on-primary'
-                      : 'border-border bg-bg text-primary hover:border-primary'
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <TextField
-            label="Giờ bắt đầu"
-            type="time"
-            required
-            value={start}
-            onChange={(event) => {
-              setTimeError('');
-              setStart(event.target.value);
-            }}
-          />
-          <TextField
-            label="Giờ kết thúc"
-            type="time"
-            required
-            value={end}
-            onChange={(event) => {
-              setTimeError('');
-              setEnd(event.target.value);
-            }}
-          />
-        </div>
+        <p className="-mt-2 text-sm text-muted">
+          Chọn các ô theo ngày trong tuần và khung giờ bạn có thể dạy lớp này
+          {saved.length > 0 && ' (đã điền sẵn theo hồ sơ của bạn)'}. Lớp học vào:{' '}
+          <strong className="text-primary">{classSchedule(item)}</strong>.
+        </p>
+        <RequestScheduleGrid
+          value={chosen}
+          onChange={(next) => {
+            setTimeError('');
+            setWindows(next);
+          }}
+          caption="Chọn thời gian rảnh có thể đi dạy theo tuần"
+        />
         {timeError && (
           <p role="alert" className="text-sm text-danger">
             {timeError}
@@ -730,24 +744,33 @@ export function TutorAcceptClassPage() {
       </Panel>
 
       <Panel title="Điều khoản trách nhiệm">
-        {terms.isPending ? (
+        {quiz.isPending ? (
           <PageLoading label="Đang tải điều khoản…" />
-        ) : terms.isError ? (
-          <Alert tone="warning" title="Chưa có điều khoản">
-            {terms.error.message}
+        ) : quiz.isError ? (
+          <Alert tone="warning" title="Chưa có bài test điều khoản">
+            {quiz.error.message}
           </Alert>
-        ) : accepted ? (
-          <Alert tone="success" title="Đã xác nhận Điều khoản trách nhiệm">
-            Bạn đã đồng ý với Điều khoản trách nhiệm ngày{' '}
-            {formatDate(terms.data.acceptedAt!, 'Asia/Ho_Chi_Minh')}; các lần nhận lớp sau không cần
-            làm lại.
-          </Alert>
+        ) : passed ? (
+          <>
+            <Alert tone="success" title="Bạn đã hoàn thành bài test điều khoản trách nhiệm.">
+              Kết quả đã được lưu ngày {formatDate(quiz.data.acknowledgedAt!, 'Asia/Ho_Chi_Minh')};
+              các lần nhận lớp sau không cần làm lại.
+            </Alert>
+            <label className="flex min-h-11 items-start gap-3 rounded-xl border border-border p-4 text-sm">
+              <input
+                type="checkbox"
+                className="mt-0.5 size-4 accent-[var(--color-primary)]"
+                checked={agreed}
+                onChange={(event) => setAgreed(event.target.checked)}
+              />
+              Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm
+            </label>
+          </>
         ) : (
           <>
             <p className="rounded-xl border border-accent/60 bg-warning-surface px-5 py-4 text-sm">
-              <strong>Bắt buộc:</strong> Để nhận lớp, bạn cần hoàn thành bài test về điều khoản
-              trách nhiệm. Bài test chỉ cần làm <strong>một lần duy nhất</strong> — các lần nhận lớp
-              sau sẽ không cần làm lại.
+              Để nhận lớp, bạn cần hoàn thành bài test về điều khoản trách nhiệm. Bài test chỉ cần
+              làm một lần duy nhất — các lần nhận lớp sau sẽ không cần làm lại.
             </p>
             <ButtonLink to={`/tutor/terms?next=${encodeURIComponent(here)}`} className="w-full">
               Làm bài test điều khoản trách nhiệm
@@ -776,10 +799,15 @@ export function TutorAcceptClassPage() {
         variant="accent"
         className="w-full rounded-2xl text-base font-semibold"
         loading={apply.isPending}
-        disabled={!accepted || !placement || !recommendation.data}
+        disabled={!passed || !agreed || !placement || !recommendation.data}
       >
-        Gửi yêu cầu nhận lớp
+        Xác nhận nhận lớp
       </Button>
+      {passed && !agreed && (
+        <p className="-mt-3 text-center text-sm text-muted">
+          Tích chọn đồng ý với Điều khoản trách nhiệm để xác nhận nhận lớp.
+        </p>
+      )}
 
       {match && (
         <ConfirmDialog

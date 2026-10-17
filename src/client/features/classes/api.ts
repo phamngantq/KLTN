@@ -140,6 +140,7 @@ export function useApplyForClass() {
       idempotencyKey,
       acceptedAdjustments,
       availability,
+      termsAgreed,
     }: {
       classId: string;
       feeOptionVersionId: string;
@@ -147,6 +148,8 @@ export function useApplyForClass() {
       idempotencyKey: string;
       acceptedAdjustments?: MatchAdjustment[];
       availability: ApplicationAvailability;
+      /** The tutor ticked "Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm…". */
+      termsAgreed: true;
     }) =>
       api.post<TutorClassApplication>(
         `/classes/${encodeURIComponent(classId)}/applications`,
@@ -154,6 +157,7 @@ export function useApplyForClass() {
           feeOptionVersionId,
           classVersion,
           availability,
+          termsAgreed,
           ...(acceptedAdjustments && { acceptedAdjustments }),
         },
         { headers: { 'Idempotency-Key': idempotencyKey } },

@@ -6,8 +6,6 @@ import {
   type ClassContractRecord,
   type QuizQuestion,
   type TutorQuizAttempt,
-  type AcceptTermsInput,
-  type TutorTerms,
   type TutorTermsAcknowledgement,
   type TutorTermsQuiz,
 } from '../../../shared/schemas/terms-contracts';
@@ -120,103 +118,16 @@ async function acknowledgement(db: D1Database, tutorId: string, quizId: string) 
     .first<AcknowledgementRow>();
 }
 
-const termsUnavailable = () =>
-  new AppError(409, 'TERMS_UNAVAILABLE', 'Chưa có Điều khoản trách nhiệm được công bố.');
-
-async function consentAt(db: D1Database, tutorId: string, revisionId: string) {
-  const row = await db
-    .prepare(
-      'SELECT accepted_at FROM terms_consents WHERE tutor_user_id = ? AND terms_content_revision_id = ?',
-    )
-    .bind(tutorId, revisionId)
-    .first<{ accepted_at: string }>();
-  return row?.accepted_at ?? null;
-}
-
-/** When the tutor accepted the current terms: by checkbox, or by an earlier passed quiz. */
-async function acceptedAt(db: D1Database, tutorId: string, content: ContentRow) {
-  const consent = await consentAt(db, tutorId, content.id);
-  if (consent) return consent;
-  const quiz = await db
-    .prepare(
-      "SELECT id FROM terms_quizzes WHERE terms_content_revision_id = ? AND status = 'published'",
-    )
-    .bind(content.id)
-    .first<{ id: string }>();
-  return quiz ? ((await acknowledgement(db, tutorId, quiz.id))?.acknowledged_at ?? null) : null;
-}
-
+/** Passing the published quiz and acknowledging the terms is required once, before the first class. */
 export async function assertTutorTermsReady(db: D1Database, tutorId: string): Promise<void> {
-  const content = await currentContent(db, 'terms');
-  if (!content) throw termsUnavailable();
-  if (!(await acceptedAt(db, tutorId, content))) {
+  const { quiz } = await currentQuiz(db);
+  if (!(await acknowledgement(db, tutorId, quiz.id))) {
     throw new AppError(
       409,
       'TERMS_ACK_REQUIRED',
-      'Gia sư cần xác nhận Điều khoản trách nhiệm hiện hành trước khi nhận lớp.',
+      'Để nhận lớp, bạn cần hoàn thành bài test về điều khoản trách nhiệm.',
     );
   }
-}
-
-/** "Điều khoản trách nhiệm" for the tutor, with when they accepted this revision. */
-export async function getTutorTerms(db: D1Database, tutorId: string): Promise<TutorTerms> {
-  const content = await currentContent(db, 'terms');
-  if (!content) throw termsUnavailable();
-  return {
-    termsContentRevisionId: content.id,
-    termsRevision: content.revision,
-    termsTitle: content.title,
-    termsBodyText: content.body_text,
-    acceptedAt: await acceptedAt(db, tutorId, content),
-  };
-}
-
-/** One checkbox acceptance of the published revision; repeating it changes nothing. */
-export async function acceptTerms(
-  db: D1Database,
-  tutorId: string,
-  input: AcceptTermsInput,
-  now = new Date(),
-): Promise<TutorTerms> {
-  const content = await currentContent(db, 'terms');
-  if (!content) throw termsUnavailable();
-  if (content.id !== input.termsContentRevisionId) {
-    throw new AppError(409, 'TERMS_STALE', 'Điều khoản đã được cập nhật. Vui lòng tải lại.');
-  }
-  const at = now.toISOString();
-  try {
-    await db.batch([
-      db
-        .prepare(
-          `INSERT INTO terms_consents (tutor_user_id, terms_content_revision_id, accepted_at)
-           SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM terms_consents
-             WHERE tutor_user_id = ? AND terms_content_revision_id = ?)`,
-        )
-        .bind(tutorId, content.id, at, tutorId, content.id),
-      db
-        .prepare(
-          `INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, metadata, created_at)
-           SELECT ?, ?, 'terms.accepted', 'content_revision', ?, ?, ?
-           WHERE NOT EXISTS (SELECT 1 FROM audit_logs WHERE actor_id = ?
-             AND action = 'terms.accepted' AND target_id = ?)`,
-        )
-        .bind(
-          crypto.randomUUID(),
-          tutorId,
-          content.id,
-          JSON.stringify({ revision: content.revision }),
-          at,
-          tutorId,
-          content.id,
-        ),
-    ]);
-  } catch (error) {
-    if (rootMessage(error).includes('TERMS_CONSENT_NOT_ELIGIBLE')) {
-      throw new AppError(409, 'TERMS_STALE', 'Điều khoản đã được cập nhật. Vui lòng tải lại.');
-    }
-    throw error;
-  }
-  return getTutorTerms(db, tutorId);
 }
 
 export async function listAdminQuizzes(db: D1Database): Promise<AdminTermsQuiz[]> {

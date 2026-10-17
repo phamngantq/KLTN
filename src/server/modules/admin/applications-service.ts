@@ -38,17 +38,29 @@ const columns = {
   availableWeekdays: tutorApplications.availableWeekdays,
   availableStart: tutorApplications.availableStart,
   availableEnd: tutorApplications.availableEnd,
+  availabilityJson: tutorApplications.availabilityJson,
 };
 
 function toApplication(
   row: NonNullable<Awaited<ReturnType<typeof applicationRow>>>,
 ): AdminApplication {
-  const { matchSnapshotJson, availableWeekdays, availableStart, availableEnd, ...application } =
-    row;
+  const {
+    matchSnapshotJson,
+    availableWeekdays,
+    availableStart,
+    availableEnd,
+    availabilityJson,
+    ...application
+  } = row;
   return {
     ...application,
     matchSnapshot: matchSnapshotJson === '{}' ? null : JSON.parse(matchSnapshotJson),
-    availability: availabilityOf(availableWeekdays, availableStart, availableEnd),
+    availability: availabilityOf({
+      availabilityJson,
+      availableWeekdays,
+      availableStart,
+      availableEnd,
+    }),
   };
 }
 

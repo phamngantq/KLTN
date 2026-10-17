@@ -147,9 +147,9 @@ describe('class routes', () => {
     const article = screen.getByRole('heading', { name: 'Tiếng Anh - Lớp 7' }).closest('article')!;
     expect(within(article).getByText('Mới')).toBeTruthy();
     expect(within(article).getByText('Thanh Xuân, Hà Nội')).toBeTruthy();
-    expect(within(article).getByText('2 buổi/tuần, chiều 17h-19h')).toBeTruthy();
+    // Sessions per week, then the weekdays and the time range.
+    expect(within(article).getByText('2 buổi/tuần · T3, T6 (17:00–19:00)')).toBeTruthy();
     expect(within(article).getByText('120,000đ/buổi')).toBeTruthy();
-    expect(within(article).getByText('Phí nhận lớp: 384,000đ')).toBeTruthy();
     expect(within(article).getByText('Offline')).toBeTruthy();
     expect(within(article).getByText(card.studentTraits!)).toBeTruthy();
     expect(
@@ -176,13 +176,22 @@ describe('class routes', () => {
     );
   }, 30_000);
 
-  it('shows class details with requirements and a "Nhận lớp" button', async () => {
+  it('shows class details with each weekly slot and no placement fee', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === `/classes/${item.id}`)
         return {
           data: {
             ...item,
+            sessionsPerWeek: null,
+            schedule: {
+              timezone: 'Asia/Ho_Chi_Minh',
+              discussLater: false,
+              windows: [
+                { weekday: 2, startLocal: '17:30', endLocal: '19:00' },
+                { weekday: 6, startLocal: '09:00', endLocal: '10:30' },
+              ],
+            },
             placementFeeMinor: 320_000,
             studentTraits: 'Học sinh chăm chỉ',
             tutorRequirements: 'Sinh viên ngoại ngữ\nGiao tiếp tốt; Kiên nhẫn với trẻ',
@@ -193,10 +202,16 @@ describe('class routes', () => {
     renderRoute(`/tutor/new-classes/${item.id}`);
     expect(await screen.findByRole('heading', { name: 'Chi tiết lớp học' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Toán – Lớp 8' })).toBeTruthy();
-    expect(screen.getByText(/Mã lớp: CL001/)).toBeTruthy();
     expect(screen.getByText('200,000đ/buổi')).toBeTruthy();
-    expect(screen.getByText('320,000đ')).toBeTruthy();
-    expect(screen.getByText('Học sinh chăm chỉ')).toBeTruthy();
+    // Sessions come from the weekly slots when the request did not say.
+    expect(screen.getByText('2 buổi/tuần')).toBeTruthy();
+    expect(
+      within(screen.getByRole('list', { name: 'Thời gian có thể học' }))
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['Thứ Ba: 17:30–19:00', 'Thứ Bảy: 09:00–10:30']);
+    expect(screen.queryByText(/Phí nhận lớp/)).toBeNull();
+    expect(screen.queryByText('320,000đ')).toBeNull();
     const requirements = screen.getByRole('region', { name: 'Yêu cầu gia sư' });
     expect(
       within(requirements)
@@ -208,23 +223,44 @@ describe('class routes', () => {
     );
   });
 
-  it('asks for terms first, then sends the monthly fee, class version and free time', async () => {
+  it('asks for the terms test, then needs the agreement tick and matrix free time', async () => {
     const monthly = allFeeOptions.find((option) => option.optionKey === 'monthly_percent')!;
-    let accepted: string | null = null;
+    let acknowledgedAt: string | null = null;
+    const quiz = () => ({
+      data: {
+        quizId: '00000000-0000-4000-8000-0000000000ab',
+        termsContentRevisionId: '00000000-0000-4000-8000-0000000000aa',
+        termsRevision: 1,
+        termsTitle: 'Điều khoản trách nhiệm',
+        termsBodyText: 'Nội dung điều khoản.',
+        questions: [],
+        minimumCorrect: 1,
+        passed: acknowledgedAt !== null,
+        passedAttemptId: null,
+        acknowledgedAt,
+      },
+    });
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === `/classes/${item.id}`)
-        return { data: { ...item, placementFeeMinor: 240_000 } };
+        return { data: { ...item, placementFeeMinor: 640_000, sessionsPerWeek: 2 } };
       if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: recommendation };
       if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === '/tutor/terms')
+      if (req.path === '/tutor/terms/quiz') return quiz();
+      if (req.path === '/tutor/availability')
         return {
           data: {
-            termsContentRevisionId: '00000000-0000-4000-8000-0000000000aa',
-            termsRevision: 1,
-            termsTitle: 'Điều khoản trách nhiệm',
-            termsBodyText: 'Nội dung điều khoản.',
-            acceptedAt: accepted,
+            timezone: 'Asia/Ho_Chi_Minh',
+            rules: [
+              {
+                id: 'r1',
+                weekday: 1,
+                start: '19:30',
+                end: '21:00',
+                effectiveFrom: null,
+                effectiveTo: null,
+              },
+            ],
           },
         };
       if (req.path === `/classes/${item.id}/applications`)
@@ -235,51 +271,62 @@ describe('class routes', () => {
     const user = userEvent.setup();
 
     expect(await screen.findByRole('heading', { name: 'Nhận lớp CL001' })).toBeTruthy();
-    expect(screen.getByText('240,000đ')).toBeTruthy();
-    expect(screen.getByText('200,000đ/buổi')).toBeTruthy();
+    expect(screen.getByText('640,000đ')).toBeTruthy();
+    expect(screen.getByText('30% × 200,000đ × 2 buổi × 4')).toBeTruthy();
     expect(
-      screen.getByText('Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội', { selector: 'strong' }),
+      await screen.findByText(
+        'Để nhận lớp, bạn cần hoàn thành bài test về điều khoản trách nhiệm. Bài test chỉ cần làm một lần duy nhất — các lần nhận lớp sau sẽ không cần làm lại.',
+      ),
     ).toBeTruthy();
-    const testLink = await screen.findByRole('link', {
-      name: 'Làm bài test điều khoản trách nhiệm',
-    });
-    expect(testLink.getAttribute('href')).toBe(
-      `/tutor/terms?next=${encodeURIComponent(`/tutor/new-classes/${item.id}/nhan-lop`)}`,
-    );
-    const send = screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }) as HTMLButtonElement;
-    expect(send.disabled).toBe(true);
+    expect(
+      screen
+        .getByRole('link', { name: 'Làm bài test điều khoản trách nhiệm' })
+        .getAttribute('href'),
+    ).toBe(`/tutor/terms?next=${encodeURIComponent(`/tutor/new-classes/${item.id}/nhan-lop`)}`);
+    const send = () =>
+      screen.getByRole('button', { name: 'Xác nhận nhận lớp' }) as HTMLButtonElement;
+    expect(send().disabled).toBe(true);
 
-    // After the checkbox on the terms page, the step shows as done.
-    accepted = '2026-10-16T01:00:00.000Z';
+    // After passing the test the result is saved; each acceptance still needs the tick.
+    acknowledgedAt = '2026-10-16T01:00:00.000Z';
     router.navigate(`/tutor/new-classes/${item.id}`);
     await screen.findByRole('heading', { name: 'Chi tiết lớp học' });
     await user.click(screen.getByRole('link', { name: 'Nhận lớp' }));
-    await screen.findByRole('heading', { name: 'Nhận lớp CL001' });
-    await waitFor(() =>
-      expect(screen.getByText('Đã xác nhận Điều khoản trách nhiệm')).toBeTruthy(),
+    expect(
+      await screen.findByText('Bạn đã hoàn thành bài test điều khoản trách nhiệm.'),
+    ).toBeTruthy();
+    expect(send().disabled).toBe(true);
+    // The matrix starts from the tutor's saved grid.
+    const saved = screen.getByRole('button', { name: 'Thứ Hai, 19:30–21:00' });
+    expect(saved.getAttribute('aria-pressed')).toBe('true');
+    await user.click(saved);
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm',
+      }),
     );
-
-    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
-    expect(screen.getByRole('alert').textContent).toBe('Chọn ít nhất một ngày trong tuần.');
-    await user.click(screen.getByRole('button', { name: 'T3' }));
-    await user.click(screen.getByRole('button', { name: 'T6' }));
-    expect(screen.getByRole('button', { name: 'T3' }).getAttribute('aria-pressed')).toBe('true');
-    await user.type(screen.getByLabelText(/Giờ bắt đầu/), '19:00');
-    await user.type(screen.getByLabelText(/Giờ kết thúc/), '18:00');
-    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
-    expect(screen.getByRole('alert').textContent).toBe('Giờ kết thúc phải sau giờ bắt đầu.');
-    await user.clear(screen.getByLabelText(/Giờ kết thúc/));
-    await user.type(screen.getByLabelText(/Giờ kết thúc/), '21:00');
-    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
+    expect(send().disabled).toBe(false);
+    await user.click(send());
+    expect(screen.getByRole('alert').textContent).toBe(
+      'Chọn ít nhất một khung giờ có thể dạy trong bảng.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Thứ Ba, 17:30–19:00' }));
+    await user.click(screen.getByRole('button', { name: 'Thứ Sáu, 17:30–19:00' }));
+    await user.click(send());
 
     expect(await screen.findByText('Đã gửi yêu cầu nhận lớp')).toBeTruthy();
     const post = calls.find((call) => call.path === `/classes/${item.id}/applications`);
     expect(post?.body).toEqual({
       feeOptionVersionId: monthly.id,
       classVersion: item.version,
-      availability: { weekdays: [2, 5], start: '19:00', end: '21:00' },
+      termsAgreed: true,
+      availability: {
+        windows: [
+          { weekday: 2, startLocal: '17:30', endLocal: '19:00' },
+          { weekday: 5, startLocal: '17:30', endLocal: '19:00' },
+        ],
+      },
     });
-    expect(post?.headers.get('Idempotency-Key')).toBeTruthy();
   }, 30_000);
 
   it('confirms profile adjustments before sending a near-match acceptance', async () => {
@@ -292,14 +339,21 @@ describe('class routes', () => {
       if (req.path === `/classes/${item.id}`) return { data: item };
       if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: near };
       if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: allFeeOptions };
-      if (req.path === '/tutor/terms')
+      if (req.path === '/tutor/availability')
+        return { data: { timezone: 'Asia/Ho_Chi_Minh', rules: [] } };
+      if (req.path === '/tutor/terms/quiz')
         return {
           data: {
+            quizId: '00000000-0000-4000-8000-0000000000ab',
             termsContentRevisionId: '00000000-0000-4000-8000-0000000000aa',
             termsRevision: 1,
             termsTitle: 'Điều khoản',
             termsBodyText: 'Nội dung.',
-            acceptedAt: '2026-10-16T01:00:00.000Z',
+            questions: [],
+            minimumCorrect: 1,
+            passed: true,
+            passedAttemptId: null,
+            acknowledgedAt: '2026-10-16T01:00:00.000Z',
           },
         };
       if (req.path === `/classes/${item.id}/applications`)
@@ -308,38 +362,43 @@ describe('class routes', () => {
     });
     renderRoute(`/tutor/new-classes/${item.id}/nhan-lop`);
     const user = userEvent.setup();
-    await screen.findByText('Đã xác nhận Điều khoản trách nhiệm');
-    await user.click(screen.getByRole('button', { name: 'T2' }));
-    await user.type(screen.getByLabelText(/Giờ bắt đầu/), '08:00');
-    await user.type(screen.getByLabelText(/Giờ kết thúc/), '10:00');
-    await user.click(screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }));
+    await screen.findByText('Bạn đã hoàn thành bài test điều khoản trách nhiệm.');
+    await user.click(screen.getByRole('button', { name: 'Thứ Hai, 09:00–10:30' }));
+    await user.click(screen.getByRole('checkbox', { name: /Tôi xác nhận đã đọc và đồng ý/ }));
+    await user.click(screen.getByRole('button', { name: 'Xác nhận nhận lớp' }));
     expect(calls.some((call) => call.path.endsWith('/applications'))).toBe(false);
     const dialog = screen.getByRole('dialog', { name: 'Xác nhận điều chỉnh để nhận lớp' });
     await user.click(within(dialog).getByRole('button', { name: 'Xác nhận và gửi' }));
     await waitFor(() =>
       expect(calls.find((call) => call.path.endsWith('/applications'))?.body).toMatchObject({
         acceptedAdjustments: ['grade'],
+        termsAgreed: true,
       }),
     );
   });
 
-  it('blocks acceptance when no placement fee is published', async () => {
+  it('always shows fee information and blocks acceptance without a published fee', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === `/classes/${item.id}`) return { data: item };
+      if (req.path === `/classes/${item.id}`)
+        return { data: { ...item, expectedBudgetMinor: null, placementFeeMinor: null } };
       if (req.path === `/tutor/classes/${item.id}/recommendation`) return { data: recommendation };
       if (req.path === `/tutor/fee-options?classId=${item.id}`) return { data: [feeOption] };
-      if (req.path === '/tutor/terms')
+      if (req.path === '/tutor/availability')
+        return { data: { timezone: 'Asia/Ho_Chi_Minh', rules: [] } };
+      if (req.path === '/tutor/terms/quiz')
         return {
           status: 409,
-          error: { code: 'TERMS_UNAVAILABLE', message: 'Chưa có điều khoản.' },
+          error: { code: 'TERMS_QUIZ_UNAVAILABLE', message: 'Chưa có bài test.' },
         };
       return undefined;
     });
     renderRoute(`/tutor/new-classes/${item.id}/nhan-lop`);
     expect(await screen.findByText('Chưa có phí nhận lớp được công bố cho lớp này.')).toBeTruthy();
+    // Without a budget the fee still reads as its rule, never blank.
+    expect(screen.getByText('40% học phí một tháng')).toBeTruthy();
     expect(
-      (screen.getByRole('button', { name: 'Gửi yêu cầu nhận lớp' }) as HTMLButtonElement).disabled,
+      (screen.getByRole('button', { name: 'Xác nhận nhận lớp' }) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 

@@ -73,20 +73,6 @@ export interface AdminTermsQuiz {
   createdAt: string;
   updatedAt: string;
 }
-/** "Điều khoản trách nhiệm" as the tutor sees it; accepted once per published revision. */
-export interface TutorTerms {
-  termsContentRevisionId: string;
-  termsRevision: number;
-  termsTitle: string;
-  termsBodyText: string;
-  acceptedAt: string | null;
-}
-export const acceptTermsSchema = z.strictObject({
-  termsContentRevisionId: z.uuid(),
-  accepted: z.literal(true, 'Cần tích xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm.'),
-});
-export type AcceptTermsInput = z.infer<typeof acceptTermsSchema>;
-
 export interface TutorTermsQuiz {
   quizId: string;
   termsContentRevisionId: string;
