@@ -79,7 +79,8 @@ const stageExpression = sql<RequestStage>`CASE
     SELECT 1 FROM request_tutor_proposals p
     WHERE p.request_id = parent_requests.id AND p.status = 'selected') THEN 'confirmed'
   WHEN parent_requests.status IN ('submitted', 'sourcing') AND EXISTS (
-    SELECT 1 FROM request_tutor_proposals p WHERE p.request_id = parent_requests.id) THEN 'found'
+    SELECT 1 FROM request_tutor_proposals p WHERE p.request_id = parent_requests.id
+      AND p.tutor_response IS NOT 'declined') THEN 'found'
   WHEN parent_requests.status IN ('submitted', 'sourcing') THEN 'searching'
   WHEN parent_requests.status = 'assigned' AND EXISTS (
     SELECT 1 FROM class_assignments a JOIN class_listings c ON c.id = a.class_id
@@ -729,6 +730,7 @@ async function listProposals(db: Db, requestId: string): Promise<TutorProposal[]
       and(
         eq(requestTutorProposals.requestId, requestId),
         sql`${requestTutorProposals.fitScore} > ${PROPOSAL_MIN_FIT}`,
+        sql`${requestTutorProposals.tutorResponse} IS NOT 'declined'`,
       ),
     )
     .orderBy(desc(requestTutorProposals.fitScore), asc(requestTutorProposals.id))
@@ -787,6 +789,7 @@ export async function selectProposal(
                 eq(requestTutorProposals.requestId, requestId),
                 eq(requestTutorProposals.status, 'proposed'),
                 sql`${requestTutorProposals.fitScore} > ${PROPOSAL_MIN_FIT}`,
+                sql`${requestTutorProposals.tutorResponse} IS NOT 'declined'`,
               ),
             ),
         ),
@@ -854,6 +857,7 @@ export async function proposalTutorId(
         eq(parentRequests.id, requestId),
         eq(parentRequests.parentUserId, parentId),
         sql`${requestTutorProposals.fitScore} > ${PROPOSAL_MIN_FIT}`,
+        sql`${requestTutorProposals.tutorResponse} IS NOT 'declined'`,
       ),
     )
     .get();

@@ -27,6 +27,7 @@ import { rateLimit } from '../../middleware/rate-limit';
 import type { AppEnv } from '../../types';
 import * as idempotency from '../idempotency/service';
 import * as service from './service';
+import { withAcceptances } from '../class-requests/service';
 import * as matching from './matching';
 
 /** Public, read-only policy revisions for the pricing page. */
@@ -133,22 +134,24 @@ tutorClassRoutes.get('/fee-options', async (c) => {
     await service.availableFeeOptions(c.var.db, authOf(c).user.id, classId),
   );
 });
-tutorClassRoutes.get('/applications', async (c) =>
-  ok<Page<TutorApplication>>(
-    c,
-    await service.listOwnApplications(
-      c.var.db,
-      authOf(c).user.id,
-      parseQuery(c, tutorApplicationListSchema),
-    ),
-  ),
-);
-tutorClassRoutes.get('/applications/:id', async (c) =>
-  ok<TutorApplication>(
-    c,
-    await service.getOwnApplication(c.var.db, authOf(c).user.id, c.req.param('id')),
-  ),
-);
+tutorClassRoutes.get('/applications', async (c) => {
+  const tutorId = authOf(c).user.id;
+  const page = await service.listOwnApplications(
+    c.var.db,
+    tutorId,
+    parseQuery(c, tutorApplicationListSchema),
+  );
+  return ok<Page<TutorApplication>>(c, {
+    ...page,
+    items: await withAcceptances(c.env.DB, tutorId, page.items),
+  });
+});
+tutorClassRoutes.get('/applications/:id', async (c) => {
+  const tutorId = authOf(c).user.id;
+  const application = await service.getOwnApplication(c.var.db, tutorId, c.req.param('id'));
+  const [withAcceptance] = await withAcceptances(c.env.DB, tutorId, [application]);
+  return ok<TutorApplication>(c, withAcceptance!);
+});
 tutorClassRoutes.post('/applications/:id/withdraw', async (c) => {
   const { version } = await parseJsonBody(c, withdrawApplicationSchema);
   return ok<TutorApplication>(

@@ -156,6 +156,7 @@ export interface ClassContractRecord {
   placementFeePaidAt: string | null;
   placementFeeAmountMinor: number | null;
 }
+export const contractVersionSchema = z.strictObject({ version: z.number().int().min(1) });
 export const placementFeeSchema = z.strictObject({
   amountMinor: z.number().int().min(0).max(100_000_000),
 });

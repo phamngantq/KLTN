@@ -786,6 +786,45 @@ export async function acknowledgeContract(
   return getContract(db, id, tutorId);
 }
 
+/**
+ * First-time tutors sign the class contract in person at the centre; the moderator records that
+ * signature here. Same issued → acknowledged transition as the tutor's own acknowledgement.
+ */
+export async function recordContractSignedAtCentre(
+  db: D1Database,
+  moderatorId: string,
+  id: string,
+  version: number,
+): Promise<ClassContractRecord> {
+  const existing = await getContract(db, id);
+  if (existing.status !== 'issued' || existing.version !== version)
+    throw new AppError(409, 'CONTRACT_STALE', 'Hồ sơ hợp đồng đã thay đổi.');
+  const now = new Date().toISOString();
+  const mutationId = crypto.randomUUID();
+  const [updated] = await db.batch([
+    db
+      .prepare(
+        `UPDATE class_contract_records
+      SET status = 'acknowledged', version = version + 1, acknowledged_at = ?, mutation_id = ?
+      WHERE id = ? AND status = 'issued' AND version = ?
+        AND EXISTS (SELECT 1 FROM class_assignments a
+          JOIN class_listings c ON c.id = a.class_id
+          WHERE a.id = assignment_id AND a.status = 'active' AND c.status = 'active')`,
+      )
+      .bind(now, mutationId, id, version),
+    db
+      .prepare(
+        `INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, metadata, created_at)
+      SELECT ?, ?, 'class_contract.signed_at_centre', 'class_contract', ?, '{}', ?
+      WHERE EXISTS (SELECT 1 FROM class_contract_records WHERE id = ? AND mutation_id = ?)`,
+      )
+      .bind(crypto.randomUUID(), moderatorId, id, now, id, mutationId),
+  ]);
+  if (updated?.meta.changes !== 1)
+    throw new AppError(409, 'CONTRACT_STALE', 'Hồ sơ hợp đồng đã thay đổi.');
+  return getContract(db, id);
+}
+
 function audit(
   db: D1Database,
   actorId: string,

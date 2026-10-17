@@ -162,3 +162,16 @@ export function useRecordPlacementFee() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: contractsKey }),
   });
 }
+
+/** Moderator records that a first-time tutor signed the contract in person at the centre. */
+export function useRecordContractSignedAtCentre() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { contractId: string; version: number }) =>
+      api.post<ClassContractRecord>(
+        `/admin/contracts/${encodeURIComponent(input.contractId)}/signed-at-centre`,
+        { version: input.version },
+      ),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: contractsKey }),
+  });
+}

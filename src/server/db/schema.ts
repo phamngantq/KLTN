@@ -1070,6 +1070,9 @@ export const requestTutorProposals = sqliteTable(
       .references(() => users.id, { onDelete: 'restrict' }),
     createdAt: text('created_at').notNull(),
     selectedAt: text('selected_at'),
+    tutorResponse: text('tutor_response', { enum: ['accepted', 'declined'] }),
+    tutorRespondedAt: text('tutor_responded_at'),
+    tutorDeclineReason: text('tutor_decline_reason'),
   },
   (t) => [
     uniqueIndex('request_tutor_proposals_pair_uq').on(t.requestId, t.tutorUserId),
@@ -1077,6 +1080,7 @@ export const requestTutorProposals = sqliteTable(
       .on(t.requestId)
       .where(sql`${t.status} = 'selected'`),
     index('request_tutor_proposals_request_idx').on(t.requestId, desc(t.fitScore)),
+    index('request_tutor_proposals_tutor_idx').on(t.tutorUserId, desc(t.createdAt), t.id),
   ],
 );
 

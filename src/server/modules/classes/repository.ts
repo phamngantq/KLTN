@@ -1074,17 +1074,22 @@ export async function findOwnApplication(
       availableEnd,
     }),
     class: publicProjection(cls),
+    acceptance: null,
   };
 }
 
 export async function listOwnApplications(
   db: Db,
   tutorId: string,
-  query: { status?: ApplicationStatus; page: number; pageSize: number },
+  query: { status?: ApplicationStatus; q?: string; page: number; pageSize: number },
 ): Promise<Page<TutorApplication>> {
   const where = and(
     eq(tutorApplications.tutorUserId, tutorId),
     query.status ? eq(tutorApplications.status, query.status) : undefined,
+    query.q
+      ? sql`EXISTS (SELECT 1 FROM class_listings
+          WHERE class_listings.id = tutor_applications.class_id AND ${keywordFilter(query.q)})`
+      : undefined,
   );
   const [rows, totals] = await db.batch([
     db

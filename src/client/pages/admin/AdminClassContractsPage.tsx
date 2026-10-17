@@ -16,6 +16,7 @@ import {
   useAdminContractCandidates,
   useAdminContracts,
   useIssueContract,
+  useRecordContractSignedAtCentre,
   useRecordPlacementFee,
 } from '../../features/terms-contracts/api';
 import { TextField } from '../../components/ui/Field';
@@ -32,6 +33,7 @@ export function AdminClassContractsPage() {
   const [notice, setNotice] = useState('');
   const readOnly = isReadOnlyPreview();
   const recordFee = useRecordPlacementFee();
+  const signedAtCentre = useRecordContractSignedAtCentre();
   const [feeFor, setFeeFor] = useState<ClassContractRecord | null>(null);
   const [feeAmount, setFeeAmount] = useState('');
 
@@ -283,6 +285,32 @@ export function AdminClassContractsPage() {
                         ? `Đã thu phí ${formatVnd(item.placementFeeAmountMinor ?? 0)}`
                         : 'Chưa thu phí môi giới'}
                     </Badge>
+                    {item.status === 'issued' && (
+                      <Button
+                        variant="secondary"
+                        className="rounded-xl"
+                        disabled={readOnly}
+                        loading={
+                          signedAtCentre.isPending &&
+                          signedAtCentre.variables?.contractId === item.id
+                        }
+                        onClick={() => {
+                          setNotice('');
+                          signedAtCentre.mutate(
+                            { contractId: item.id, version: item.version },
+                            {
+                              onSuccess: () =>
+                                setNotice(
+                                  `Đã ghi nhận gia sư ký hợp đồng lớp ${item.classCode} tại trung tâm.`,
+                                ),
+                              onError: (error) => setNotice(error.message),
+                            },
+                          );
+                        }}
+                      >
+                        Đã ký tại trung tâm
+                      </Button>
+                    )}
                     {!item.placementFeePaidAt &&
                       item.status === 'acknowledged' &&
                       item.learnerConfirmedAt && (

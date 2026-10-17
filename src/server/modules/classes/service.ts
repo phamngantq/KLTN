@@ -417,6 +417,7 @@ export function listOwnApplications(
   tutorId: string,
   query: {
     status?: TutorApplication['status'];
+    q?: string;
     page: number;
     pageSize: number;
   },

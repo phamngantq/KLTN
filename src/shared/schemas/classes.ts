@@ -279,6 +279,8 @@ export type ApplyClassInput = z.infer<typeof applyClassSchema>;
 export const withdrawApplicationSchema = z.strictObject({ version: z.number().int().min(1) });
 export const tutorApplicationListSchema = z.strictObject({
   status: z.enum(APPLICATION_STATUSES).optional(),
+  /** Class code, subject, grade or public area. */
+  q: z.string().trim().min(1).max(100).optional(),
   ...pageFields,
 });
 export interface TutorApplication {
@@ -294,4 +296,24 @@ export interface TutorApplication {
   /** Null for applications sent before the free-time step existed. */
   availability: ApplicationAvailability | null;
   class: PublicClass;
+  /** Completion step of a selected application; null for every other status. */
+  acceptance: ApplicationAcceptance | null;
+}
+
+/**
+ * "Hoàn tất nhận lớp" for a selected application. A tutor is a first-time acceptor until one
+ * earlier class of theirs has its placement fee recorded — application count does not matter.
+ */
+export interface ApplicationAcceptance {
+  assignmentId: string;
+  assignmentActive: boolean;
+  firstAcceptance: boolean;
+  learnerConfirmed: boolean;
+  contract: { id: string; version: number; status: 'issued' | 'acknowledged' } | null;
+  placementFeeMinor: number | null;
+  placementFeePaidAt: string | null;
+  /** Learner contact and the introduction letter open only when this is true. */
+  completed: boolean;
+  /** False until an online payment gateway is configured for this deployment. */
+  onlinePaymentReady: boolean;
 }
