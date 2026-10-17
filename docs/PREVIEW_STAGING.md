@@ -1,5 +1,13 @@
 # Staging V2 — bản chức năng mới đã triển khai
 
+## Phí khi nhận lớp, ma trận thời gian rảnh và bài test điều khoản ngày 2026-10-17
+
+Commit `3952d35` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `e488baeb-8853-438c-8a69-5f2e24c9b83c`. Trang chi tiết lớp không còn phí nhận lớp và ghi số buổi/tuần kèm từng thứ, khung giờ. Trang "Nhận lớp" luôn hiện phí và cách tính (thiếu số buổi/tuần thì dùng số khung giờ trong tuần), chọn thời gian rảnh bằng ma trận lịch (điền sẵn theo hồ sơ), bắt buộc vượt bài test điều khoản trước lần nhận lớp đầu tiên và tích "Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm" mỗi lần xác nhận nhận lớp.
+
+- Trước phát hành: lint, typecheck, format, secret scan, build, Vitest **527/527**, Playwright **4/4**, `git diff --check` PASS.
+- Remote: mốc Time Travel trước migration lưu ngoài Git; migration `0036` (cột `availability_json` cho thời gian rảnh dạng ma trận, chặn đơn khi chưa vượt bài test) đã áp dụng.
+- Sau phát hành: smoke chỉ đọc PASS; `PRAGMA foreign_key_check` 0 hàng; 11/11 lớp đang mở có phí nhận lớp (ví dụ `LH-000000004001`: 960.000đ = 40% × 200.000đ × 3 buổi × 4); Chromium với gia sư mẫu: trang chi tiết không có phí và liệt kê Thứ Hai/Tư/Sáu 19:00–20:30, trang Nhận lớp có ma trận lịch, báo đã hoàn thành bài test, nút "Xác nhận nhận lớp" chỉ bật sau khi tích đồng ý. Không gửi đơn thử trên staging.
+
 ## Cách thức nhận lớp 2 tab và Bảng giá gia sư ngày 2026-10-16
 
 Commit `d506e9e` được triển khai lên [Worker staging V2](https://tutor-matching-staging-v2.tutor-matching-platform.workers.dev), version `e224c9e3-436e-4264-8f15-109c0f0e0812`. Không có migration mới. "Cách thức nhận lớp" có 2 tab (Nhận lớp dạy, Nhận lớp được đề xuất) theo nội dung hướng dẫn của trung tâm; "Bảng giá" của gia sư dùng cùng giao diện và dữ liệu với bảng giá người học, khung cuối trang dẫn tới "Danh sách lớp mới".
