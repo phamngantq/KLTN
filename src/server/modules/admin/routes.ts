@@ -11,7 +11,9 @@ import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import type { TutorVerification } from '../../../shared/schemas/admin';
+import type { SignedContractScan } from '../../../shared/schemas/tutors';
 import * as documents from '../tutors/documents';
+import * as signedContract from '../tutors/signed-contract';
 import * as photos from '../tutors/photos';
 import { tutorVerification } from '../tutors/service';
 import * as service from './service';
@@ -37,6 +39,27 @@ adminRoutes.get('/tutors/:id/photo', (c) => photos.photoResponse(c.env.DB, c.req
 /** Private contact, citizen-ID facts and uploaded documents, for verifying a tutor. */
 adminRoutes.get('/tutors/:id/verification', async (c) =>
   ok<TutorVerification>(c, await tutorVerification(c.var.db, c.env.DB, c.req.param('id'))),
+);
+adminRoutes.get('/tutors/:id/signed-contract', async (c) =>
+  ok<SignedContractScan | null>(
+    c,
+    await signedContract.getSignedContract(c.env.DB, c.req.param('id')),
+  ),
+);
+adminRoutes.get('/tutors/:id/signed-contract/file', (c) =>
+  signedContract.signedContractResponse(c.env.DB, c.req.param('id'), true),
+);
+adminRoutes.post('/tutors/:id/signed-contract', async (c) =>
+  ok<SignedContractScan>(
+    c,
+    await signedContract.saveSignedContract(
+      c.env.DB,
+      authOf(c).user.id,
+      c.req.param('id'),
+      await signedContract.scanFromRequest(c.req.raw),
+    ),
+    201,
+  ),
 );
 adminRoutes.get('/tutors/:id/documents/:documentId', (c) =>
   documents.documentResponse(c.env.DB, c.req.param('id'), c.req.param('documentId')),

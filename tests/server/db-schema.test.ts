@@ -62,7 +62,7 @@ describe('D1 migrations', () => {
       .map((r) => r.name)
       .filter((name) => !/^(sqlite_|d1_|_cf_)/.test(name));
     expect(appTables).toEqual(drizzleTables.map((t) => getTableConfig(t).name).sort());
-    expect(drizzleTables).toHaveLength(45);
+    expect(drizzleTables).toHaveLength(46);
   });
 
   it('is idempotent when re-applied', async () => {

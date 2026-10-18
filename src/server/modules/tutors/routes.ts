@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   updateTutorProfileSchema,
+  type SignedContractScan,
   type Subject,
   type TutorDocument,
   type TutorProfile,
@@ -10,6 +11,7 @@ import { parseJsonBody } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import * as documents from './documents';
+import * as signedContract from './signed-contract';
 import * as photos from './photos';
 import * as service from './service';
 
@@ -59,6 +61,19 @@ tutorProfileRoutes.delete('/documents/:id', async (c) => {
   await documents.deleteDocument(c.env.DB, authOf(c).user.id, c.req.param('id'));
   return ok(c, { deleted: true });
 });
+tutorProfileRoutes.get('/signed-contract', async (c) =>
+  ok<SignedContractScan | null>(
+    c,
+    await signedContract.getSignedContract(c.env.DB, authOf(c).user.id),
+  ),
+);
+tutorProfileRoutes.get('/signed-contract/file', (c) =>
+  signedContract.signedContractResponse(
+    c.env.DB,
+    authOf(c).user.id,
+    c.req.query('download') !== '1',
+  ),
+);
 tutorProfileRoutes.get('/documents/:id', (c) =>
   documents.documentResponse(c.env.DB, authOf(c).user.id, c.req.param('id')),
 );

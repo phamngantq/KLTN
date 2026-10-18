@@ -357,20 +357,34 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     );
     const candidate = candidates.items.find((item) => item.assignmentId === assignment!.id);
     expect(candidate).toBeDefined();
-    await postData(admin, `/admin/assignments/${assignment!.id}/contracts`, {
-      assignmentVersion: candidate!.assignmentVersion,
-      contentRevisionId: contractId,
-    });
-    await tutor.goto('/tutor/contracts');
-    // One contract, signed once; this class is a row of its Phụ lục 01.
-    const contractSheet = tutor.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
-    await expect(contractSheet.getByRole('region', { name: 'Phụ lục 01' })).toContainText(
-      /180\.000\s*đ/,
+    const issued = await postData<{ id: string; tutorUserId: string }>(
+      admin,
+      `/admin/assignments/${assignment!.id}/contracts`,
+      { assignmentVersion: candidate!.assignmentVersion, contentRevisionId: contractId },
     );
-    await tutor.getByLabel('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng').check();
-    await tutor.getByRole('button', { name: 'Ký xác nhận hợp đồng' }).click();
-    await expect(tutor.getByText('Đã ghi nhận bạn ký xác nhận hợp đồng.')).toBeVisible();
-    await expect(contractSheet).toContainText('Đã ký xác nhận trên hệ thống');
+    // First class: the tutor signs the paper contract at the centre; the moderator records it
+    // and uploads the scan, which the tutor then sees under "Hợp đồng đã ký".
+    await postData(admin, `/admin/contracts/${issued.id}/signed-at-centre`, { version: 1 }, 200);
+    const adminSession = await getData<{ csrfToken: string }>(admin, '/me');
+    const uploaded = await admin
+      .context()
+      .request.post(`/api/v1/admin/tutors/${issued.tutorUserId}/signed-contract`, {
+        headers: { 'X-CSRF-Token': adminSession.csrfToken },
+        multipart: {
+          signedOn: new Date().toISOString().slice(0, 10),
+          contractNumber: 'E2E/HĐNT-ĐH',
+          file: {
+            name: 'hop-dong-da-ky.pdf',
+            mimeType: 'application/pdf',
+            buffer: Buffer.from('%PDF-1.4 E2E signed contract scan %%EOF'),
+          },
+        },
+      });
+    expect(uploaded.status(), await uploaded.text()).toBe(201);
+    await tutor.goto('/tutor/contracts');
+    const scan = tutor.getByRole('article', { name: 'Bản scan hợp đồng đã ký' });
+    await expect(scan).toContainText('E2E/HĐNT-ĐH');
+    await expect(scan).toContainText('hop-dong-da-ky.pdf');
 
     await parent.reload();
     // A moderator assignment is a proposal; the learner confirms the hire.

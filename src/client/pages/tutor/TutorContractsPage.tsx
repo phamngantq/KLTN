@@ -1,159 +1,121 @@
-import { useState } from 'react';
-import { CheckCircle2, Printer } from 'lucide-react';
-import type { ClassContractRecord } from '../../../shared/schemas/terms-contracts';
-import { isReadOnlyPreview } from '../../app/preview';
-import { Button } from '../../components/ui/Button';
+import { Download, ExternalLink, FileText } from 'lucide-react';
+import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
-import { useAcknowledgeContract, useAllTutorContracts } from '../../features/terms-contracts/api';
-import { useOwnProfile } from '../../features/tutor-profile/api';
-import { ContractSheet, type SignedContract } from './TutorContractTemplatePage';
+import { useSignedContract } from '../../features/tutor-profile/api';
+import { formatDate } from '../../lib/format';
 
-/** Contract number printed on the sheet: stable, derived from the record. */
-export function contractNumber(item: ClassContractRecord): string {
-  return item.id.replace(/-/g, '').slice(0, 8).toUpperCase();
+const FILE = '/api/v1/tutor/profile/signed-contract/file';
+
+function sizeText(bytes: number): string {
+  return bytes >= 1024 * 1024
+    ? `${(bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB`
+    : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-function feeSummary(item: ClassContractRecord): string {
-  if (item.feeOptionKey === 'lesson_multiplier_with_deposit') {
-    return `${item.rateBasisPoints / 10_000} lần học phí buổi; tỷ lệ đặt cọc ${Number(item.depositBasisPoints ?? 0) / 100}%`;
-  }
-  const basis = item.feeOptionKey === 'monthly_percent' ? 'học phí tháng' : 'học phí buổi đầu';
-  return `${item.rateBasisPoints / 100}% ${basis}`;
+/** yyyy-mm-dd → dd/mm/yyyy. */
+function dayText(value: string): string {
+  const [year, month, day] = value.split('-');
+  return `${day}/${month}/${year}`;
 }
-
-const time = (iso: string | null) => (iso ? Date.parse(iso) : Number.POSITIVE_INFINITY);
 
 /**
- * The tutor signs once (Điều 1.1): the first acknowledged record is "the" contract; while none
- * is signed, the earliest issued one awaits the signature. Every class record is a row of its
- * "Phụ lục 01", oldest first.
+ * "Hợp đồng đã ký": the paper contract the tutor signed at the centre, scanned and uploaded by a
+ * moderator. One contract per tutor (Điều 1.1), valid for every class taken afterwards.
  */
-export function masterContract(items: ClassContractRecord[]): ClassContractRecord | null {
-  const signed = items
-    .filter((item) => item.acknowledgedAt)
-    .sort((a, b) => time(a.acknowledgedAt) - time(b.acknowledgedAt));
-  if (signed[0]) return signed[0];
-  return [...items].sort((a, b) => time(a.issuedAt) - time(b.issuedAt))[0] ?? null;
-}
-
-function signedOf(
-  master: ClassContractRecord,
-  items: ClassContractRecord[],
-  total: number,
-): SignedContract {
-  return {
-    number: contractNumber(master),
-    signedAt: master.acknowledgedAt ?? master.issuedAt,
-    issuedAt: master.issuedAt,
-    acknowledgedAt: master.acknowledgedAt,
-    classes: [...items]
-      .sort((a, b) => time(a.issuedAt) - time(b.issuedAt))
-      .map((item) => ({
-        classCode: item.classCode,
-        feeOptionTitle: `${item.feeOptionTitle} (${feeSummary(item)})`,
-        agreedTuitionPerSessionMinor: item.agreedTuitionPerSessionMinor,
-        placementFeeAmountMinor: item.placementFeeAmountMinor,
-        placementFeePaidAt: item.placementFeePaidAt,
-        confirmedAt: item.acknowledgedAt,
-      })),
-    moreClasses: Math.max(0, total - items.length),
-  };
-}
-
-/** "Hợp đồng đã ký": the tutor's single contract, applied to every class they take. */
 export function TutorContractsPage() {
-  const contracts = useAllTutorContracts();
-  const profile = useOwnProfile();
-  const acknowledge = useAcknowledgeContract();
-  const [agreed, setAgreed] = useState(false);
-  const [notice, setNotice] = useState('');
-  const readOnly = isReadOnlyPreview();
-  const items = contracts.data?.items ?? [];
-  const master = masterContract(items);
-
-  function sign() {
-    if (!master || !agreed || readOnly) return;
-    acknowledge.mutate(
-      { id: master.id, version: master.version },
-      {
-        onSuccess: () => {
-          setAgreed(false);
-          setNotice('Đã ghi nhận bạn ký xác nhận hợp đồng.');
-        },
-      },
-    );
-  }
+  const scan = useSignedContract();
 
   return (
-    <section className="mx-auto flex w-full min-w-0 max-w-[230mm] flex-col gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-3 print:hidden">
-        <div>
-          <h1 className="text-3xl font-semibold text-primary">Hợp đồng đã ký</h1>
-          <p className="mt-2 text-muted">
-            Bạn chỉ ký hợp đồng nhận lớp một lần; hợp đồng áp dụng cho mọi lớp nhận sau đó. Mỗi lớp
-            được ghi thành một dòng trong Phụ lục 01.
-          </p>
-        </div>
-        {master && (
-          <Button onClick={() => window.print()} className="gap-2">
-            <Printer aria-hidden="true" className="size-4" />
-            In / Lưu PDF
-          </Button>
-        )}
+    <section className="mx-auto flex w-full min-w-0 max-w-5xl flex-col gap-6">
+      <header>
+        <h1 className="text-3xl font-semibold text-primary">Hợp đồng đã ký</h1>
+        <p className="mt-2 text-muted">
+          Bản scan hợp đồng bạn đã ký trực tiếp tại trung tâm. Bạn chỉ ký một lần; hợp đồng áp dụng
+          cho mọi lớp nhận sau đó.
+        </p>
       </header>
-      {readOnly && <Alert tone="info">Bản xem trước chỉ cho phép đọc hồ sơ.</Alert>}
-      {notice && <Alert tone="success">{notice}</Alert>}
-      {contracts.isPending || profile.isPending ? (
+      {scan.isPending ? (
         <PageLoading label="Đang tải hợp đồng…" />
-      ) : contracts.isError ? (
+      ) : scan.isError ? (
         <Alert
           tone="danger"
           action={
-            <Button variant="secondary" onClick={() => void contracts.refetch()}>
+            <Button variant="secondary" onClick={() => void scan.refetch()}>
               Thử lại
             </Button>
           }
         >
-          {contracts.error.message}
+          {scan.error.message}
         </Alert>
-      ) : !master ? (
+      ) : !scan.data ? (
         <EmptyState
-          title="Chưa có hợp đồng"
-          description="Hợp đồng sẽ xuất hiện khi trung tâm phát hành hợp đồng cho lớp đầu tiên bạn nhận."
+          title="Trung tâm chưa tải lên hợp đồng đã ký"
+          description="Bạn ký hợp đồng trực tiếp tại văn phòng trung tâm (Tầng 7, Số 41–43 Khuất Duy Tiến, Thanh Xuân, Hà Nội). Sau khi ký, quản lý sẽ tải bản scan lên đây."
+          action={<ButtonLink to="/tutor/hop-dong-mau">Xem hợp đồng mẫu</ButtonLink>}
         />
       ) : (
-        <>
-          <div className="min-w-0 overflow-x-auto print:overflow-visible">
-            <ContractSheet
-              tutor={profile.data ?? null}
-              signed={signedOf(master, items, contracts.data.total)}
-            />
-          </div>
-          {master.status === 'issued' ? (
-            <div className="space-y-3 rounded-xl border border-border bg-bg p-5 shadow-card print:hidden">
-              <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg bg-surface p-3">
-                <input
-                  type="checkbox"
-                  checked={agreed}
-                  onChange={(event) => setAgreed(event.target.checked)}
-                />
-                <span>Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng</span>
-              </label>
-              {acknowledge.isError && <Alert tone="danger">{acknowledge.error.message}</Alert>}
-              <Button disabled={!agreed || readOnly} loading={acknowledge.isPending} onClick={sign}>
-                Ký xác nhận hợp đồng
-              </Button>
+        <article
+          aria-label="Bản scan hợp đồng đã ký"
+          className="overflow-hidden rounded-2xl border border-border bg-bg shadow-card"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border bg-surface px-6 py-5">
+            <div className="flex items-start gap-3">
+              <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-bg text-primary">
+                <FileText aria-hidden="true" className="size-5" />
+              </span>
+              <div>
+                <h2 className="text-xl font-semibold text-primary">Hợp đồng nhận lớp dạy gia sư</h2>
+                <dl className="mt-1 grid gap-x-6 gap-y-0.5 text-sm sm:grid-cols-[auto_1fr]">
+                  <dt className="text-muted">Số hợp đồng</dt>
+                  <dd>{scan.data.contractNumber ?? 'Không ghi'}</dd>
+                  <dt className="text-muted">Ngày ký</dt>
+                  <dd>{dayText(scan.data.signedOn)}</dd>
+                  <dt className="text-muted">Tệp</dt>
+                  <dd className="break-all">
+                    {scan.data.fileName} · {sizeText(scan.data.sizeBytes)}
+                  </dd>
+                  <dt className="text-muted">Tải lên ngày</dt>
+                  <dd>{formatDate(scan.data.uploadedAt, 'Asia/Ho_Chi_Minh')}</dd>
+                </dl>
+              </div>
             </div>
-          ) : (
-            <Alert tone="success">
-              <CheckCircle2 className="mr-2 inline size-4" aria-hidden="true" />
-              Bạn đã ký xác nhận hợp đồng trên hệ thống lúc{' '}
-              {master.acknowledgedAt ? new Date(master.acknowledgedAt).toLocaleString('vi-VN') : ''}
-              . Các lớp nhận sau được xác nhận ở bước “Hoàn tất nhận lớp” và ghi vào Phụ lục 01.
-            </Alert>
-          )}
-        </>
+            <div className="flex flex-wrap gap-2">
+              <a
+                href={FILE}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex min-h-11 items-center gap-2 rounded-md border border-primary px-4 font-medium text-primary hover:bg-primary hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                <ExternalLink aria-hidden="true" className="size-4" />
+                Mở toàn màn hình
+              </a>
+              <a
+                href={`${FILE}?download=1`}
+                download={scan.data.fileName}
+                className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 font-medium text-on-primary hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+              >
+                <Download aria-hidden="true" className="size-4" />
+                Tải về
+              </a>
+            </div>
+          </div>
+          <div className="bg-surface p-4">
+            {scan.data.contentType === 'application/pdf' ? (
+              <iframe
+                title="Bản scan hợp đồng đã ký"
+                src={FILE}
+                className="h-[80vh] w-full rounded-lg border border-border bg-white"
+              />
+            ) : (
+              <img
+                src={`${FILE}?v=${encodeURIComponent(scan.data.uploadedAt)}`}
+                alt="Bản scan hợp đồng đã ký"
+                className="mx-auto max-h-[80vh] w-auto rounded-lg border border-border bg-white"
+              />
+            )}
+          </div>
+        </article>
       )}
     </section>
   );

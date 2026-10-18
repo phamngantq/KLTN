@@ -834,6 +834,23 @@ export const tutorDocuments = sqliteTable(
   ],
 );
 
+/** Scan of the paper contract a tutor signed at the centre; one per tutor, raw D1 bytes. */
+export const tutorSignedContracts = sqliteTable('tutor_signed_contracts', {
+  tutorId: text('tutor_id')
+    .primaryKey()
+    .references(() => tutorProfiles.userId, { onDelete: 'cascade' }),
+  contractNumber: text('contract_number'),
+  signedOn: text('signed_on').notNull(),
+  fileName: text('file_name').notNull(),
+  contentType: text('content_type', { enum: TUTOR_DOCUMENT_TYPES }).notNull(),
+  sizeBytes: integer('size_bytes').notNull(),
+  data: blob('data', { mode: 'buffer' }).notNull(),
+  uploadedBy: text('uploaded_by')
+    .notNull()
+    .references(() => users.id, { onDelete: 'restrict' }),
+  uploadedAt: text('uploaded_at').notNull(),
+});
+
 /** Tutor-added "Đăng ký lớp học phù hợp" options; see migration 0033. */
 export const tutorCustomOptions = sqliteTable(
   'tutor_custom_options',

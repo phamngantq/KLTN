@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminTutor } from '../../src/shared/schemas/admin';
@@ -38,6 +38,51 @@ function setup(onAction?: (path: string, body: unknown) => unknown) {
 }
 
 describe('AdminTutorsPage', () => {
+  it('uploads the scan of the contract the tutor signed at the centre', async () => {
+    let saved: unknown = null;
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'admin' });
+      if (req.path.startsWith('/admin/tutors?'))
+        return { data: { items: [TUTOR], page: 1, pageSize: 20, total: 1 } };
+      if (req.path === '/admin/tutors/t1/signed-contract' && req.method === 'GET')
+        return { data: saved };
+      if (req.path === '/admin/tutors/t1/signed-contract' && req.method === 'POST') {
+        saved = {
+          contractNumber: '015/HĐNT-ĐH',
+          signedOn: '2026-10-15',
+          fileName: 'hop-dong.pdf',
+          contentType: 'application/pdf',
+          sizeBytes: 9,
+          uploadedAt: '2026-10-16T02:00:00.000Z',
+        };
+        return { status: 201, data: saved };
+      }
+      return undefined;
+    });
+    renderRoute('/admin/tutors');
+    const user = userEvent.setup();
+    await user.click(await screen.findByText('Hợp đồng đã ký (bản scan)'));
+    expect(await screen.findByText('Chưa tải lên hợp đồng đã ký.')).toBeTruthy();
+    const upload = screen.getByRole('button', { name: 'Tải lên bản scan' });
+    expect((upload as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText(/Ngày ký/), { target: { value: '2026-10-15' } });
+    await user.type(screen.getByLabelText(/Số hợp đồng/), '015/HĐNT-ĐH');
+    await user.upload(
+      screen.getByLabelText(/Tệp scan/),
+      new File(['%PDF-1.4'], 'hop-dong.pdf', { type: 'application/pdf' }),
+    );
+    await user.click(upload);
+    expect(await screen.findByText('Đã lưu bản scan hợp đồng đã ký.')).toBeTruthy();
+    const post = calls.find((c) => c.method === 'POST')!;
+    expect(post.body).toBeInstanceOf(FormData);
+    expect((post.body as FormData).get('signedOn')).toBe('2026-10-15');
+    expect((post.body as FormData).get('contractNumber')).toBe('015/HĐNT-ĐH');
+    expect(screen.getByRole('link', { name: 'hop-dong.pdf' }).getAttribute('href')).toBe(
+      '/api/v1/admin/tutors/t1/signed-contract/file',
+    );
+    expect(screen.getByRole('button', { name: 'Thay bản scan' })).toBeTruthy();
+  });
+
   it('shows the pending queue with tutor details', async () => {
     const { calls } = setup();
     renderRoute('/admin/tutors');

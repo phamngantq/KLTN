@@ -13,7 +13,7 @@ const invalid = (message: string) =>
 const notFound = () => new AppError(404, 'TUTOR_DOCUMENT_NOT_FOUND', 'Không tìm thấy tệp.');
 
 /** Type from the file's own signature; the client-declared type is never trusted. */
-function sniff(bytes: Uint8Array): TutorDocumentType | null {
+export function sniff(bytes: Uint8Array): TutorDocumentType | null {
   const starts = (...sig: number[]) => sig.every((value, index) => bytes[index] === value);
   if (starts(0xff, 0xd8, 0xff)) return 'image/jpeg';
   if (starts(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return 'image/png';
@@ -31,7 +31,7 @@ const EXTENSIONS: Record<TutorDocumentType, string> = {
 };
 
 /** Keeps a readable name but drops paths, control characters and a misleading extension. */
-function cleanName(raw: string, type: TutorDocumentType): string {
+export function cleanName(raw: string, type: TutorDocumentType): string {
   const printable = [...(raw.split(/[\\/]/).pop() ?? '')]
     .filter((char) => char.charCodeAt(0) > 0x1f && char.charCodeAt(0) !== 0x7f)
     .join('');

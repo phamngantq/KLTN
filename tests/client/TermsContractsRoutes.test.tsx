@@ -131,100 +131,48 @@ describe('tutor terms and contracts', () => {
     expect(screen.queryByRole('link', { name: 'Tiếp tục nhận lớp' })).toBeNull();
   });
 
-  it('shows the issued contract, then records tutor acknowledgement without a payment claim', async () => {
-    let record: ClassContractRecord = {
-      id: quizId,
-      assignmentId: contentId,
-      classId: attemptId,
-      classCode: 'LH-ABC',
-      tutorUserId: 'u1',
-      status: 'issued',
-      version: 1,
-      contractContentRevisionId: '00000000-0000-4000-8000-000000000004',
-      contractRevision: 1,
-      contractTitle: 'Hợp đồng lớp',
-      contractBodyText: 'Nội dung hợp đồng đã công bố.',
-      feeOptionVersionId: '00000000-0000-4000-8000-000000000005',
-      feeOptionKey: 'monthly_percent',
-      feeOptionTitle: 'Theo tháng',
-      feePolicyText: 'Phương án phí do kiểm duyệt viên công bố.',
-      rateBasisPoints: 2500,
-      depositBasisPoints: null,
-      agreedTuitionPerSessionMinor: 180_000,
-      issuedAt: '2026-10-11T00:00:00.000Z',
-      acknowledgedAt: null,
-      learnerConfirmedAt: null,
-      placementFeePaidAt: null,
-      placementFeeAmountMinor: null,
-      placementFeeReportedAt: null,
-    };
-    // A second, later class under the same contract: only a row of Phụ lục 01.
-    const later: ClassContractRecord = {
-      ...record,
-      id: '00000000-0000-4000-8000-0000000000c2',
-      assignmentId: '00000000-0000-4000-8000-0000000000a2',
-      classCode: 'LH-LATER',
-      agreedTuitionPerSessionMinor: 220_000,
-      issuedAt: '2026-10-14T00:00:00.000Z',
-    };
-    const { calls } = mockApi((req) => {
+  it('shows the scan of the paper contract uploaded by the centre', async () => {
+    mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path === '/tutor/profile')
-        return { data: { displayName: 'Gia sư Hợp đồng', email: 'gs@example.test' } };
-      if (req.path === '/tutor/contracts?page=1&pageSize=50' && req.method === 'GET')
-        return { data: { items: [later, record], page: 1, pageSize: 50, total: 2 } };
-      if (req.path === `/tutor/contracts/${record.id}/acknowledge` && req.method === 'POST') {
-        record = {
-          ...record,
-          status: 'acknowledged',
-          version: 2,
-          acknowledgedAt: '2026-10-11T00:02:00.000Z',
+      if (req.path === '/tutor/profile/signed-contract')
+        return {
+          data: {
+            contractNumber: '015/HĐNT-ĐH',
+            signedOn: '2026-10-15',
+            fileName: 'hop-dong-da-ky.pdf',
+            contentType: 'application/pdf',
+            sizeBytes: 524_288,
+            uploadedAt: '2026-10-16T02:00:00.000Z',
+          },
         };
-        return { data: record };
-      }
       return undefined;
     });
     renderRoute('/tutor/contracts');
-    const user = userEvent.setup();
-    // One contract only, signed once and applied to every class.
-    const sheet = await screen.findByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
-    expect(screen.getAllByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' })).toHaveLength(
-      1,
+    const scan = await screen.findByRole('article', { name: 'Bản scan hợp đồng đã ký' });
+    expect(within(scan).getByText('015/HĐNT-ĐH')).toBeTruthy();
+    expect(within(scan).getByText('15/10/2026')).toBeTruthy();
+    expect(within(scan).getByText(/hop-dong-da-ky\.pdf · 512 KB/)).toBeTruthy();
+    expect(within(scan).getByTitle('Bản scan hợp đồng đã ký').getAttribute('src')).toBe(
+      '/api/v1/tutor/profile/signed-contract/file',
     );
-    expect(screen.queryByRole('button', { name: 'Xem hợp đồng' })).toBeNull();
-    expect(within(sheet).getAllByText('Gia sư Hợp đồng').length).toBeGreaterThan(0);
-    const appendix = within(sheet).getByRole('region', { name: 'Phụ lục 01' });
-    const rows = within(appendix).getAllByRole('row').slice(1);
-    expect(rows.map((row) => within(row).getByRole('rowheader').textContent)).toEqual([
-      'LH-ABC',
-      'LH-LATER',
-    ]);
-    expect(within(appendix).getByText('180.000 đ')).toBeTruthy();
-    expect(within(sheet).getByText(/Đã phát hành trên hệ thống/)).toBeTruthy();
-    expect(within(sheet).queryByText(/Đã ký xác nhận trên hệ thống/)).toBeNull();
-    await user.click(
-      screen.getByRole('checkbox', {
-        name: 'Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng',
-      }),
+    expect(within(scan).getByRole('link', { name: 'Tải về' }).getAttribute('href')).toBe(
+      '/api/v1/tutor/profile/signed-contract/file?download=1',
     );
-    await user.click(screen.getByRole('button', { name: 'Ký xác nhận hợp đồng' }));
-    await waitFor(() =>
-      expect(screen.getByText(/Đã ghi nhận bạn ký xác nhận hợp đồng/)).toBeTruthy(),
-    );
-    expect(
-      await within(
-        screen.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' }),
-      ).findByText(/Đã ký xác nhận trên hệ thống/),
-    ).toBeTruthy();
-    // The earliest contract is the one signed.
-    expect(calls.find((call) => call.method === 'POST')?.path).toBe(
-      `/tutor/contracts/${record.id}/acknowledge`,
-    );
-    expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
-      version: 1,
-      acknowledged: true,
+    // Paper signature only: no electronic signing on this page.
+    expect(screen.queryByRole('button', { name: /Ký xác nhận/ })).toBeNull();
+  });
+
+  it('explains the paper signing while no scan is uploaded', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/profile/signed-contract') return { data: null };
+      return undefined;
     });
-    expect(screen.queryByText(/thanh toán thành công|đã ký điện tử/i)).toBeNull();
+    renderRoute('/tutor/contracts');
+    expect(await screen.findByText('Trung tâm chưa tải lên hợp đồng đã ký')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Xem hợp đồng mẫu' }).getAttribute('href')).toBe(
+      '/tutor/hop-dong-mau',
+    );
   });
 });
 

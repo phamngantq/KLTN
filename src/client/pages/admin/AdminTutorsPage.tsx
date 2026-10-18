@@ -11,11 +11,12 @@ import {
   type TutorVerification,
 } from '../../../shared/schemas/admin';
 import type { Page } from '../../../shared/schemas/discovery';
+import type { SignedContractScan } from '../../../shared/schemas/tutors';
 import { teachingModes } from '../../components/domain/TutorCard';
 import { Button } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState, PageHeader } from '../../components/ui/Feedback';
-import { TextareaField } from '../../components/ui/Field';
+import { TextareaField, TextField } from '../../components/ui/Field';
 import { Skeleton } from '../../components/ui/Spinner';
 import { api, fieldErrors, toQuery } from '../../lib/api-client';
 import { formatDate, formatVnd } from '../../lib/format';
@@ -206,6 +207,7 @@ export function AdminTutorsPage() {
                     {tutor.bio || '(Chưa có giới thiệu)'}
                   </p>
                   <VerificationDetails tutorId={tutor.userId} />
+                  <SignedContractUpload tutorId={tutor.userId} />
                   {tutor.moderationNote && (
                     <p className="rounded-md border-l-4 border-warning bg-warning-surface p-3 text-sm">
                       <strong>Ghi chú kiểm duyệt:</strong> {tutor.moderationNote}
@@ -381,6 +383,129 @@ function VerificationDetails({ tutorId }: { tutorId: string }) {
           )}
         </div>
       ) : null}
+    </details>
+  );
+}
+
+/**
+ * "Hợp đồng đã ký (bản scan)": the tutor signs the paper contract at the centre once; the
+ * moderator uploads the scan here (a new upload replaces it). The tutor sees it under
+ * "Hợp đồng đã ký".
+ */
+function SignedContractUpload({ tutorId }: { tutorId: string }) {
+  const [open, setOpen] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [signedOn, setSignedOn] = useState('');
+  const [contractNumber, setContractNumber] = useState('');
+  const [inputKey, setInputKey] = useState(0);
+  const queryClient = useQueryClient();
+  const key = ['admin-tutor-signed-contract', tutorId] as const;
+  const path = `/admin/tutors/${encodeURIComponent(tutorId)}/signed-contract`;
+  const current = useQuery({
+    queryKey: key,
+    queryFn: ({ signal }) => api.get<SignedContractScan | null>(path, { signal }),
+    enabled: open,
+  });
+  const upload = useMutation({
+    mutationFn: () => {
+      const form = new FormData();
+      form.append('file', file!);
+      form.append('signedOn', signedOn);
+      if (contractNumber.trim()) form.append('contractNumber', contractNumber.trim());
+      return api.post<SignedContractScan>(path, form);
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(key, saved);
+      setFile(null);
+      setContractNumber('');
+      setInputKey((value) => value + 1);
+    },
+  });
+  const errors = upload.isError ? fieldErrors(upload.error) : {};
+  return (
+    <details
+      className="rounded-md border border-border p-3 text-sm"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary className="min-h-11 cursor-pointer content-center font-medium text-primary">
+        Hợp đồng đã ký (bản scan)
+      </summary>
+      <div className="mt-2 flex flex-col gap-3">
+        {current.isPending ? (
+          <p className="text-muted">Đang tải…</p>
+        ) : current.data ? (
+          <p>
+            Đã tải lên
+            {current.data.contractNumber ? ` hợp đồng số ${current.data.contractNumber}` : ''} · ký
+            ngày {current.data.signedOn.split('-').reverse().join('/')} ·{' '}
+            <a
+              href={`/api/v1${path}/file`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              {current.data.fileName}
+            </a>
+          </p>
+        ) : (
+          <p className="text-muted">Chưa tải lên hợp đồng đã ký.</p>
+        )}
+        <form
+          noValidate
+          className="grid gap-3 sm:grid-cols-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (file && signedOn) upload.mutate();
+          }}
+        >
+          <TextField
+            label="Ngày ký"
+            type="date"
+            required
+            value={signedOn}
+            max={new Date().toISOString().slice(0, 10)}
+            error={errors.signedOn}
+            onChange={(event) => setSignedOn(event.target.value)}
+          />
+          <TextField
+            label="Số hợp đồng (nếu có)"
+            maxLength={40}
+            value={contractNumber}
+            error={errors.contractNumber}
+            onChange={(event) => setContractNumber(event.target.value)}
+          />
+          <div className="sm:col-span-2">
+            <TextField
+              key={inputKey}
+              label="Tệp scan (PDF, JPG, PNG, WebP; tối đa 1,5 MB)"
+              type="file"
+              required
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              error={errors.file}
+              onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+            />
+          </div>
+          {upload.isError && !Object.keys(errors).length && (
+            <p role="alert" className="text-danger sm:col-span-2">
+              {upload.error.message}
+            </p>
+          )}
+          {upload.isSuccess && (
+            <p role="status" className="text-success sm:col-span-2">
+              Đã lưu bản scan hợp đồng đã ký.
+            </p>
+          )}
+          <Button
+            type="submit"
+            size="sm"
+            className="self-start"
+            disabled={!file || !signedOn}
+            loading={upload.isPending}
+          >
+            {current.data ? 'Thay bản scan' : 'Tải lên bản scan'}
+          </Button>
+        </form>
+      </div>
     </details>
   );
 }

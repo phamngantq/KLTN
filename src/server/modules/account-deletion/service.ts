@@ -20,6 +20,7 @@ import {
   parentProfiles,
   profilePhotos,
   tutorDocuments,
+  tutorSignedContracts,
   tutorPrivateProfiles,
   parentRequestPrivate,
   parentRequests,
@@ -151,6 +152,7 @@ export async function deleteOwnAccount(db: Db, userId: string): Promise<DeletedA
     db.delete(availabilityRules).where(eq(availabilityRules.tutorId, userId)),
     db.delete(availabilityExceptions).where(eq(availabilityExceptions.tutorId, userId)),
     db.delete(tutorDocuments).where(eq(tutorDocuments.tutorId, userId)),
+    db.delete(tutorSignedContracts).where(eq(tutorSignedContracts.tutorId, userId)),
     db.delete(tutorPrivateProfiles).where(eq(tutorPrivateProfiles.tutorId, userId)),
     db.delete(tutorProfiles).where(eq(tutorProfiles.userId, userId)),
     db

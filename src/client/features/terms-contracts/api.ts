@@ -86,36 +86,6 @@ export function useAdminTermsQuizActions() {
   return { create, edit, publish };
 }
 
-/** Every class contract record of the tutor (latest 50), for the single signed contract. */
-export function useAllTutorContracts() {
-  const { user } = useSession();
-  return useQuery({
-    queryKey: [...contractsKey, 'tutor', user?.id, 'all'],
-    queryFn: ({ signal }) =>
-      api.get<Page<ClassContractRecord>>(`/tutor/contracts${toQuery({ page: 1, pageSize: 50 })}`, {
-        signal,
-      }),
-    enabled: Boolean(user),
-  });
-}
-
-export function useAcknowledgeContract() {
-  const queryClient = useQueryClient();
-  const { user } = useSession();
-  return useMutation({
-    mutationFn: (input: { id: string; version: number }) =>
-      api.post<ClassContractRecord>(
-        `/tutor/contracts/${encodeURIComponent(input.id)}/acknowledge`,
-        {
-          version: input.version,
-          acknowledged: true,
-        },
-      ),
-    onSuccess: () =>
-      void queryClient.invalidateQueries({ queryKey: [...contractsKey, 'tutor', user?.id] }),
-  });
-}
-
 export function useAdminContracts(page: number) {
   return useQuery({
     queryKey: [...contractsKey, 'admin', page],

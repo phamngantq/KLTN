@@ -105,6 +105,17 @@ export type TutorDocumentType = (typeof TUTOR_DOCUMENT_TYPES)[number];
 export const TUTOR_DOCUMENT_MAX_BYTES = 1_572_864;
 export const MAX_TUTOR_CREDENTIALS = 10;
 
+/** Scan of the paper contract signed at the centre ("Hợp đồng đã ký"); one per tutor. */
+export interface SignedContractScan {
+  contractNumber: string | null;
+  /** yyyy-mm-dd, the date written on the paper contract. */
+  signedOn: string;
+  fileName: string;
+  contentType: TutorDocumentType;
+  sizeBytes: number;
+  uploadedAt: string;
+}
+
 export interface TutorDocument {
   id: string;
   kind: TutorDocumentKind;

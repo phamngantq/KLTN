@@ -7,8 +7,6 @@ import { useOwnProfile } from '../../features/tutor-profile/api';
 
 const CENTRE = 'Trung tâm Gia sư Sư phạm Đỗ Hằng';
 const CENTRE_ADDRESS = 'Tầng 7, Số 41–43, Đường Khuất Duy Tiến, P. Thanh Xuân, TP Hà Nội.';
-const CENTRE_PHONE = '0394 618 480';
-const CENTRE_EMAIL = 'tuyendunggiasugio@gmail.com';
 
 /** Body blocks of one article, in reading order. */
 type Block =
@@ -317,133 +315,11 @@ function ArticleBody({ article }: { article: Article }) {
   );
 }
 
-/** Facts of a signed class contract, shown on the sheet and in "Phụ lục 01". */
-/** One class taken under the contract: a row of "Phụ lục 01 – Phiếu xác nhận nhận lớp". */
-export interface ClassConfirmation {
-  classCode: string;
-  feeOptionTitle: string;
-  agreedTuitionPerSessionMinor: number | null;
-  placementFeeAmountMinor: number | null;
-  placementFeePaidAt: string | null;
-  /** When the tutor confirmed taking this class (contract acknowledged for it). */
-  confirmedAt: string | null;
-}
-
-/** The tutor's single signed contract ("ký một lần", Điều 1.1) and the classes under it. */
-export interface SignedContract {
-  number: string;
-  /** Date written in "Hôm nay, ngày …": the tutor's signature, else the issue date. */
-  signedAt: string;
-  issuedAt: string;
-  acknowledgedAt: string | null;
-  classes: ClassConfirmation[];
-  /** Classes beyond the listed ones (older than the latest page). */
-  moreClasses: number;
-}
-
-function dayText(iso: string): string {
-  const [year, month, day] = formatDateKey(iso).split('-');
-  return `ngày ${day} tháng ${month} năm ${year}`;
-}
-
-/** yyyy-mm-dd in the centre's time zone. */
-function formatDateKey(iso: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(iso));
-}
-
-function dateTime(iso: string): string {
-  const [year, month, day] = formatDateKey(iso).split('-');
-  const time = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(new Date(iso));
-  return `${day}/${month}/${year} ${time}`;
-}
-
-/** Electronic signature of one party: who confirmed on the system, and when. */
-function SignatureMark({ title, at, by }: { title: string; at: string; by: string }) {
-  return (
-    <div className="my-3 flex min-h-28 flex-1 flex-col items-center justify-center">
-      <div className="rounded border-2 border-double border-black px-4 py-2 text-[11pt] leading-snug">
-        <p className="font-bold uppercase">✓ {title}</p>
-        <p className="font-semibold">{by}</p>
-        <p className="italic">{dateTime(at)}</p>
-      </div>
-    </div>
-  );
-}
-
-/** "Phụ lục 01 – Phiếu xác nhận nhận lớp": every class taken under this one contract. */
-function ClassAppendix({ signed }: { signed: SignedContract }) {
-  const money = (minor: number | null) =>
-    minor === null ? 'Chưa ghi nhận' : `${minor.toLocaleString('vi-VN')} đ`;
-  return (
-    <section aria-label="Phụ lục 01" className="mt-6">
-      <h3 className="text-center font-bold uppercase">Phụ lục 01 – Phiếu xác nhận nhận lớp</h3>
-      <p className="text-center text-[11.5pt] italic">
-        (Phụ lục không tách rời của Hợp đồng; mỗi lớp nhận theo Hợp đồng này là một dòng)
-      </p>
-      <table className="mt-2 w-full border-collapse text-[11pt]">
-        <thead>
-          <tr>
-            {[
-              'STT',
-              'Mã lớp',
-              'Học phí/buổi',
-              'Phí nhận lớp',
-              'Thanh toán phí',
-              'Xác nhận nhận lớp',
-            ].map((head) => (
-              <th key={head} scope="col" className="border border-black px-1.5 py-1 font-bold">
-                {head}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {signed.classes.map((item, index) => (
-            <tr key={item.classCode} className="break-inside-avoid">
-              <td className="border border-black px-1.5 py-1 text-center">{index + 1}</td>
-              <th scope="row" className="border border-black px-1.5 py-1 text-left font-semibold">
-                {item.classCode}
-              </th>
-              <td className="border border-black px-1.5 py-1 text-right">
-                {money(item.agreedTuitionPerSessionMinor)}
-              </td>
-              <td className="border border-black px-1.5 py-1 text-right">
-                {money(item.placementFeeAmountMinor)}
-              </td>
-              <td className="border border-black px-1.5 py-1 text-center">
-                {item.placementFeePaidAt ? dateTime(item.placementFeePaidAt) : 'Chưa thanh toán'}
-              </td>
-              <td className="border border-black px-1.5 py-1 text-center">
-                {item.confirmedAt ? dateTime(item.confirmedAt) : 'Chờ xác nhận'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {signed.moreClasses > 0 && (
-        <p className="mt-1 text-[11pt] italic">… và {signed.moreClasses} lớp nhận trước đó.</p>
-      )}
-    </section>
-  );
-}
-
 /**
- * The A4 "Hợp đồng nhận lớp dạy gia sư". Without `signed` it is the blank template; with it the
- * tutor's one contract: number, date, centre contacts, "Phụ lục 01" listing every class taken
- * and both parties' system confirmations. Bên B always comes from the tutor's own profile.
+ * The A4 "Hợp đồng nhận lớp dạy gia sư" template. Bên B comes from the tutor's own profile;
+ * the signed copy is the paper contract the centre scans ("Hợp đồng đã ký").
  */
-export function ContractSheet({
-  tutor,
-  signed,
-}: {
-  tutor: TutorProfile | null;
-  signed?: SignedContract;
-}) {
+export function ContractSheet({ tutor }: { tutor: TutorProfile | null }) {
   const teacher = tutor?.tutorType === 'teacher';
   const student =
     tutor?.tutorType === 'university_student' || tutor?.tutorType === 'pedagogy_student';
@@ -462,12 +338,11 @@ export function ContractSheet({
       <div className="mt-6 text-center">
         <h2 className="text-[16pt] font-bold uppercase">Hợp đồng nhận lớp dạy gia sư</h2>
         <p className="italic">(Nội quy, quy định nhận lớp tại {CENTRE})</p>
-        <p className="mt-1">Số: {signed ? `${signed.number} /HĐNT-ĐH` : '………… /HĐNT-ĐH'}</p>
+        <p className="mt-1">Số: ………… /HĐNT-ĐH</p>
       </div>
 
       <p className="mt-5 text-justify">
-        Hôm nay, {signed ? dayText(signed.signedAt) : 'ngày ……… tháng ……… năm ………'}, tại {CENTRE},
-        chúng tôi gồm:
+        Hôm nay, ngày ……… tháng ……… năm ………, tại {CENTRE}, chúng tôi gồm:
       </p>
 
       <section aria-label="Bên A" className="mt-3 flex flex-col gap-0.5">
@@ -478,8 +353,8 @@ export function ContractSheet({
           <Field label="Chức vụ" min="8rem" />
         </Row>
         <Row>
-          <Field label="Điện thoại" value={signed ? CENTRE_PHONE : null} min="10rem" />
-          <Field label="Email" value={signed ? CENTRE_EMAIL : null} min="10rem" />
+          <Field label="Điện thoại" min="10rem" />
+          <Field label="Email" min="10rem" />
         </Row>
       </section>
 
@@ -530,21 +405,11 @@ export function ContractSheet({
         ))}
       </div>
 
-      {signed && <ClassAppendix signed={signed} />}
-
       <footer className="mt-10 grid grid-cols-2 gap-6 text-center break-inside-avoid [&>div]:flex [&>div]:flex-col">
         <div>
           <p className="font-bold uppercase">Đại diện Bên A</p>
           <p className="text-[11.5pt] italic">(Ký, ghi rõ họ tên, đóng dấu)</p>
-          {signed ? (
-            <SignatureMark
-              title="Đã phát hành trên hệ thống"
-              at={signed.issuedAt}
-              by="Trung tâm Gia sư Sư phạm Đỗ Hằng"
-            />
-          ) : (
-            <div className="min-h-28 flex-1" />
-          )}
+          <div className="min-h-28 flex-1" />
           <p>Họ tên: ……………………………</p>
         </div>
         <div>
@@ -552,15 +417,7 @@ export function ContractSheet({
           <p className="text-[11.5pt] whitespace-nowrap italic">
             (Ký, ghi rõ họ tên hoặc xác nhận trên hệ thống)
           </p>
-          {signed?.acknowledgedAt ? (
-            <SignatureMark
-              title="Đã ký xác nhận trên hệ thống"
-              at={signed.acknowledgedAt}
-              by={tutor?.displayName ?? 'Gia sư'}
-            />
-          ) : (
-            <div className="min-h-28 flex-1" />
-          )}
+          <div className="min-h-28 flex-1" />
           <p>
             Họ tên:{' '}
             {tutor?.displayName ? (
