@@ -64,7 +64,7 @@ const DAYS = [
 ] as const;
 
 /** "150,000đ" as in the design. */
-const money = (minor: number) => `${minor.toLocaleString('en-US')}đ`;
+export const money = (minor: number) => `${minor.toLocaleString('en-US')}đ`;
 
 function isNew(item: PublicClass): boolean {
   if (!item.publishedAt) return false;
@@ -106,7 +106,7 @@ export function classSchedule(item: PublicClass): string {
 }
 
 /** One line per weekly slot, for the detail page. */
-function ScheduleLines({ item }: { item: PublicClass }) {
+export function ScheduleLines({ item }: { item: PublicClass }) {
   const sessions = sessionsOf(item);
   const { windows, discussLater } = item.schedule;
   return (
@@ -127,7 +127,7 @@ function ScheduleLines({ item }: { item: PublicClass }) {
   );
 }
 
-function Badges({ item, dark = false }: { item: PublicClass; dark?: boolean }) {
+export function Badges({ item, dark = false }: { item: PublicClass; dark?: boolean }) {
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
       <span className="rounded-full bg-accent px-3 py-0.5 text-on-accent">{item.subjectName}</span>
@@ -139,7 +139,7 @@ function Badges({ item, dark = false }: { item: PublicClass; dark?: boolean }) {
   );
 }
 
-function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+export function Fact({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <span aria-hidden="true" className="mt-0.5 text-accent">
@@ -381,7 +381,7 @@ export function TutorNewClassesPage() {
   );
 }
 
-function BackLink({ to }: { to: string }) {
+export function BackLink({ to }: { to: string }) {
   return (
     <ButtonLink to={to} variant="secondary" className="gap-2 rounded-xl">
       <ArrowLeft aria-hidden="true" className="size-4" />
@@ -413,7 +413,7 @@ function useClassPage() {
 }
 
 /** Requirements written one per line (or separated by ";") read as a bullet list. */
-function requirementList(text: string): string[] {
+export function requirementList(text: string): string[] {
   return text
     .split(/\n|;/)
     .map((line) => line.replace(/^[-•*\s]+/, '').trim())

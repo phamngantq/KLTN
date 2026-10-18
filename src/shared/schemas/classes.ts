@@ -281,6 +281,8 @@ export const tutorApplicationListSchema = z.strictObject({
   status: z.enum(APPLICATION_STATUSES).optional(),
   /** Class code, subject, grade or public area. */
   q: z.string().trim().min(1).max(100).optional(),
+  /** "Lớp đã đăng ký": leaves out applications whose acceptance is complete. */
+  stage: z.enum(['registered']).optional(),
   ...pageFields,
 });
 export interface TutorApplication {

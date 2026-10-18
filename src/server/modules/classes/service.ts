@@ -418,6 +418,7 @@ export function listOwnApplications(
   query: {
     status?: TutorApplication['status'];
     q?: string;
+    stage?: 'registered';
     page: number;
     pageSize: number;
   },

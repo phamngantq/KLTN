@@ -1,12 +1,8 @@
 import {
-  Building2,
   CalendarDays,
-  ChevronDown,
-  Circle,
-  CircleCheck,
   ClipboardCheck,
   Clock3,
-  CreditCard,
+  Eye,
   FileText,
   MapPin,
   Phone,
@@ -17,9 +13,9 @@ import {
   X,
 } from 'lucide-react';
 import { useId, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from 'react-router';
 import type { TutorProposalItem } from '../../../shared/schemas/class-requests';
-import type { ApplicationAcceptance, ApplicationStatus } from '../../../shared/schemas/classes';
+import type { ApplicationStatus } from '../../../shared/schemas/classes';
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -31,12 +27,11 @@ import {
   useLearnerContact,
   useRegisteredClasses,
   useRespondToProposal,
-  useStartPlacementFeePayment,
   useTutorProposals,
 } from '../../features/class-requests/api';
 import { useWithdrawApplication, type TutorClassApplication } from '../../features/classes/api';
-import { useAcknowledgeContract } from '../../features/terms-contracts/api';
 import { formatDate, formatVnd, WEEKDAY_LABELS } from '../../lib/format';
+import { ClassAcceptancePanel } from './ClassAcceptancePanel';
 import { classSchedule } from './TutorClassPages';
 
 type Tab = 'registered' | 'proposed' | 'completed';
@@ -62,9 +57,6 @@ const STATUS: Record<
   rejected: { label: 'Bị từ chối', tone: 'danger' },
   withdrawn: { label: 'Đã hủy yêu cầu', tone: 'neutral' },
 };
-
-const CENTRE_ADDRESS = 'Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội';
-const CENTRE_PHONE = '0394 618 480';
 
 function pageOf(value: string | null): number {
   const page = Number(value ?? '1');
@@ -149,226 +141,6 @@ const cardClass =
 
 /* ------------------------------------------------------------------ Lớp đã đăng ký */
 
-function Step({ done, children }: { done: boolean; children: ReactNode }) {
-  return (
-    <li className="flex items-start gap-2">
-      {done ? (
-        <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
-      ) : (
-        <Circle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted" />
-      )}
-      <span className={done ? 'text-fg' : 'text-muted'}>
-        {children}
-        <span className="sr-only">{done ? ' (đã xong)' : ' (chưa xong)'}</span>
-      </span>
-    </li>
-  );
-}
-
-/**
- * "Hoàn tất nhận lớp". A first-time tutor signs and pays at the centre; a returning tutor
- * confirms the contract and pays here. Contact and the letter appear only once completed.
- */
-function AcceptancePanel({ acceptance }: { acceptance: ApplicationAcceptance }) {
-  const acknowledge = useAcknowledgeContract();
-  const payment = useStartPlacementFeePayment();
-  const [agreed, setAgreed] = useState(false);
-  const preview = isReadOnlyPreview();
-  const fee =
-    acceptance.placementFeeMinor === null
-      ? 'theo thông báo của trung tâm'
-      : formatVnd(acceptance.placementFeeMinor);
-  const contractDone = acceptance.contract?.status === 'acknowledged';
-  const paid = acceptance.placementFeePaidAt !== null;
-
-  if (acceptance.completed)
-    return (
-      <Alert tone="success" title="Đã hoàn tất nhận lớp">
-        Thông tin liên hệ người học và thư giới thiệu có trong tab{' '}
-        <Link to="/tutor/class-requests?tab=hoan-tat" className="font-semibold underline">
-          Lớp đã hoàn tất
-        </Link>
-        .
-      </Alert>
-    );
-  if (!acceptance.assignmentActive)
-    return (
-      <Alert tone="warning" title="Lớp không còn hiệu lực">
-        Lớp đã kết thúc hoặc trung tâm đã rút gán. Vui lòng liên hệ trung tâm nếu cần hỗ trợ.
-      </Alert>
-    );
-
-  return (
-    <section
-      aria-label="Hoàn tất nhận lớp"
-      className="flex flex-col gap-4 rounded-xl border border-border bg-surface p-4 text-sm"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="font-semibold text-primary">Hoàn tất nhận lớp</h3>
-        <Badge tone="info">
-          {acceptance.firstAcceptance ? 'Nhận lớp lần đầu' : 'Đã từng nhận lớp'}
-        </Badge>
-      </div>
-      <ul className="flex flex-col gap-1.5">
-        <Step done={acceptance.learnerConfirmed}>Người học xác nhận thuê gia sư</Step>
-        <Step done={contractDone}>
-          {acceptance.firstAcceptance
-            ? 'Ký hợp đồng nhận lớp tại trung tâm'
-            : 'Xác nhận hợp đồng nhận lớp trên hệ thống'}
-        </Step>
-        <Step done={paid}>
-          {acceptance.firstAcceptance
-            ? `Chuyển khoản phí môi giới (${fee}) — trung tâm ghi nhận`
-            : `Thanh toán phí nhận lớp (${fee})`}
-        </Step>
-      </ul>
-
-      {acceptance.firstAcceptance ? (
-        <div className="flex gap-3 rounded-lg border border-accent bg-warning-surface p-4 leading-relaxed">
-          <Building2 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-warning" />
-          <div>
-            <p className="font-semibold text-primary">Hướng dẫn cho lần nhận lớp đầu tiên</p>
-            <ol className="mt-2 flex list-decimal flex-col gap-1 pl-5">
-              <li>
-                Đến văn phòng trung tâm tại <strong>{CENTRE_ADDRESS}</strong>, mang theo CCCD và
-                giấy tờ đã khai trong hồ sơ.
-              </li>
-              <li>Ký hợp đồng nhận lớp trực tiếp với trung tâm.</li>
-              <li>
-                Chuyển khoản phí môi giới <strong>{fee}</strong> theo hướng dẫn của nhân viên trung
-                tâm.
-              </li>
-            </ol>
-            <p className="mt-2">
-              Trung tâm chỉ hoàn tất nhận lớp khi bạn đáp ứng đủ các điều kiện trên. Cần hỗ trợ, gọi{' '}
-              <strong>{CENTRE_PHONE}</strong>.
-            </p>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <p className="font-semibold text-primary">Bước 1. Xác nhận hợp đồng</p>
-            {!acceptance.contract ? (
-              <p className="text-muted">Trung tâm đang chuẩn bị hợp đồng cho lớp này.</p>
-            ) : contractDone ? (
-              <p className="text-success">Bạn đã xác nhận hợp đồng.</p>
-            ) : (
-              <>
-                <Link to="/tutor/contracts" className="w-fit text-primary underline">
-                  Xem nội dung hợp đồng
-                </Link>
-                <label className="flex min-h-11 items-start gap-3 rounded-lg border border-border bg-bg p-3">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 size-4 accent-[var(--color-primary)]"
-                    checked={agreed}
-                    onChange={(event) => setAgreed(event.target.checked)}
-                  />
-                  Tôi đã đọc và đồng ý với hợp đồng nhận lớp của trung tâm
-                </label>
-                {acknowledge.isError && <Alert tone="danger">{acknowledge.error.message}</Alert>}
-                <Button
-                  className="self-start"
-                  disabled={!agreed || preview || !acceptance.learnerConfirmed}
-                  loading={acknowledge.isPending}
-                  onClick={() =>
-                    acceptance.contract &&
-                    acknowledge.mutate({
-                      id: acceptance.contract.id,
-                      version: acceptance.contract.version,
-                    })
-                  }
-                >
-                  Xác nhận hợp đồng
-                </Button>
-                {!acceptance.learnerConfirmed && (
-                  <p className="text-muted">Chờ người học xác nhận thuê trước khi ký hợp đồng.</p>
-                )}
-              </>
-            )}
-          </div>
-          <div className="flex flex-col gap-2">
-            <p className="font-semibold text-primary">Bước 2. Thanh toán phí nhận lớp</p>
-            <p>
-              Số tiền: <strong className="text-primary">{fee}</strong>
-            </p>
-            {!acceptance.onlinePaymentReady && (
-              <p className="text-muted">
-                Cổng thanh toán trực tuyến chưa được cấu hình. Vui lòng liên hệ trung tâm (
-                {CENTRE_PHONE}) để thanh toán.
-              </p>
-            )}
-            {payment.isError && <Alert tone="danger">{payment.error.message}</Alert>}
-            <Button
-              className="gap-2 self-start"
-              disabled={
-                !acceptance.onlinePaymentReady ||
-                !contractDone ||
-                !acceptance.learnerConfirmed ||
-                paid ||
-                preview
-              }
-              loading={payment.isPending}
-              onClick={() =>
-                payment.mutate(acceptance.assignmentId, {
-                  onSuccess: ({ redirectUrl }) => window.location.assign(redirectUrl),
-                })
-              }
-            >
-              <CreditCard aria-hidden="true" className="size-4" />
-              Thanh toán phí nhận lớp
-            </Button>
-          </div>
-        </div>
-      )}
-      <p className="text-muted">
-        Thông tin liên hệ chi tiết của người học và thư giới thiệu chỉ được cung cấp sau khi hoàn
-        tất các điều kiện nhận lớp.
-      </p>
-    </section>
-  );
-}
-
-function ClassDetails({ application }: { application: TutorClassApplication }) {
-  const item = application.class;
-  return (
-    <dl className="grid gap-2 rounded-xl bg-surface p-4 text-sm sm:grid-cols-[10rem_1fr]">
-      <dt className="font-medium text-muted">Mã lớp</dt>
-      <dd>{item.code}</dd>
-      <dt className="font-medium text-muted">Môn · Lớp</dt>
-      <dd>
-        {item.subjectName} · {item.grade}
-      </dd>
-      <dt className="font-medium text-muted">Hình thức</dt>
-      <dd>{item.mode === 'online' ? 'Trực tuyến' : `Trực tiếp · ${item.publicArea ?? ''}`}</dd>
-      <dt className="font-medium text-muted">Lịch học</dt>
-      <dd>{classSchedule(item)}</dd>
-      <dt className="font-medium text-muted">Học phí dự kiến</dt>
-      <dd>
-        {item.expectedBudgetMinor === null
-          ? 'Thỏa thuận'
-          : `${formatVnd(item.expectedBudgetMinor)}/buổi`}
-      </dd>
-      {application.availability && application.availability.windows.length > 0 && (
-        <>
-          <dt className="font-medium text-muted">Thời gian bạn rảnh</dt>
-          <dd>
-            {application.availability.windows
-              .map(
-                (window) =>
-                  `${WEEKDAY_LABELS[window.weekday] ?? window.weekday} ${window.startLocal}–${window.endLocal}`,
-              )
-              .join('; ')}
-          </dd>
-        </>
-      )}
-      <dt className="font-medium text-muted">Ngày gửi yêu cầu</dt>
-      <dd>{formatDate(application.createdAt, 'Asia/Ho_Chi_Minh')}</dd>
-    </dl>
-  );
-}
-
 function RegisteredCard({
   application,
   onCancel,
@@ -376,10 +148,9 @@ function RegisteredCard({
   application: TutorClassApplication;
   onCancel: () => void;
 }) {
-  const [open, setOpen] = useState<'detail' | 'complete' | null>(null);
+  const [completing, setCompleting] = useState(false);
   const status = STATUS[application.status];
   const preview = isReadOnlyPreview();
-  const toggle = (panel: 'detail' | 'complete') => setOpen(open === panel ? null : panel);
   return (
     <article className={cardClass}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -416,49 +187,38 @@ function RegisteredCard({
           </div>
         )}
       </dl>
-      {application.status === 'rejected' && (
-        <div
-          role="note"
-          className="rounded-lg border border-danger/30 bg-danger-surface p-3 text-sm"
-        >
-          <p className="font-semibold text-danger">Lý do từ chối</p>
-          <p className="mt-1">{application.rejectionReason ?? 'Trung tâm chưa ghi lý do.'}</p>
-        </div>
+      {completing && application.acceptance && (
+        <ClassAcceptancePanel
+          acceptance={application.acceptance}
+          classCode={application.class.code}
+        />
       )}
-      {open === 'detail' && <ClassDetails application={application} />}
-      {open === 'complete' && application.acceptance && (
-        <AcceptancePanel acceptance={application.acceptance} />
-      )}
-      {open === 'complete' && !application.acceptance && (
+      {completing && !application.acceptance && (
         <Alert tone="info">Trung tâm đang hoàn thiện thông tin lớp. Vui lòng quay lại sau.</Alert>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border pt-4">
-        <Button
+        <ButtonLink
+          to={`/tutor/class-requests/chi-tiet/${encodeURIComponent(application.id)}`}
           variant="secondary"
-          aria-expanded={open === 'detail'}
-          onClick={() => toggle('detail')}
           className="gap-2"
         >
-          <ChevronDown
-            aria-hidden="true"
-            className={`size-4 transition-transform ${open === 'detail' ? 'rotate-180' : ''}`}
-          />
-          {open === 'detail' ? 'Ẩn chi tiết lớp' : 'Xem chi tiết lớp'}
-        </Button>
+          <Eye aria-hidden="true" className="size-4" />
+          Xem chi tiết
+        </ButtonLink>
         {application.status === 'submitted' && !preview && (
           <Button variant="secondary" onClick={onCancel} className="gap-2 text-danger">
             <X aria-hidden="true" className="size-4" />
-            Hủy yêu cầu
+            Hủy nhận lớp
           </Button>
         )}
         {application.status === 'selected' && (
           <Button
-            aria-expanded={open === 'complete'}
-            onClick={() => toggle('complete')}
+            aria-expanded={completing}
+            onClick={() => setCompleting(!completing)}
             className="gap-2"
           >
             <ClipboardCheck aria-hidden="true" className="size-4" />
-            {application.acceptance?.completed ? 'Đã hoàn tất' : 'Hoàn tất nhận lớp'}
+            Hoàn tất nhận lớp
           </Button>
         )}
       </div>
@@ -472,7 +232,7 @@ function RegisteredTab() {
   const q = params.get('q')?.trim() || undefined;
   const status = statusOf(params.get('status'));
   const [draft, setDraft] = useState(q ?? '');
-  const list = useRegisteredClasses({ page, q, status });
+  const list = useRegisteredClasses({ page, q, status, stage: 'registered' });
   const withdraw = useWithdrawApplication();
   const [cancelling, setCancelling] = useState<TutorClassApplication | null>(null);
 
@@ -580,13 +340,13 @@ function RegisteredTab() {
       )}
       <ConfirmDialog
         open={cancelling !== null}
-        title="Hủy yêu cầu nhận lớp?"
+        title="Hủy nhận lớp?"
         description={
           cancelling
             ? `Yêu cầu nhận lớp ${cancelling.class.code} sẽ bị hủy. Bạn có thể gửi lại nếu lớp vẫn đang tuyển.`
             : ''
         }
-        confirmLabel="Hủy yêu cầu"
+        confirmLabel="Hủy nhận lớp"
         tone="danger"
         loading={withdraw.isPending}
         onConfirm={confirmCancel}

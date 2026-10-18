@@ -34,6 +34,7 @@ import {
   placementFee,
 } from '../../../shared/schemas/classes';
 import type { ApplicationAvailability } from '../../../shared/schemas/classes';
+import { APPLICATION_COMPLETED } from '../class-requests/sql';
 import type { Db } from '../../db/client';
 import {
   auditLogs,
@@ -1081,7 +1082,13 @@ export async function findOwnApplication(
 export async function listOwnApplications(
   db: Db,
   tutorId: string,
-  query: { status?: ApplicationStatus; q?: string; page: number; pageSize: number },
+  query: {
+    status?: ApplicationStatus;
+    q?: string;
+    stage?: 'registered';
+    page: number;
+    pageSize: number;
+  },
 ): Promise<Page<TutorApplication>> {
   const where = and(
     eq(tutorApplications.tutorUserId, tutorId),
@@ -1090,6 +1097,7 @@ export async function listOwnApplications(
       ? sql`EXISTS (SELECT 1 FROM class_listings
           WHERE class_listings.id = tutor_applications.class_id AND ${keywordFilter(query.q)})`
       : undefined,
+    query.stage === 'registered' ? sql`NOT ${sql.raw(APPLICATION_COMPLETED)}` : undefined,
   );
   const [rows, totals] = await db.batch([
     db

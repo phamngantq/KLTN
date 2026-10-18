@@ -115,22 +115,31 @@ describe('tutor class requests page', () => {
       HTMLElement,
     ];
 
-    // Chờ duyệt: detail + cancel.
+    // Only classes whose acceptance is not complete are asked for.
+    expect(calls.find((call) => call.path.startsWith('/tutor/applications'))?.path).toContain(
+      'stage=registered',
+    );
+
+    // Chờ duyệt: detail page + "Hủy nhận lớp".
     expect(within(pending).getByText('Chờ duyệt')).toBeTruthy();
-    fireEvent.click(within(pending).getByRole('button', { name: 'Xem chi tiết lớp' }));
-    expect(within(pending).getByText('Ngày gửi yêu cầu')).toBeTruthy();
-    expect(within(pending).getByRole('button', { name: 'Hủy yêu cầu' })).toBeTruthy();
+    expect(within(pending).getByRole('link', { name: 'Xem chi tiết' }).getAttribute('href')).toBe(
+      '/tutor/class-requests/chi-tiet/a1',
+    );
+    expect(within(pending).getByRole('button', { name: 'Hủy nhận lớp' })).toBeTruthy();
     expect(within(pending).queryByRole('button', { name: 'Hoàn tất nhận lớp' })).toBeNull();
 
-    // Bị từ chối: reason, no cancel.
+    // Bị từ chối: detail only; the reason is on the detail page.
     expect(within(rejected).getByText('Bị từ chối')).toBeTruthy();
-    expect(within(rejected).getByText('Lịch dạy không phù hợp.')).toBeTruthy();
-    expect(within(rejected).queryByRole('button', { name: 'Hủy yêu cầu' })).toBeNull();
+    expect(within(rejected).getByRole('link', { name: 'Xem chi tiết' })).toBeTruthy();
+    expect(within(rejected).queryByRole('button', { name: 'Hủy nhận lớp' })).toBeNull();
+    expect(within(rejected).queryByRole('button', { name: 'Hoàn tất nhận lớp' })).toBeNull();
 
     // Đã duyệt, lần đầu: centre guidance, no online payment.
     fireEvent.click(within(first).getByRole('button', { name: 'Hoàn tất nhận lớp' }));
-    expect(within(first).getByText('Hướng dẫn cho lần nhận lớp đầu tiên')).toBeTruthy();
-    expect(within(first).getAllByText(/Số 41 Khuất Duy Tiến/).length).toBeGreaterThan(0);
+    expect(within(first).getByText('Đến trung tâm ký hợp đồng')).toBeTruthy();
+    expect(within(first).getByText('Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội')).toBeTruthy();
+    expect(within(first).getByText('Hướng dẫn thanh toán phí nhận lớp')).toBeTruthy();
+    expect(within(first).getAllByText('640.000 ₫').length).toBeGreaterThan(0);
     expect(within(first).queryByRole('button', { name: /Thanh toán phí nhận lớp/ })).toBeNull();
 
     // Đã duyệt, từ lần hai: online payment, disabled until a gateway is configured.
@@ -150,6 +159,44 @@ describe('tutor class requests page', () => {
     fireEvent.change(screen.getByLabelText('Từ khóa'), { target: { value: 'LH-a2' } });
     fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
     await waitFor(() => expect(calls.some((call) => call.path.includes('q=LH-a2'))).toBe(true));
+  });
+
+  it('opens a full detail page with the rejection reason and no learner contact', async () => {
+    const rejected = application('a2', 'rejected', {
+      rejectionReason: 'Lịch dạy không phù hợp.',
+      class: {
+        ...publicClass('a2'),
+        tutorRequirements: 'Có kinh nghiệm ôn thi',
+        studentTraits: 'Học sinh chăm',
+      },
+    });
+    const pending = application('a1', 'submitted');
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/applications/a2') return { data: rejected };
+      if (req.path === '/tutor/applications/a1') return { data: pending };
+      if (req.path === '/tutor/applications/a1/withdraw')
+        return { data: { ...pending, status: 'withdrawn', version: 2 } };
+      return undefined;
+    });
+    const { router } = renderRoute('/tutor/class-requests/chi-tiet/a2');
+    expect(await screen.findByRole('heading', { name: 'Chi tiết lớp đã đăng ký' })).toBeTruthy();
+    expect(screen.getByText('Lý do từ chối của trung tâm')).toBeTruthy();
+    expect(screen.getByText('Lịch dạy không phù hợp.')).toBeTruthy();
+    expect(screen.getByText('Có kinh nghiệm ôn thi')).toBeTruthy();
+    expect(screen.getByText('Học sinh chăm')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Hủy nhận lớp' })).toBeNull();
+
+    await router.navigate('/tutor/class-requests/chi-tiet/a1');
+    expect(await screen.findByRole('button', { name: 'Hủy nhận lớp' })).toBeTruthy();
+    expect(screen.queryByText('Lý do từ chối của trung tâm')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Hủy nhận lớp' }));
+    const dialog = await screen.findByRole('dialog', { hidden: true });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy nhận lớp', hidden: true }));
+    await waitFor(() =>
+      expect(calls.find((call) => call.path.endsWith('/withdraw'))?.body).toEqual({ version: 1 }),
+    );
+    expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
   });
 
   it('confirms or declines a centre proposal, requiring a reason to decline', async () => {

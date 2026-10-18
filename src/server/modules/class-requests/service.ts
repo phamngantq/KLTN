@@ -7,19 +7,13 @@ import type {
 } from '../../../shared/schemas/class-requests';
 import type { Page } from '../../../shared/schemas/discovery';
 import { AppError } from '../../lib/errors';
+import { COMPLETED } from './sql';
 
 /**
  * No payment gateway is wired into this deployment yet. Online payment stays unavailable —
  * never simulated — until a real provider and its secrets are configured.
  */
 export const ONLINE_PAYMENT_READY = false;
-
-/** Contact and letter open only for an active, confirmed, contracted and paid assignment. */
-const COMPLETED = `a.status = 'active' AND c.status = 'active' AND r.status = 'assigned'
-  AND p.contact_consent_at IS NOT NULL AND p.contact_consent_version IS NOT NULL
-  AND a.learner_confirmed_at IS NOT NULL AND a.placement_fee_paid_at IS NOT NULL
-  AND EXISTS (SELECT 1 FROM class_contract_records k
-    WHERE k.assignment_id = a.id AND k.status = 'acknowledged')`;
 
 /**
  * First-time acceptor: no other class of this tutor had its placement fee recorded before this
@@ -40,12 +34,16 @@ interface AcceptanceRow {
   contract_version: number | null;
   contract_status: 'issued' | 'acknowledged' | null;
   first_acceptance: number;
+  completed: number;
 }
 
 const acceptanceSelect = `SELECT a.id, a.application_id, a.status, a.learner_confirmed_at,
   a.placement_fee_paid_at, a.placement_fee_amount_minor,
   k.id AS contract_id, k.version AS contract_version, k.status AS contract_status,
-  ${FIRST_ACCEPTANCE} AS first_acceptance
+  ${FIRST_ACCEPTANCE} AS first_acceptance,
+  EXISTS (SELECT 1 FROM class_listings c JOIN parent_requests r ON r.id = c.source_request_id
+    JOIN parent_request_private p ON p.request_id = r.id
+    WHERE c.id = a.class_id AND ${COMPLETED}) AS completed
   FROM class_assignments a LEFT JOIN class_contract_records k ON k.assignment_id = a.id`;
 
 function acceptanceOf(row: AcceptanceRow, estimatedFee: number | null): ApplicationAcceptance {
@@ -61,11 +59,7 @@ function acceptanceOf(row: AcceptanceRow, estimatedFee: number | null): Applicat
     contract,
     placementFeeMinor: row.placement_fee_amount_minor ?? estimatedFee,
     placementFeePaidAt: row.placement_fee_paid_at,
-    completed:
-      row.status === 'active' &&
-      row.learner_confirmed_at !== null &&
-      contract?.status === 'acknowledged' &&
-      row.placement_fee_paid_at !== null,
+    completed: Boolean(row.completed),
     onlinePaymentReady: ONLINE_PAYMENT_READY,
   };
 }

@@ -19,6 +19,7 @@ export function useRegisteredClasses(filters: {
   page: number;
   q?: string | undefined;
   status?: ApplicationStatus | undefined;
+  stage?: 'registered';
 }) {
   const { user } = useSession();
   return useQuery({
@@ -122,5 +123,18 @@ export function useStartPlacementFeePayment() {
         {},
       ),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: applicationKey }),
+  });
+}
+
+/** One own application with its class (public facts only) and completion step. */
+export function useOwnApplication(id: string | undefined) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...applicationKey, user?.id, 'detail', id],
+    queryFn: ({ signal }) =>
+      api.get<TutorClassApplication>(`/tutor/applications/${encodeURIComponent(id!)}`, {
+        signal,
+      }),
+    enabled: Boolean(id && user?.role === 'tutor'),
   });
 }

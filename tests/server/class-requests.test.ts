@@ -226,6 +226,13 @@ describe('tutor class requests', () => {
     );
     view = await ownApplication(tutor, first.application.id);
     expect(view.acceptance).toMatchObject({ completed: true, firstAcceptance: true });
+    // Completed classes leave "Lớp đã đăng ký" and appear only under "Lớp đã hoàn tất".
+    const registered = await get<Page<TutorApplication>>(
+      '/tutor/applications?stage=registered',
+      tutor,
+    );
+    expect(registered.items.map((item) => item.id)).not.toContain(first.application.id);
+    expect(registered.total).toBe(0);
     const completed = await get<Page<CompletedAcceptance>>(
       '/tutor/class-requests/completed',
       tutor,
@@ -251,6 +258,11 @@ describe('tutor class requests', () => {
     const second = await selectedClass(moderator, tutor, 'Lớp 11');
     view = await ownApplication(tutor, second.application.id);
     expect(view.acceptance).toMatchObject({ firstAcceptance: false, completed: false });
+    expect(
+      (await get<Page<TutorApplication>>('/tutor/applications?stage=registered', tutor)).items.map(
+        (item) => item.id,
+      ),
+    ).toEqual([second.application.id]);
     const payPath = `/tutor/class-requests/acceptances/${second.assignment.id}/payment`;
     const early = await api(payPath, jsonInit('POST', {}, tutor));
     expect(early.status).toBe(409);
