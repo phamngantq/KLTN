@@ -1,5 +1,4 @@
 import { Building2, Landmark } from 'lucide-react';
-import type { ApplicationAcceptance } from '../../../shared/schemas/classes';
 import { Badge } from '../../components/ui/Feedback';
 import { formatVnd } from '../../lib/format';
 
@@ -11,16 +10,13 @@ export const CENTRE_PHONE = '0394 618 480';
  * records both; only then do learner contact and the letter appear in "Lớp đã hoàn tất".
  */
 export function ClassAcceptancePanel({
-  acceptance,
+  feeMinor,
   classCode,
 }: {
-  acceptance: ApplicationAcceptance;
+  feeMinor: number | null;
   classCode: string;
 }) {
-  const fee =
-    acceptance.placementFeeMinor === null
-      ? 'theo thông báo của trung tâm'
-      : formatVnd(acceptance.placementFeeMinor);
+  const fee = feeMinor === null ? 'theo thông báo của trung tâm' : formatVnd(feeMinor);
   return (
     <section
       aria-label="Hoàn tất nhận lớp"

@@ -490,6 +490,26 @@ describe('tutor class requests', () => {
       status: 'selected',
       applicationId: null,
     });
+    // "Hoàn tất nhận lớp" from the chosen proposal: same payment screen data, no report yet.
+    const proposalPay = await get<PaymentInstructions>(
+      `/tutor/class-requests/proposals/${acceptId}/payment`,
+      accepting,
+    );
+    expect(proposalPay).toMatchObject({
+      assignmentId: null,
+      classCode: request.code,
+      firstAcceptance: true,
+      amountMinor: 400_000,
+      transferContent: `PHI NHAN LOP ${request.code}`,
+      contract: null,
+    });
+    expect(
+      (
+        await api(`/tutor/class-requests/proposals/${declineId}/payment`, {
+          headers: { Cookie: declining.cookie },
+        })
+      ).status,
+    ).toBe(409);
     // A declined proposal stays visible to the tutor who declined it.
     expect((await list(declining, '')).total).toBe(1);
   });

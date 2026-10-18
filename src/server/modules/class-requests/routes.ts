@@ -35,6 +35,17 @@ tutorClassRequestRoutes.get('/proposals/:id', async (c) =>
     await service.getProposal(c.env.DB, authOf(c).user.id, c.req.param('id')),
   ),
 );
+tutorClassRequestRoutes.get('/proposals/:id/payment', async (c) =>
+  ok<PaymentInstructions>(
+    c,
+    await service.getProposalPayment(
+      c.env.DB,
+      c.env as PaymentEnv,
+      authOf(c).user.id,
+      c.req.param('id'),
+    ),
+  ),
+);
 tutorClassRequestRoutes.post('/proposals/:id/accept', async (c) => {
   const { termsAgreed } = await parseJsonBody(c, acceptProposalSchema);
   return ok<TutorProposalItem>(

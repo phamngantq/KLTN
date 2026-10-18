@@ -105,7 +105,8 @@ export interface IntroductionLetter {
 
 /** Bank-transfer payment of the placement fee for a returning tutor. */
 export interface PaymentInstructions {
-  assignmentId: string;
+  /** Null for a chosen proposal the centre has not set up as a class yet (no report possible). */
+  assignmentId: string | null;
   classCode: string;
   firstAcceptance: boolean;
   /** Exact fee of this class; null when the budget or the policy rate is unknown. */

@@ -1,4 +1,4 @@
-import { cleanup, screen, waitFor } from '@testing-library/react';
+import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
@@ -160,6 +160,8 @@ describe('tutor terms and contracts', () => {
     };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/profile')
+        return { data: { displayName: 'Gia sư Hợp đồng', email: 'gs@example.test' } };
       if (req.path === '/tutor/contracts?page=1' && req.method === 'GET')
         return { data: { items: [record], page: 1, pageSize: 12, total: 1 } };
       if (req.path === `/tutor/contracts/${record.id}/acknowledge` && req.method === 'POST') {
@@ -180,14 +182,28 @@ describe('tutor terms and contracts', () => {
     renderRoute('/tutor/contracts');
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: 'Xem hợp đồng' }));
-    expect(screen.getByText('Nội dung hợp đồng đã công bố.')).toBeTruthy();
-    expect(screen.getByText(/25% học phí tháng/)).toBeTruthy();
-    expect(screen.getByText('Học phí đã chốt khi phát hành: 180.000 ₫/buổi')).toBeTruthy();
-    await user.click(screen.getByRole('checkbox', { name: /Tôi đã đọc nội dung hợp đồng/ }));
-    await user.click(screen.getByRole('button', { name: 'Xác nhận nội dung hợp đồng' }));
-    await waitFor(() =>
-      expect(screen.getByText(/Đã ghi nhận xác nhận nội dung hợp đồng/)).toBeTruthy(),
+    // The signed-contract view is the A4 contract sheet, filled for this class.
+    const sheet = screen.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
+    expect(within(sheet).getAllByText('Gia sư Hợp đồng').length).toBeGreaterThan(0);
+    const appendix = within(sheet).getByRole('region', { name: 'Phụ lục 01' });
+    expect(within(appendix).getByText(/25% học phí tháng/)).toBeTruthy();
+    expect(within(appendix).getByText('180.000 đồng/buổi')).toBeTruthy();
+    expect(within(sheet).getByText(/Đã phát hành trên hệ thống/)).toBeTruthy();
+    expect(within(sheet).queryByText(/Đã ký xác nhận trên hệ thống/)).toBeNull();
+    await user.click(
+      screen.getByRole('checkbox', {
+        name: 'Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng',
+      }),
     );
+    await user.click(screen.getByRole('button', { name: 'Ký xác nhận hợp đồng' }));
+    await waitFor(() =>
+      expect(screen.getByText(/Đã ghi nhận bạn ký xác nhận hợp đồng/)).toBeTruthy(),
+    );
+    expect(
+      await within(
+        screen.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' }),
+      ).findByText(/Đã ký xác nhận trên hệ thống/),
+    ).toBeTruthy();
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
       version: 1,
       acknowledged: true,

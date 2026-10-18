@@ -363,15 +363,14 @@ test('parent → moderator → tutor → class, private contact, contract and ve
     });
     await tutor.goto('/tutor/contracts');
     await tutor.getByRole('button', { name: 'Xem hợp đồng' }).click();
-    await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
-      'E2E học phí tháng',
-    );
-    await expect(tutor.getByRole('article', { name: 'Chi tiết hợp đồng' })).toContainText(
-      /180\.000\s*₫\/buổi/,
-    );
-    await tutor.getByLabel(/Tôi đã đọc nội dung hợp đồng phiên bản/).check();
-    await tutor.getByRole('button', { name: 'Xác nhận nội dung hợp đồng' }).click();
-    await expect(tutor.getByText('Đã ghi nhận xác nhận nội dung hợp đồng của bạn.')).toBeVisible();
+    // The signed-contract view is the A4 contract; Phụ lục 01 carries this class's terms.
+    const contractSheet = tutor.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
+    await expect(contractSheet).toContainText('E2E học phí tháng');
+    await expect(contractSheet).toContainText(/180\.000\s*đồng\/buổi/);
+    await tutor.getByLabel('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng').check();
+    await tutor.getByRole('button', { name: 'Ký xác nhận hợp đồng' }).click();
+    await expect(tutor.getByText('Đã ghi nhận bạn ký xác nhận hợp đồng.')).toBeVisible();
+    await expect(contractSheet).toContainText('Đã ký xác nhận trên hệ thống');
 
     await parent.reload();
     // A moderator assignment is a proposal; the learner confirms the hire.

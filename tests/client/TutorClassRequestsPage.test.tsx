@@ -322,24 +322,56 @@ describe('tutor class requests page', () => {
     ).toBe(true);
   });
 
-  it('shows the centre procedure for a chosen proposal before the class is set up', async () => {
+  it('shows the same completion screen for a chosen proposal as for an approved class', async () => {
     const chosen = proposalItem('p3', {
       status: 'selected',
       tutorResponse: 'accepted',
       tutorRespondedAt: '2026-10-16T01:00:00.000Z',
     });
+    const payment = (firstAcceptance: boolean): PaymentInstructions => ({
+      assignmentId: null,
+      classCode: 'YC-p3',
+      firstAcceptance,
+      amountMinor: 800_000,
+      transferContent: 'PHI NHAN LOP YC-p3',
+      account: null,
+      qrPayload: null,
+      learnerConfirmed: true,
+      contract: null,
+      reportedAt: null,
+      paidAt: null,
+      completed: false,
+    });
+    let first = false;
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === '/tutor/class-requests/proposals/p3') return { data: chosen };
+      if (req.path === '/tutor/class-requests/proposals/p3/payment')
+        return { data: payment(first) };
       return undefined;
     });
-    renderRoute('/tutor/class-requests/de-xuat/p3/hoan-tat');
+    const { unmount } = renderRoute('/tutor/class-requests/de-xuat/p3/hoan-tat');
     expect(
       await screen.findByRole('heading', { name: 'Hoàn tất nhận lớp', level: 1 }),
     ).toBeTruthy();
-    expect(screen.getByText('Thủ tục nhận lớp')).toBeTruthy();
-    expect(screen.getByText('800.000 ₫')).toBeTruthy();
-    expect(screen.queryByText('Người học xác nhận thuê gia sư')).toBeNull();
+    // Returning tutor: payment guide, amount, content and contract agreement.
+    expect(await screen.findByRole('heading', { name: 'Hướng dẫn thanh toán' })).toBeTruthy();
+    expect(screen.getAllByText('800.000 ₫').length).toBeGreaterThan(0);
+    expect(screen.getByText('PHI NHAN LOP YC-p3')).toBeTruthy();
+    expect(screen.getByText('Đã từng nhận lớp')).toBeTruthy();
+    expect(
+      screen.getByLabelText('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng'),
+    ).toBeTruthy();
+    // No class contract yet: the transfer cannot be reported.
+    expect(screen.getByText(/Trung tâm đang chuẩn bị hợp đồng/)).toBeTruthy();
+    unmount();
+
+    // First-time tutor: the centre guidance, as on an approved class.
+    first = true;
+    renderRoute('/tutor/class-requests/de-xuat/p3/hoan-tat');
+    const guide = await screen.findByRole('region', { name: 'Hoàn tất nhận lớp' });
+    expect(within(guide).getByText('Đến trung tâm ký hợp đồng')).toBeTruthy();
+    expect(within(guide).getByText('Hướng dẫn thanh toán phí nhận lớp')).toBeTruthy();
   });
 
   it('opens a full detail page with the rejection reason and no learner contact', async () => {

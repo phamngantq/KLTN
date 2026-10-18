@@ -147,6 +147,20 @@ export function usePaymentInstructions(assignmentId: string | undefined) {
   });
 }
 
+/** Payment screen data for a proposal the learner chose (same shape as a class). */
+export function useProposalPayment(proposalId: string | undefined, enabled: boolean) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...requestsKey, 'proposal-payment', user?.id, proposalId],
+    queryFn: ({ signal }) =>
+      api.get<PaymentInstructions>(
+        `/tutor/class-requests/proposals/${encodeURIComponent(proposalId!)}/payment`,
+        { signal },
+      ),
+    enabled: Boolean(user?.role === 'tutor' && proposalId && enabled),
+  });
+}
+
 /** "Tôi đã chuyển khoản" with the contract agreement; every class-request view refreshes. */
 export function useReportTransfer() {
   const queryClient = useQueryClient();

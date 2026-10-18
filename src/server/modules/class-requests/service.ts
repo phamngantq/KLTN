@@ -701,3 +701,56 @@ export async function getCompletedDetail(
     },
   };
 }
+
+/**
+ * "Hoàn tất nhận lớp" from a proposal the learner chose, before the centre set up the class:
+ * the same payment screen data (fee, transfer content, VietQR). Without a class contract yet,
+ * the transfer cannot be reported; the screen says the centre is preparing the contract.
+ */
+export async function getProposalPayment(
+  db: D1Database,
+  env: PaymentEnv,
+  tutorId: string,
+  proposalId: string,
+): Promise<PaymentInstructions> {
+  const row = await ownProposal(db, tutorId, proposalId);
+  if (row.tutor_response !== 'accepted' || row.status !== 'selected')
+    throw new AppError(
+      409,
+      'PROPOSAL_NOT_CHOSEN',
+      'Bước hoàn tất nhận lớp chỉ có khi bạn đã xác nhận và người học đã chọn bạn.',
+    );
+  const [item] = await proposalItems(db, [row]);
+  const previous = await db
+    .prepare(
+      `SELECT 1 AS done FROM class_assignments
+       WHERE tutor_user_id = ? AND placement_fee_paid_at IS NOT NULL LIMIT 1`,
+    )
+    .bind(tutorId)
+    .first<{ done: number }>();
+  const amountMinor = item!.placementFeeMinor;
+  const transferContent = transferText(`PHI NHAN LOP ${row.request_code}`);
+  const account = receivingAccount(env);
+  return {
+    assignmentId: null,
+    classCode: row.request_code,
+    firstAcceptance: !previous,
+    amountMinor,
+    transferContent,
+    account,
+    qrPayload:
+      account && amountMinor !== null && amountMinor > 0
+        ? vietQrPayload({
+            bankBin: account.bankBin,
+            accountNumber: account.accountNumber,
+            amountMinor,
+            content: transferContent,
+          })
+        : null,
+    learnerConfirmed: true,
+    contract: null,
+    reportedAt: null,
+    paidAt: null,
+    completed: false,
+  };
+}

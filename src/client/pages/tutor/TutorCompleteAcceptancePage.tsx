@@ -50,7 +50,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
  * Returning tutor: pay the exact placement fee of this class by bank transfer (VietQR), agree to
  * the contract and report the transfer. The centre confirms receipt before contact opens.
  */
-function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
+export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
   const report = useReportTransfer();
   const [agreed, setAgreed] = useState(false);
   const preview = isReadOnlyPreview();
@@ -58,7 +58,7 @@ function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
   const contractDone = payment.contract?.status === 'acknowledged';
   const blocked = !payment.learnerConfirmed
     ? 'Chờ người học xác nhận thuê gia sư trước khi thanh toán.'
-    : !payment.contract
+    : !payment.contract || !payment.assignmentId
       ? 'Trung tâm đang chuẩn bị hợp đồng cho lớp này. Vui lòng quay lại sau.'
       : !payment.account || !payment.qrPayload
         ? `Trung tâm chưa cấu hình tài khoản nhận thanh toán nên chưa tạo được mã QR. Vui lòng liên hệ ${CENTRE_PHONE}.`
@@ -197,7 +197,7 @@ function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
           className="gap-2 self-start"
           disabled={!agreed || Boolean(blocked) || preview}
           loading={report.isPending}
-          onClick={() => report.mutate(payment.assignmentId)}
+          onClick={() => payment.assignmentId && report.mutate(payment.assignmentId)}
         >
           <ClipboardCheck aria-hidden="true" className="size-4" />
           Tôi đã chuyển khoản – Hoàn tất nhận lớp
@@ -286,7 +286,7 @@ export function TutorCompleteAcceptancePage() {
               Lớp đã kết thúc hoặc trung tâm đã rút gán. Vui lòng liên hệ trung tâm nếu cần hỗ trợ.
             </Alert>
           ) : acceptance.firstAcceptance ? (
-            <ClassAcceptancePanel acceptance={acceptance} classCode={item.code} />
+            <ClassAcceptancePanel feeMinor={acceptance.placementFeeMinor} classCode={item.code} />
           ) : (
             <ReturningTutorPayment assignmentId={acceptance.assignmentId} />
           )}

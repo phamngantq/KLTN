@@ -7,6 +7,8 @@ import { useOwnProfile } from '../../features/tutor-profile/api';
 
 const CENTRE = 'Trung tâm Gia sư Sư phạm Đỗ Hằng';
 const CENTRE_ADDRESS = 'Tầng 7, Số 41–43, Đường Khuất Duy Tiến, P. Thanh Xuân, TP Hà Nội.';
+const CENTRE_PHONE = '0394 618 480';
+const CENTRE_EMAIL = 'tuyendunggiasugio@gmail.com';
 
 /** Body blocks of one article, in reading order. */
 type Block =
@@ -315,18 +317,250 @@ function ArticleBody({ article }: { article: Article }) {
   );
 }
 
+/** Facts of a signed class contract, shown on the sheet and in "Phụ lục 01". */
+export interface SignedContract {
+  number: string;
+  /** Date written in "Hôm nay, ngày …": the tutor's confirmation, else the issue date. */
+  signedAt: string;
+  issuedAt: string;
+  acknowledgedAt: string | null;
+  classCode: string;
+  feeOptionTitle: string;
+  agreedTuitionPerSessionMinor: number | null;
+  placementFeeAmountMinor: number | null;
+  placementFeePaidAt: string | null;
+  learnerConfirmedAt: string | null;
+}
+
+function dayText(iso: string): string {
+  const [year, month, day] = formatDateKey(iso).split('-');
+  return `ngày ${day} tháng ${month} năm ${year}`;
+}
+
+/** yyyy-mm-dd in the centre's time zone. */
+function formatDateKey(iso: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(iso));
+}
+
+function dateTime(iso: string): string {
+  const [year, month, day] = formatDateKey(iso).split('-');
+  const time = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(new Date(iso));
+  return `${day}/${month}/${year} ${time}`;
+}
+
+/** Electronic signature of one party: who confirmed on the system, and when. */
+function SignatureMark({ title, at, by }: { title: string; at: string; by: string }) {
+  return (
+    <div className="my-3 flex min-h-28 flex-1 flex-col items-center justify-center">
+      <div className="rounded border-2 border-double border-black px-4 py-2 text-[11pt] leading-snug">
+        <p className="font-bold uppercase">✓ {title}</p>
+        <p className="font-semibold">{by}</p>
+        <p className="italic">{dateTime(at)}</p>
+      </div>
+    </div>
+  );
+}
+
+/** "Phụ lục 01 – Phiếu xác nhận nhận lớp" for the class this contract was issued for. */
+function ClassAppendix({ signed }: { signed: SignedContract }) {
+  const money = (minor: number | null) =>
+    minor === null ? 'Chưa ghi nhận' : `${minor.toLocaleString('vi-VN')} đồng`;
+  return (
+    <section aria-label="Phụ lục 01" className="mt-6 break-inside-avoid">
+      <h3 className="text-center font-bold uppercase">Phụ lục 01 – Phiếu xác nhận nhận lớp</h3>
+      <table className="mt-2 w-full border-collapse text-[12pt]">
+        <tbody>
+          {(
+            [
+              ['Mã lớp', signed.classCode],
+              [
+                'Học phí đã thống nhất',
+                signed.agreedTuitionPerSessionMinor === null
+                  ? 'Chưa ghi nhận'
+                  : `${money(signed.agreedTuitionPerSessionMinor)}/buổi`,
+              ],
+              ['Phương án phí nhận lớp', signed.feeOptionTitle],
+              ['Phí nhận lớp', money(signed.placementFeeAmountMinor)],
+              [
+                'Ngày thanh toán phí',
+                signed.placementFeePaidAt ? dateTime(signed.placementFeePaidAt) : 'Chưa thanh toán',
+              ],
+              [
+                'Người học xác nhận thuê',
+                signed.learnerConfirmedAt ? dateTime(signed.learnerConfirmedAt) : 'Chưa xác nhận',
+              ],
+              ['Ngày phát hành hợp đồng', dateTime(signed.issuedAt)],
+              [
+                'Ngày gia sư xác nhận',
+                signed.acknowledgedAt ? dateTime(signed.acknowledgedAt) : 'Chưa xác nhận',
+              ],
+            ] as const
+          ).map(([label, value]) => (
+            <tr key={label}>
+              <th scope="row" className="w-[38%] border border-black px-2 py-1 text-left font-bold">
+                {label}
+              </th>
+              <td className="border border-black px-2 py-1">{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
 /**
- * "Hợp đồng mẫu" for tutors: the centre's "Hợp đồng nhận lớp dạy gia sư" on an A4 sheet.
- * Bên B is filled from the signed-in tutor's own profile; anything missing stays a dotted blank.
+ * The A4 "Hợp đồng nhận lớp dạy gia sư". Without `signed` it is the blank template; with it the
+ * contract number, date, centre contacts, "Phụ lục 01" and both parties' system confirmations
+ * are filled in. Bên B always comes from the tutor's own profile.
  */
-export function TutorContractTemplatePage() {
-  const profile = useOwnProfile();
-  if (profile.isPending) return <PageLoading label="Đang tải hợp đồng mẫu…" />;
-  const tutor: TutorProfile | null = profile.data ?? null;
+export function ContractSheet({
+  tutor,
+  signed,
+}: {
+  tutor: TutorProfile | null;
+  signed?: SignedContract;
+}) {
   const teacher = tutor?.tutorType === 'teacher';
   const student =
     tutor?.tutorType === 'university_student' || tutor?.tutorType === 'pedagogy_student';
+  return (
+    <article
+      aria-label="Hợp đồng nhận lớp dạy gia sư"
+      style={SHEET}
+      className="mx-auto box-border min-h-[297mm] w-[210mm] max-w-none px-[20mm] py-[18mm] text-[13pt] leading-[1.5] shadow-card print:min-h-0 print:w-auto print:p-0 print:shadow-none"
+    >
+      <header className="text-center font-bold">
+        <p className="uppercase">Cộng hòa xã hội chủ nghĩa Việt Nam</p>
+        <p>Độc lập – Tự do – Hạnh phúc</p>
+        <p aria-hidden="true">————— * —————</p>
+      </header>
 
+      <div className="mt-6 text-center">
+        <h2 className="text-[16pt] font-bold uppercase">Hợp đồng nhận lớp dạy gia sư</h2>
+        <p className="italic">(Nội quy, quy định nhận lớp tại {CENTRE})</p>
+        <p className="mt-1">Số: {signed ? `${signed.number} /HĐNT-ĐH` : '………… /HĐNT-ĐH'}</p>
+      </div>
+
+      <p className="mt-5 text-justify">
+        Hôm nay, {signed ? dayText(signed.signedAt) : 'ngày ……… tháng ……… năm ………'}, tại {CENTRE},
+        chúng tôi gồm:
+      </p>
+
+      <section aria-label="Bên A" className="mt-3 flex flex-col gap-0.5">
+        <h3 className="font-bold uppercase">Bên A: Trung tâm Gia sư Sư phạm Đỗ Hằng</h3>
+        <p className="text-justify">Địa chỉ duy nhất: {CENTRE_ADDRESS}</p>
+        <Row>
+          <Field label="Người đại diện: Bà" min="12rem" />
+          <Field label="Chức vụ" min="8rem" />
+        </Row>
+        <Row>
+          <Field label="Điện thoại" value={signed ? CENTRE_PHONE : null} min="10rem" />
+          <Field label="Email" value={signed ? CENTRE_EMAIL : null} min="10rem" />
+        </Row>
+      </section>
+
+      <section aria-label="Bên B" className="mt-3 flex flex-col gap-0.5">
+        <h3 className="font-bold uppercase">Bên B: Gia sư nhận lớp</h3>
+        <Row>
+          <Field label="Họ và tên" value={tutor?.displayName} min="14rem" />
+          <span className="shrink-0">Ngày sinh: {dateParts(tutor?.dateOfBirth)}</span>
+        </Row>
+        <Row>
+          <Field label="Số CCCD" value={tutor?.idNumber} min="9rem" />
+          <span className="shrink-0">Ngày cấp: {dateParts(tutor?.idIssuedOn)}</span>
+          <Field label="Nơi cấp" min="6rem" />
+        </Row>
+        <Row>
+          <Field label="Nơi thường trú" value={tutor?.idResidence} min="20rem" />
+        </Row>
+        <Row>
+          <Field label="Điện thoại" value={tutor?.phone} min="10rem" />
+          <Field label="Email" value={tutor?.email} min="10rem" />
+        </Row>
+        <div className="grid grid-cols-[auto_1fr] gap-x-3">
+          <span>Đối tượng:</span>
+          <span className="flex min-w-0 items-baseline gap-1">
+            <Check on={student} />
+            <span className="shrink-0">Sinh viên (Trường:</span>
+            <Fill value={student ? tutor?.school : null} min="4rem" />
+            <span className="shrink-0">)</span>
+          </span>
+          <span />
+          <span className="flex min-w-0 items-baseline gap-1">
+            <Check on={teacher} />
+            <span className="shrink-0">Giáo viên (Nơi công tác:</span>
+            <Fill value={teacher ? tutor?.school : null} min="4rem" />
+            <span className="shrink-0">)</span>
+          </span>
+        </div>
+      </section>
+
+      <p className="mt-4 text-justify">
+        Hai bên thống nhất ký kết Hợp đồng nguyên tắc nhận lớp dạy gia sư (sau đây gọi là “Hợp
+        đồng”) với các điều khoản như sau:
+      </p>
+
+      <div className="mt-3 flex flex-col gap-3">
+        {ARTICLES.map((article) => (
+          <ArticleBody key={article.title} article={article} />
+        ))}
+      </div>
+
+      {signed && <ClassAppendix signed={signed} />}
+
+      <footer className="mt-10 grid grid-cols-2 gap-6 text-center break-inside-avoid [&>div]:flex [&>div]:flex-col">
+        <div>
+          <p className="font-bold uppercase">Đại diện Bên A</p>
+          <p className="text-[11.5pt] italic">(Ký, ghi rõ họ tên, đóng dấu)</p>
+          {signed ? (
+            <SignatureMark
+              title="Đã phát hành trên hệ thống"
+              at={signed.issuedAt}
+              by="Trung tâm Gia sư Sư phạm Đỗ Hằng"
+            />
+          ) : (
+            <div className="min-h-28 flex-1" />
+          )}
+          <p>Họ tên: ……………………………</p>
+        </div>
+        <div>
+          <p className="font-bold uppercase">Bên B</p>
+          <p className="text-[11.5pt] whitespace-nowrap italic">
+            (Ký, ghi rõ họ tên hoặc xác nhận trên hệ thống)
+          </p>
+          {signed?.acknowledgedAt ? (
+            <SignatureMark
+              title="Đã ký xác nhận trên hệ thống"
+              at={signed.acknowledgedAt}
+              by={tutor?.displayName ?? 'Gia sư'}
+            />
+          ) : (
+            <div className="min-h-28 flex-1" />
+          )}
+          <p>
+            Họ tên:{' '}
+            {tutor?.displayName ? (
+              <span className="font-semibold">{tutor.displayName}</span>
+            ) : (
+              '……………………………'
+            )}
+          </p>
+        </div>
+      </footer>
+    </article>
+  );
+}
+
+/** "Hợp đồng mẫu" for tutors: the blank contract, Bên B filled from the tutor's own profile. */
+export function TutorContractTemplatePage() {
+  const profile = useOwnProfile();
+  if (profile.isPending) return <PageLoading label="Đang tải hợp đồng mẫu…" />;
   return (
     <section className="mx-auto flex w-full min-w-0 max-w-[230mm] flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
@@ -337,111 +571,7 @@ export function TutorContractTemplatePage() {
         </Button>
       </div>
       <div className="min-w-0 overflow-x-auto print:overflow-visible">
-        <article
-          aria-label="Hợp đồng nhận lớp dạy gia sư"
-          style={SHEET}
-          className="mx-auto box-border min-h-[297mm] w-[210mm] max-w-none px-[20mm] py-[18mm] text-[13pt] leading-[1.5] shadow-card print:min-h-0 print:w-auto print:p-0 print:shadow-none"
-        >
-          <header className="text-center font-bold">
-            <p className="uppercase">Cộng hòa xã hội chủ nghĩa Việt Nam</p>
-            <p>Độc lập – Tự do – Hạnh phúc</p>
-            <p aria-hidden="true">————— * —————</p>
-          </header>
-
-          <div className="mt-6 text-center">
-            <h2 className="text-[16pt] font-bold uppercase">Hợp đồng nhận lớp dạy gia sư</h2>
-            <p className="italic">(Nội quy, quy định nhận lớp tại {CENTRE})</p>
-            <p className="mt-1">Số: ………… /HĐNT-ĐH</p>
-          </div>
-
-          <p className="mt-5 text-justify">
-            Hôm nay, ngày ……… tháng ……… năm ………, tại {CENTRE}, chúng tôi gồm:
-          </p>
-
-          <section aria-label="Bên A" className="mt-3 flex flex-col gap-0.5">
-            <h3 className="font-bold uppercase">Bên A: Trung tâm Gia sư Sư phạm Đỗ Hằng</h3>
-            <p className="text-justify">Địa chỉ duy nhất: {CENTRE_ADDRESS}</p>
-            <Row>
-              <Field label="Người đại diện: Bà" min="12rem" />
-              <Field label="Chức vụ" min="8rem" />
-            </Row>
-            <Row>
-              <Field label="Điện thoại" min="10rem" />
-              <Field label="Email" min="10rem" />
-            </Row>
-          </section>
-
-          <section aria-label="Bên B" className="mt-3 flex flex-col gap-0.5">
-            <h3 className="font-bold uppercase">Bên B: Gia sư nhận lớp</h3>
-            <Row>
-              <Field label="Họ và tên" value={tutor?.displayName} min="14rem" />
-              <span className="shrink-0">Ngày sinh: {dateParts(tutor?.dateOfBirth)}</span>
-            </Row>
-            <Row>
-              <Field label="Số CCCD" value={tutor?.idNumber} min="9rem" />
-              <span className="shrink-0">Ngày cấp: {dateParts(tutor?.idIssuedOn)}</span>
-              <Field label="Nơi cấp" min="6rem" />
-            </Row>
-            <Row>
-              <Field label="Nơi thường trú" value={tutor?.idResidence} min="20rem" />
-            </Row>
-            <Row>
-              <Field label="Điện thoại" value={tutor?.phone} min="10rem" />
-              <Field label="Email" value={tutor?.email} min="10rem" />
-            </Row>
-            <div className="grid grid-cols-[auto_1fr] gap-x-3">
-              <span>Đối tượng:</span>
-              <span className="flex min-w-0 items-baseline gap-1">
-                <Check on={student} />
-                <span className="shrink-0">Sinh viên (Trường:</span>
-                <Fill value={student ? tutor?.school : null} min="4rem" />
-                <span className="shrink-0">)</span>
-              </span>
-              <span />
-              <span className="flex min-w-0 items-baseline gap-1">
-                <Check on={teacher} />
-                <span className="shrink-0">Giáo viên (Nơi công tác:</span>
-                <Fill value={teacher ? tutor?.school : null} min="4rem" />
-                <span className="shrink-0">)</span>
-              </span>
-            </div>
-          </section>
-
-          <p className="mt-4 text-justify">
-            Hai bên thống nhất ký kết Hợp đồng nguyên tắc nhận lớp dạy gia sư (sau đây gọi là “Hợp
-            đồng”) với các điều khoản như sau:
-          </p>
-
-          <div className="mt-3 flex flex-col gap-3">
-            {ARTICLES.map((article) => (
-              <ArticleBody key={article.title} article={article} />
-            ))}
-          </div>
-
-          <footer className="mt-10 grid grid-cols-2 gap-6 text-center break-inside-avoid [&>div]:flex [&>div]:flex-col">
-            <div>
-              <p className="font-bold uppercase">Đại diện Bên A</p>
-              <p className="text-[11.5pt] italic">(Ký, ghi rõ họ tên, đóng dấu)</p>
-              <div className="min-h-28 flex-1" />
-              <p>Họ tên: ……………………………</p>
-            </div>
-            <div>
-              <p className="font-bold uppercase">Bên B</p>
-              <p className="text-[11.5pt] whitespace-nowrap italic">
-                (Ký, ghi rõ họ tên hoặc xác nhận trên hệ thống)
-              </p>
-              <div className="min-h-28 flex-1" />
-              <p>
-                Họ tên:{' '}
-                {tutor?.displayName ? (
-                  <span className="font-semibold">{tutor.displayName}</span>
-                ) : (
-                  '……………………………'
-                )}
-              </p>
-            </div>
-          </footer>
-        </article>
+        <ContractSheet tutor={profile.data ?? null} />
       </div>
     </section>
   );
