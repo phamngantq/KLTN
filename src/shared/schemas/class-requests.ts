@@ -7,6 +7,19 @@ export const classRequestPageSchema = z.strictObject({
   pageSize: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(DEFAULT_PAGE_SIZE),
 });
 
+/** "Chờ phản hồi", "Đã xác nhận", "Đã từ chối". */
+export const PROPOSAL_FILTERS = ['pending', 'accepted', 'declined'] as const;
+export type ProposalFilter = (typeof PROPOSAL_FILTERS)[number];
+export const proposalListSchema = classRequestPageSchema.extend({
+  q: z.string().trim().min(1).max(100).optional(),
+  status: z.enum(PROPOSAL_FILTERS).optional(),
+});
+
+export const acceptProposalSchema = z.strictObject({
+  /** "Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm." */
+  termsAgreed: z.literal(true, 'Cần xác nhận đồng ý với Điều khoản trách nhiệm.'),
+});
+
 export const declineProposalSchema = z.strictObject({
   reason: z
     .string()
@@ -43,6 +56,12 @@ export interface TutorProposalItem {
   tutorRespondedAt: string | null;
   tutorDeclineReason: string | null;
   createdAt: string;
+  tutorRequirements: string | null;
+  studentTraits: string | null;
+  /** Current monthly-percent policy rate; null when no policy is published. */
+  placementRateBasisPoints: number | null;
+  /** Rate × học phí/buổi × buổi/tuần × 4; null when the budget or rate is unknown. */
+  placementFeeMinor: number | null;
 }
 
 /** A class whose acceptance is complete; contact and letter are separate gated reads. */

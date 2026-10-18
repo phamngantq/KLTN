@@ -14,24 +14,30 @@ import {
 } from 'lucide-react';
 import { useId, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
-import type { TutorProposalItem } from '../../../shared/schemas/class-requests';
+import type { ProposalFilter, TutorProposalItem } from '../../../shared/schemas/class-requests';
 import type { ApplicationStatus } from '../../../shared/schemas/classes';
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
-import { SelectField, TextareaField, TextField } from '../../components/ui/Field';
+import { SelectField, TextField } from '../../components/ui/Field';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
   useCompletedClasses,
   useLearnerContact,
   useRegisteredClasses,
-  useRespondToProposal,
   useTutorProposals,
 } from '../../features/class-requests/api';
 import { useWithdrawApplication, type TutorClassApplication } from '../../features/classes/api';
-import { formatDate, formatVnd, WEEKDAY_LABELS } from '../../lib/format';
+import { formatDate, formatVnd } from '../../lib/format';
 import { ClassAcceptancePanel } from './ClassAcceptancePanel';
+import {
+  DeclineProposalDialog,
+  isPending,
+  proposalNote,
+  proposalSchedule,
+  proposalStatus,
+} from './ProposalParts';
 import { classSchedule } from './TutorClassPages';
 
 type Tab = 'registered' | 'proposed' | 'completed';
@@ -360,186 +366,189 @@ function RegisteredTab() {
 
 /* ------------------------------------------------------------------ Lớp được đề xuất */
 
-function proposalSchedule(item: TutorProposalItem): string {
-  const head = item.sessionsPerWeek ? `${item.sessionsPerWeek} buổi/tuần` : null;
-  const times = item.schedule
-    .map(
-      (window) =>
-        `${WEEKDAY_LABELS[window.weekday] ?? window.weekday} ${window.startLocal}–${window.endLocal}`,
-    )
-    .join('; ');
-  return [head, times || 'trao đổi lịch sau'].filter(Boolean).join(' · ');
-}
-
-function proposalState(item: TutorProposalItem): {
-  label: string;
-  tone: 'info' | 'success' | 'danger' | 'neutral' | 'warning';
-} {
-  if (item.tutorResponse === 'declined') return { label: 'Bạn đã từ chối', tone: 'danger' };
-  if (item.status === 'selected') return { label: 'Người học đã chọn bạn', tone: 'success' };
-  if (item.status === 'declined')
-    return { label: 'Người học đã chọn gia sư khác', tone: 'neutral' };
-  if (item.tutorResponse === 'accepted') return { label: 'Đã xác nhận nhận lớp', tone: 'success' };
-  return { label: 'Chờ bạn phản hồi', tone: 'warning' };
-}
+const PROPOSAL_FILTER_OPTIONS: { value: ProposalFilter; label: string }[] = [
+  { value: 'pending', label: 'Chờ phản hồi' },
+  { value: 'accepted', label: 'Đã xác nhận' },
+  { value: 'declined', label: 'Đã từ chối' },
+];
 
 function ProposedTab() {
-  const [page, setPage] = useState(1);
-  const list = useTutorProposals(page);
-  const respond = useRespondToProposal();
-  const [dialog, setDialog] = useState<{ item: TutorProposalItem; accept: boolean } | null>(null);
-  const [reason, setReason] = useState('');
-  const [reasonError, setReasonError] = useState('');
+  const [params, setParams] = useSearchParams();
+  const page = pageOf(params.get('page'));
+  const q = params.get('q')?.trim() || undefined;
+  const status = PROPOSAL_FILTER_OPTIONS.find((item) => item.value === params.get('status'))?.value;
+  const [draft, setDraft] = useState(q ?? '');
+  const list = useTutorProposals({ page, q, status });
+  const [declining, setDeclining] = useState<TutorProposalItem | null>(null);
   const preview = isReadOnlyPreview();
 
-  function confirm() {
-    if (!dialog || preview || respond.isPending) return;
-    if (!dialog.accept && !reason.trim()) {
-      setReasonError('Vui lòng nhập lý do từ chối.');
-      return;
+  function update(next: { q?: string | undefined; status?: string | undefined; page?: number }) {
+    const search = new URLSearchParams(params);
+    for (const [key, value] of Object.entries(next)) {
+      if (value === undefined || value === '' || (key === 'page' && value === 1))
+        search.delete(key);
+      else search.set(key, String(value));
     }
-    respond.mutate(
-      dialog.accept
-        ? { id: dialog.item.id, accept: true }
-        : { id: dialog.item.id, accept: false, reason: reason.trim() },
-      { onSuccess: () => setDialog(null) },
-    );
+    if (!('page' in next)) search.delete('page');
+    setParams(search, { preventScrollReset: true });
   }
 
-  if (list.isPending) return <PageLoading label="Đang tải lớp được đề xuất…" />;
-  if (list.isError)
-    return <LoadError message={list.error.message} retry={() => void list.refetch()} />;
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    update({ q: draft.trim() || undefined, status });
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <p className="text-sm text-muted">
-        Các lớp trung tâm đề xuất cho bạn dựa trên hồ sơ. Lớp được đề xuất không cần chờ duyệt — hãy
-        xác nhận nhận lớp hoặc từ chối kèm lý do.
+        Các lớp phù hợp trung tâm đề xuất cho bạn dựa trên hồ sơ. Lớp được đề xuất không cần chờ
+        duyệt — hãy xác nhận nhận lớp hoặc từ chối kèm lý do.
       </p>
-      {list.data.items.length === 0 ? (
-        <EmptyState
-          title="Chưa có lớp được đề xuất"
-          description="Cập nhật hồ sơ gia sư đầy đủ để trung tâm đề xuất lớp phù hợp cho bạn."
-          action={<ButtonLink to="/tutor/profile">Cập nhật hồ sơ</ButtonLink>}
-        />
-      ) : (
-        <ul className="grid gap-4 lg:grid-cols-2">
-          {list.data.items.map((item) => {
-            const state = proposalState(item);
-            const open = item.status === 'proposed' && item.tutorResponse === null;
-            return (
-              <li key={item.id} className="min-w-0">
-                <article className={cardClass}>
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold text-muted">Yêu cầu {item.requestCode}</p>
-                      <h2 className="text-lg font-semibold text-primary">
-                        {item.subjectName} · {item.grade}
-                      </h2>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge tone="info">Phù hợp {item.fitScore}%</Badge>
-                      <Badge tone={state.tone}>{state.label}</Badge>
-                    </div>
-                  </div>
-                  <dl className="grid gap-3 text-sm">
-                    <Fact icon={MapPin} label="Khu vực">
-                      {item.mode === 'online' ? 'Trực tuyến' : `Trực tiếp · ${item.area ?? ''}`}
-                    </Fact>
-                    <Fact icon={Clock3} label="Lịch học">
-                      {proposalSchedule(item)}
-                    </Fact>
-                    <Fact icon={Wallet} label="Học phí dự kiến">
-                      Học phí dự kiến{' '}
-                      <strong className="text-primary">
-                        {item.expectedBudgetMinor === null
-                          ? 'thỏa thuận'
-                          : `${formatVnd(item.expectedBudgetMinor)}/buổi`}
-                      </strong>
-                    </Fact>
-                    <Fact icon={CalendarDays} label="Ngày đề xuất">
-                      Đề xuất ngày {formatDate(item.createdAt, 'Asia/Ho_Chi_Minh')}
-                    </Fact>
-                  </dl>
-                  {item.tutorResponse === 'declined' && item.tutorDeclineReason && (
-                    <p className="rounded-lg bg-surface p-3 text-sm">
-                      <span className="font-semibold">Lý do từ chối: </span>
-                      {item.tutorDeclineReason}
-                    </p>
-                  )}
-                  {item.tutorResponse === 'accepted' && item.status === 'proposed' && (
-                    <p className="rounded-lg bg-info-surface p-3 text-sm text-primary">
-                      Trung tâm đã nhận xác nhận của bạn và sẽ thông báo khi người học chọn gia sư.
-                    </p>
-                  )}
-                  {open && !preview && (
-                    <div className="mt-auto flex flex-wrap gap-3 border-t border-border pt-4">
-                      <Button
-                        className="gap-2"
-                        onClick={() => {
-                          respond.reset();
-                          setDialog({ item, accept: true });
-                        }}
-                      >
-                        <ClipboardCheck aria-hidden="true" className="size-4" />
-                        Xác nhận nhận lớp
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        className="gap-2 text-danger"
-                        onClick={() => {
-                          respond.reset();
-                          setReason('');
-                          setReasonError('');
-                          setDialog({ item, accept: false });
-                        }}
-                      >
-                        <X aria-hidden="true" className="size-4" />
-                        Từ chối
-                      </Button>
-                    </div>
-                  )}
-                </article>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <Pager
-        label="Trang lớp được đề xuất"
-        page={list.data.page}
-        pageSize={list.data.pageSize}
-        total={list.data.total}
-        onPage={setPage}
-      />
-      <ConfirmDialog
-        open={dialog !== null}
-        title={dialog?.accept ? 'Xác nhận nhận lớp?' : 'Từ chối lớp được đề xuất?'}
-        description={
-          dialog?.accept
-            ? `Bạn xác nhận nhận lớp ${dialog.item.subjectName} · ${dialog.item.grade}. Trung tâm sẽ liên hệ để hoàn tất thủ tục.`
-            : 'Lớp sẽ không còn được đề xuất cho người học. Hãy cho trung tâm biết lý do.'
-        }
-        confirmLabel={dialog?.accept ? 'Xác nhận nhận lớp' : 'Từ chối'}
-        tone={dialog?.accept ? 'primary' : 'danger'}
-        loading={respond.isPending}
-        onConfirm={confirm}
-        onCancel={() => setDialog(null)}
+      <form
+        role="search"
+        aria-label="Tìm lớp được đề xuất"
+        onSubmit={submit}
+        className="grid gap-3 rounded-xl border border-border bg-bg p-4 shadow-card sm:grid-cols-[1fr_14rem_auto] sm:items-end"
       >
-        {dialog && !dialog.accept && (
-          <TextareaField
-            label="Lý do từ chối"
-            required
-            maxLength={500}
-            value={reason}
-            error={reasonError || undefined}
-            onChange={(event) => {
-              setReason(event.target.value);
-              setReasonError('');
-            }}
+        <TextField
+          label="Từ khóa"
+          placeholder="Mã yêu cầu, môn học, lớp, khu vực…"
+          value={draft}
+          maxLength={100}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <SelectField
+          label="Trạng thái"
+          value={status ?? ''}
+          onChange={(event) => update({ status: event.target.value || undefined, q })}
+        >
+          <option value="">Tất cả</option>
+          {PROPOSAL_FILTER_OPTIONS.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
+        <Button type="submit" className="gap-2">
+          <Search aria-hidden="true" className="size-4" />
+          Tìm kiếm
+        </Button>
+      </form>
+      {list.isPending ? (
+        <PageLoading label="Đang tải lớp được đề xuất…" />
+      ) : list.isError ? (
+        <LoadError message={list.error.message} retry={() => void list.refetch()} />
+      ) : list.data.items.length === 0 ? (
+        q || status ? (
+          <EmptyState
+            title="Không có lớp phù hợp"
+            description="Thử từ khóa khác hoặc chọn trạng thái “Tất cả”."
           />
-        )}
-        {respond.isError && <Alert tone="danger">{respond.error.message}</Alert>}
-      </ConfirmDialog>
+        ) : (
+          <EmptyState
+            title="Chưa có lớp được đề xuất"
+            description="Cập nhật hồ sơ gia sư đầy đủ để trung tâm đề xuất lớp phù hợp cho bạn."
+            action={<ButtonLink to="/tutor/profile">Cập nhật hồ sơ</ButtonLink>}
+          />
+        )
+      ) : (
+        <>
+          <p className="text-sm text-muted" role="status">
+            Tìm thấy{' '}
+            <strong className="text-primary">{list.data.total.toLocaleString('vi-VN')}</strong> lớp
+            được đề xuất
+          </p>
+          <ul className="grid gap-4 lg:grid-cols-2">
+            {list.data.items.map((item) => {
+              const state = proposalStatus(item);
+              const note = proposalNote(item);
+              const detail = `/tutor/class-requests/de-xuat/${encodeURIComponent(item.id)}`;
+              return (
+                <li key={item.id} className="min-w-0">
+                  <article className={cardClass}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-muted">
+                          Yêu cầu {item.requestCode}
+                        </p>
+                        <h2 className="text-lg font-semibold text-primary">
+                          {item.subjectName} · {item.grade}
+                        </h2>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Badge tone="info">Phù hợp {item.fitScore}%</Badge>
+                        <Badge tone={state.tone}>{state.label}</Badge>
+                      </div>
+                    </div>
+                    <dl className="grid gap-3 text-sm">
+                      <Fact icon={MapPin} label="Khu vực">
+                        {item.mode === 'online' ? 'Trực tuyến' : `Trực tiếp · ${item.area ?? ''}`}
+                      </Fact>
+                      <Fact icon={Clock3} label="Lịch học">
+                        {proposalSchedule(item)}
+                      </Fact>
+                      <Fact icon={Wallet} label="Học phí dự kiến">
+                        Học phí dự kiến{' '}
+                        <strong className="text-primary">
+                          {item.expectedBudgetMinor === null
+                            ? 'thỏa thuận'
+                            : `${formatVnd(item.expectedBudgetMinor)}/buổi`}
+                        </strong>
+                      </Fact>
+                      <Fact icon={CalendarDays} label="Ngày đề xuất">
+                        Đề xuất ngày {formatDate(item.createdAt, 'Asia/Ho_Chi_Minh')}
+                      </Fact>
+                    </dl>
+                    {item.tutorResponse === 'declined' && item.tutorDeclineReason && (
+                      <p className="rounded-lg bg-surface p-3 text-sm">
+                        <span className="font-semibold">Lý do từ chối: </span>
+                        {item.tutorDeclineReason}
+                      </p>
+                    )}
+                    {note && (
+                      <p className="rounded-lg bg-info-surface p-3 text-sm text-primary">{note}</p>
+                    )}
+                    <div className="mt-auto flex flex-wrap gap-3 border-t border-border pt-4">
+                      <ButtonLink to={detail} variant="secondary" className="gap-2">
+                        <Eye aria-hidden="true" className="size-4" />
+                        Xem chi tiết
+                      </ButtonLink>
+                      {isPending(item) && !preview && (
+                        <>
+                          <ButtonLink to={`${detail}?xac-nhan=1`} className="gap-2">
+                            <ClipboardCheck aria-hidden="true" className="size-4" />
+                            Xác nhận nhận lớp
+                          </ButtonLink>
+                          <Button
+                            variant="secondary"
+                            className="gap-2 text-danger"
+                            onClick={() => setDeclining(item)}
+                          >
+                            <X aria-hidden="true" className="size-4" />
+                            Từ chối nhận lớp
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                </li>
+              );
+            })}
+          </ul>
+          <Pager
+            label="Trang lớp được đề xuất"
+            page={list.data.page}
+            pageSize={list.data.pageSize}
+            total={list.data.total}
+            onPage={(next) => update({ page: next, q, status })}
+          />
+        </>
+      )}
+      <DeclineProposalDialog
+        key={declining?.id ?? 'none'}
+        item={declining}
+        onClose={() => setDeclining(null)}
+      />
     </div>
   );
 }

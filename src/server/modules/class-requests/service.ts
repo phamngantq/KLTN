@@ -3,9 +3,15 @@ import type {
   CompletedAcceptance,
   IntroductionLetter,
   ScheduleWindow,
+  ProposalFilter,
   TutorProposalItem,
 } from '../../../shared/schemas/class-requests';
 import type { Page } from '../../../shared/schemas/discovery';
+import {
+  feeSessionsPerWeek,
+  PLACEMENT_FEE_OPTION_KEY,
+  placementFee,
+} from '../../../shared/schemas/classes';
 import { AppError } from '../../lib/errors';
 import { COMPLETED } from './sql';
 
@@ -137,14 +143,36 @@ interface ProposalRow {
   tutor_responded_at: string | null;
   tutor_decline_reason: string | null;
   created_at: string;
+  tutor_requirements: string;
+  student_traits: string;
+  placement_rate_bp: number | null;
 }
+
+/** Rate of the placement-fee policy that applies to the request now (most specific first). */
+const PLACEMENT_RATE = `(SELECT f.rate_basis_points FROM fee_option_versions f
+  WHERE f.option_key = '${PLACEMENT_FEE_OPTION_KEY}' AND f.status = 'published'
+    AND f.published_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    AND (f.effective_from IS NULL OR f.effective_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    AND (f.effective_to IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', 'now') < f.effective_to)
+    AND (f.scope_subject_id IS NULL OR f.scope_subject_id = q.subject_id)
+    AND (f.scope_mode IS NULL OR f.scope_mode = q.mode)
+  ORDER BY ((f.scope_subject_id IS NOT NULL) + (f.scope_mode IS NOT NULL)) DESC,
+    f.version DESC LIMIT 1)`;
 
 const proposalSelect = `SELECT p.id, p.request_id, q.code AS request_code, s.name AS subject_name,
   q.grade, q.mode, q.area, q.expected_budget_minor, q.sessions_per_week, p.fit_score, p.status,
-  p.tutor_response, p.tutor_responded_at, p.tutor_decline_reason, p.created_at
+  p.tutor_response, p.tutor_responded_at, p.tutor_decline_reason, p.created_at,
+  q.tutor_requirements, q.student_traits, ${PLACEMENT_RATE} AS placement_rate_bp
   FROM request_tutor_proposals p
   JOIN parent_requests q ON q.id = p.request_id
   JOIN subjects s ON s.id = q.subject_id`;
+
+/** "Chờ phản hồi" / "Đã xác nhận" / "Đã từ chối" as SQL over the proposal `p`. */
+const PROPOSAL_FILTERS: Record<ProposalFilter, string> = {
+  pending: `p.tutor_response IS NULL AND p.status = 'proposed'`,
+  accepted: `p.tutor_response = 'accepted'`,
+  declined: `p.tutor_response = 'declined'`,
+};
 
 async function proposalItems(db: D1Database, rows: ProposalRow[]): Promise<TutorProposalItem[]> {
   if (rows.length === 0) return [];
@@ -157,47 +185,87 @@ async function proposalItems(db: D1Database, rows: ProposalRow[]): Promise<Tutor
     )
     .bind(...rows.map((row) => row.request_id))
     .all<ScheduleWindow & { request_id: string }>();
-  return rows.map((row) => ({
-    id: row.id,
-    requestCode: row.request_code,
-    subjectName: row.subject_name,
-    grade: row.grade,
-    mode: row.mode,
-    area: row.area,
-    expectedBudgetMinor: row.expected_budget_minor,
-    sessionsPerWeek: row.sessions_per_week,
-    schedule: windows.results
+  return rows.map((row) => {
+    const schedule = windows.results
       .filter((window) => window.request_id === row.request_id)
-      .map(({ weekday, startLocal, endLocal }) => ({ weekday, startLocal, endLocal })),
-    fitScore: row.fit_score,
-    status: row.status,
-    tutorResponse: row.tutor_response,
-    tutorRespondedAt: row.tutor_responded_at,
-    tutorDeclineReason: row.tutor_decline_reason,
-    createdAt: row.created_at,
-  }));
+      .map(({ weekday, startLocal, endLocal }) => ({ weekday, startLocal, endLocal }));
+    return {
+      id: row.id,
+      requestCode: row.request_code,
+      subjectName: row.subject_name,
+      grade: row.grade,
+      mode: row.mode,
+      area: row.area,
+      expectedBudgetMinor: row.expected_budget_minor,
+      sessionsPerWeek: row.sessions_per_week,
+      schedule,
+      fitScore: row.fit_score,
+      status: row.status,
+      tutorResponse: row.tutor_response,
+      tutorRespondedAt: row.tutor_responded_at,
+      tutorDeclineReason: row.tutor_decline_reason,
+      createdAt: row.created_at,
+      tutorRequirements: row.tutor_requirements.trim() || null,
+      studentTraits: row.student_traits.trim() || null,
+      placementRateBasisPoints: row.placement_rate_bp,
+      placementFeeMinor: placementFee(
+        row.expected_budget_minor,
+        feeSessionsPerWeek(row.sessions_per_week, schedule.length),
+        row.placement_rate_bp,
+      ),
+    };
+  });
 }
 
 export async function listProposals(
   db: D1Database,
   tutorId: string,
-  page: number,
-  pageSize: number,
+  query: {
+    page: number;
+    pageSize: number;
+    q?: string | undefined;
+    status?: ProposalFilter | undefined;
+  },
 ): Promise<Page<TutorProposalItem>> {
+  const conditions = ['p.tutor_user_id = ?'];
+  const params: unknown[] = [tutorId];
+  if (query.status) conditions.push(PROPOSAL_FILTERS[query.status]);
+  if (query.q) {
+    const pattern = `%${query.q.replace(/[!%_]/g, (char) => `!${char}`)}%`;
+    conditions.push(`(q.code LIKE ? ESCAPE '!' OR s.name LIKE ? ESCAPE '!'
+      OR q.grade LIKE ? ESCAPE '!' OR q.area LIKE ? ESCAPE '!')`);
+    params.push(pattern, pattern, pattern, pattern);
+  }
+  const where = `WHERE ${conditions.join(' AND ')}`;
   const [rows, total] = await Promise.all([
     db
-      .prepare(
-        `${proposalSelect} WHERE p.tutor_user_id = ?
-         ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?`,
-      )
-      .bind(tutorId, pageSize, (page - 1) * pageSize)
+      .prepare(`${proposalSelect} ${where} ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?`)
+      .bind(...params, query.pageSize, (query.page - 1) * query.pageSize)
       .all<ProposalRow>(),
     db
-      .prepare('SELECT count(*) AS count FROM request_tutor_proposals WHERE tutor_user_id = ?')
-      .bind(tutorId)
+      .prepare(
+        `SELECT count(*) AS count FROM request_tutor_proposals p
+         JOIN parent_requests q ON q.id = p.request_id
+         JOIN subjects s ON s.id = q.subject_id ${where}`,
+      )
+      .bind(...params)
       .first<{ count: number }>(),
   ]);
-  return { items: await proposalItems(db, rows.results), page, pageSize, total: total?.count ?? 0 };
+  return {
+    items: await proposalItems(db, rows.results),
+    page: query.page,
+    pageSize: query.pageSize,
+    total: total?.count ?? 0,
+  };
+}
+
+export async function getProposal(
+  db: D1Database,
+  tutorId: string,
+  id: string,
+): Promise<TutorProposalItem> {
+  const [item] = await proposalItems(db, [await ownProposal(db, tutorId, id)]);
+  return item!;
 }
 
 async function ownProposal(db: D1Database, tutorId: string, id: string) {
@@ -214,7 +282,8 @@ export async function respondToProposal(
   db: D1Database,
   tutorId: string,
   id: string,
-  response: { accept: true } | { accept: false; reason: string },
+  /** Confirming needs the "Điều khoản trách nhiệm" agreement; declining needs a reason. */
+  response: { accept: true; termsAgreed: true } | { accept: false; reason: string },
 ): Promise<TutorProposalItem> {
   const current = await ownProposal(db, tutorId, id);
   if (current.status !== 'proposed' || current.tutor_response !== null)
@@ -243,7 +312,10 @@ export async function respondToProposal(
           tutorId,
           `proposal.tutor_${value}`,
           id,
-          JSON.stringify({ requestId: current.request_id }),
+          JSON.stringify({
+            requestId: current.request_id,
+            ...(response.accept && { termsAgreed: true }),
+          }),
           now,
           id,
           value,

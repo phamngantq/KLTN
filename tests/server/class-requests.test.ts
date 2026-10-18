@@ -327,6 +327,7 @@ describe('tutor class requests', () => {
         .run();
       return id;
     };
+    await seedFee(moderator);
     const acceptId = await propose(accepting.userId, 95);
     const declineId = await propose(declining.userId, 90);
 
@@ -339,15 +340,43 @@ describe('tutor class requests', () => {
       area: 'Phường Cầu Giấy, Hà Nội',
       schedule: [{ weekday: 1, startLocal: '18:00', endLocal: '19:30' }],
       tutorResponse: null,
+      // 40% × 250.000 × 1 buổi/tuần (one weekly slot) × 4 tuần.
+      placementRateBasisPoints: 4000,
+      placementFeeMinor: 400_000,
     });
     // Public request facts only.
     expect(JSON.stringify(mine.items[0])).not.toMatch(/0912345678|Mô tả riêng tư|đường thử/);
 
+    expect(
+      (await get<TutorProposalItem>(`/tutor/class-requests/proposals/${acceptId}`, accepting)).id,
+    ).toBe(acceptId);
+    expect(
+      (
+        await api(`/tutor/class-requests/proposals/${acceptId}`, {
+          headers: { Cookie: declining.cookie },
+        })
+      ).status,
+    ).toBe(404);
+    const list = (session: Session, query: string) =>
+      get<Page<TutorProposalItem>>(`/tutor/class-requests/proposals${query}`, session);
+    expect((await list(accepting, '?status=pending')).total).toBe(1);
+    expect((await list(accepting, `?q=${encodeURIComponent(request.code)}`)).total).toBe(1);
+    expect((await list(accepting, '?q=khong-co')).total).toBe(0);
+
     const path = (id: string, action: string) => `/tutor/class-requests/proposals/${id}/${action}`;
-    expect((await api(path(acceptId, 'accept'), jsonInit('POST', {}, declining))).status).toBe(404);
-    const accepted = await data<TutorProposalItem>(
-      await api(path(acceptId, 'accept'), jsonInit('POST', {}, accepting)),
+    const agree = { termsAgreed: true };
+    expect((await api(path(acceptId, 'accept'), jsonInit('POST', agree, declining))).status).toBe(
+      404,
     );
+    // Confirming needs the "Điều khoản trách nhiệm" agreement.
+    expect((await api(path(acceptId, 'accept'), jsonInit('POST', {}, accepting))).status).toBe(422);
+    const accepted = await data<TutorProposalItem>(
+      await api(path(acceptId, 'accept'), jsonInit('POST', agree, accepting)),
+    );
+    expect((await list(accepting, '?status=pending')).total).toBe(0);
+    expect((await list(accepting, '?status=accepted')).items.map((item) => item.id)).toEqual([
+      acceptId,
+    ]);
     expect(accepted).toMatchObject({ tutorResponse: 'accepted', tutorDeclineReason: null });
     expect(
       (await api(path(acceptId, 'decline'), jsonInit('POST', { reason: 'x' }, accepting))).status,
@@ -366,6 +395,8 @@ describe('tutor class requests', () => {
       tutorResponse: 'declined',
       tutorDeclineReason: 'Trùng lịch dạy',
     });
+    expect((await list(declining, '?status=declined')).total).toBe(1);
+    expect((await list(declining, '?status=accepted')).total).toBe(0);
 
     const own = await get<OwnParentRequest>(`/parent/requests/${request.id}`, learner);
     expect(own.proposals.map((item) => item.id)).toEqual([acceptId]);

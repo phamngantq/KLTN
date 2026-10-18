@@ -78,6 +78,31 @@ function application(
   };
 }
 
+function proposalItem(id: string, overrides: Partial<TutorProposalItem> = {}): TutorProposalItem {
+  return {
+    id,
+    requestCode: `YC-${id}`,
+    subjectName: 'Hóa học',
+    grade: 'Lớp 11',
+    mode: 'offline',
+    area: 'Đống Đa',
+    expectedBudgetMinor: 250_000,
+    sessionsPerWeek: 2,
+    schedule: [{ weekday: 3, startLocal: '18:00', endLocal: '19:30' }],
+    fitScore: 92,
+    status: 'proposed',
+    tutorResponse: null,
+    tutorRespondedAt: null,
+    tutorDeclineReason: null,
+    createdAt: '2026-10-15T01:00:00.000Z',
+    tutorRequirements: 'Ôn thi học kỳ',
+    studentTraits: null,
+    placementRateBasisPoints: 4000,
+    placementFeeMinor: 800_000,
+    ...overrides,
+  };
+}
+
 const page = (items: unknown[]) => ({
   data: { items, total: items.length, page: 1, pageSize: 12 },
 });
@@ -199,46 +224,106 @@ describe('tutor class requests page', () => {
     expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
   });
 
-  it('confirms or declines a centre proposal, requiring a reason to decline', async () => {
-    const proposal: TutorProposalItem = {
-      id: 'p1',
-      requestCode: 'YC-1',
-      subjectName: 'Hóa học',
-      grade: 'Lớp 11',
-      mode: 'offline',
-      area: 'Đống Đa',
-      expectedBudgetMinor: 250_000,
-      sessionsPerWeek: 2,
-      schedule: [{ weekday: 3, startLocal: '18:00', endLocal: '19:30' }],
-      fitScore: 92,
-      status: 'proposed',
-      tutorResponse: null,
-      tutorRespondedAt: null,
-      tutorDeclineReason: null,
-      createdAt: '2026-10-15T01:00:00.000Z',
-    };
+  it('lists proposals with search and status filter, declining only with a reason', async () => {
+    const pending = proposalItem('p1');
+    const accepted = proposalItem('p2', {
+      subjectName: 'Toán',
+      tutorResponse: 'accepted',
+      tutorRespondedAt: '2026-10-16T01:00:00.000Z',
+    });
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path.startsWith('/tutor/class-requests/proposals?')) return page([proposal]);
+      if (req.path.startsWith('/tutor/class-requests/proposals?')) return page([pending, accepted]);
       if (req.path === '/tutor/class-requests/proposals/p1/decline')
-        return { data: { ...proposal, tutorResponse: 'declined', tutorDeclineReason: 'Bận' } };
+        return { data: { ...pending, tutorResponse: 'declined', tutorDeclineReason: 'Bận' } };
       return undefined;
     });
     renderRoute('/tutor/class-requests?tab=de-xuat');
-    const card = await screen.findByRole('article');
-    expect(within(card).getByText('Phù hợp 92%')).toBeTruthy();
-    expect(within(card).getByText('Chờ bạn phản hồi')).toBeTruthy();
-    expect(within(card).getByRole('button', { name: 'Xác nhận nhận lớp' })).toBeTruthy();
-    fireEvent.click(within(card).getByRole('button', { name: 'Từ chối' }));
+    const [open, done] = (await screen.findAllByRole('article')) as [HTMLElement, HTMLElement];
+    expect(within(open).getByText('Phù hợp 92%')).toBeTruthy();
+    expect(within(open).getByText('Chờ phản hồi')).toBeTruthy();
+    expect(within(open).getByRole('link', { name: 'Xem chi tiết' }).getAttribute('href')).toBe(
+      '/tutor/class-requests/de-xuat/p1',
+    );
+    expect(within(open).getByRole('link', { name: 'Xác nhận nhận lớp' }).getAttribute('href')).toBe(
+      '/tutor/class-requests/de-xuat/p1?xac-nhan=1',
+    );
+    // Actions only while the proposal waits for the tutor.
+    expect(within(done).getByText('Đã xác nhận')).toBeTruthy();
+    expect(within(done).queryByRole('link', { name: 'Xác nhận nhận lớp' })).toBeNull();
+    expect(within(done).queryByRole('button', { name: 'Từ chối nhận lớp' })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'accepted' } });
+    await waitFor(() =>
+      expect(calls.some((call) => call.path.includes('status=accepted'))).toBe(true),
+    );
+    fireEvent.change(screen.getByLabelText('Từ khóa'), { target: { value: 'Hóa' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm kiếm' }));
+    await waitFor(() =>
+      expect(calls.some((call) => call.path.includes(`q=${encodeURIComponent('Hóa')}`))).toBe(true),
+    );
+
+    fireEvent.click(within(open).getByRole('button', { name: 'Từ chối nhận lớp' }));
     const dialog = await screen.findByRole('dialog', { hidden: true });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Từ chối', hidden: true }));
-    expect(await within(dialog).findByText('Vui lòng nhập lý do từ chối.')).toBeTruthy();
+    const send = within(dialog).getByRole('button', { name: 'Xác nhận từ chối', hidden: true });
+    fireEvent.click(send);
+    expect(await within(dialog).findByText('Vui lòng nhập lý do từ chối nhận lớp.')).toBeTruthy();
     expect(calls.some((call) => call.path.endsWith('/decline'))).toBe(false);
-    fireEvent.change(within(dialog).getByLabelText(/Lý do từ chối/), { target: { value: 'Bận' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Từ chối', hidden: true }));
+    fireEvent.change(within(dialog).getByLabelText(/Lý do từ chối nhận lớp/), {
+      target: { value: 'Bận' },
+    });
+    fireEvent.click(send);
     await waitFor(() =>
       expect(calls.find((call) => call.path.endsWith('/decline'))?.body).toEqual({ reason: 'Bận' }),
     );
+  });
+
+  it('confirms a proposal only after the terms checkbox, showing the fee and procedure', async () => {
+    let current = proposalItem('p1');
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/class-requests/proposals/p1') return { data: current };
+      if (req.path === '/tutor/class-requests/proposals/p1/accept') {
+        current = {
+          ...current,
+          tutorResponse: 'accepted',
+          tutorRespondedAt: '2026-10-18T01:00:00.000Z',
+        };
+        return { data: current };
+      }
+      return undefined;
+    });
+    renderRoute('/tutor/class-requests/de-xuat/p1');
+    expect(await screen.findByRole('heading', { name: 'Chi tiết lớp được đề xuất' })).toBeTruthy();
+    expect(screen.getByText('Ôn thi học kỳ')).toBeTruthy();
+    expect(screen.getByText('Chờ phản hồi')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận nhận lớp' }));
+
+    const panel = await screen.findByRole('region', { name: 'Xác nhận nhận lớp' });
+    expect(within(panel).getByText('800.000 ₫')).toBeTruthy();
+    expect(within(panel).getByText('Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội')).toBeTruthy();
+    expect(
+      within(panel).getByText(/thông tin liên hệ của phụ huynh và thư giới thiệu/),
+    ).toBeTruthy();
+    const confirm = within(panel).getByRole('button', { name: 'Xác nhận nhận lớp' });
+    expect((confirm as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(
+      within(panel).getByLabelText(
+        'Tôi xác nhận đã đọc và đồng ý với Điều khoản trách nhiệm của trung tâm.',
+      ),
+    );
+    expect((confirm as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(confirm);
+    await waitFor(() =>
+      expect(calls.find((call) => call.path.endsWith('/accept'))?.body).toEqual({
+        termsAgreed: true,
+      }),
+    );
+    // Status refreshes right away.
+    expect(await screen.findByText('Đã xác nhận')).toBeTruthy();
+    expect(await screen.findByText('Đã xác nhận nhận lớp')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Từ chối nhận lớp' })).toBeNull();
+    expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
   });
 
   it('shows completed classes with contact on demand and a printable letter', async () => {

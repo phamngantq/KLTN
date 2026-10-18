@@ -1,7 +1,9 @@
 import { Hono } from 'hono';
 import {
+  acceptProposalSchema,
   classRequestPageSchema,
   declineProposalSchema,
+  proposalListSchema,
   type CompletedAcceptance,
   type IntroductionLetter,
   type TutorProposalItem,
@@ -17,21 +19,28 @@ import * as service from './service';
 export const tutorClassRequestRoutes = new Hono<AppEnv>();
 tutorClassRequestRoutes.use('*', requireRole('tutor'));
 
-tutorClassRequestRoutes.get('/proposals', async (c) => {
-  const { page, pageSize } = parseQuery(c, classRequestPageSchema);
-  return ok<Page<TutorProposalItem>>(
+tutorClassRequestRoutes.get('/proposals', async (c) =>
+  ok<Page<TutorProposalItem>>(
     c,
-    await service.listProposals(c.env.DB, authOf(c).user.id, page, pageSize),
-  );
-});
-tutorClassRequestRoutes.post('/proposals/:id/accept', async (c) =>
+    await service.listProposals(c.env.DB, authOf(c).user.id, parseQuery(c, proposalListSchema)),
+  ),
+);
+tutorClassRequestRoutes.get('/proposals/:id', async (c) =>
   ok<TutorProposalItem>(
+    c,
+    await service.getProposal(c.env.DB, authOf(c).user.id, c.req.param('id')),
+  ),
+);
+tutorClassRequestRoutes.post('/proposals/:id/accept', async (c) => {
+  const { termsAgreed } = await parseJsonBody(c, acceptProposalSchema);
+  return ok<TutorProposalItem>(
     c,
     await service.respondToProposal(c.env.DB, authOf(c).user.id, c.req.param('id'), {
       accept: true,
+      termsAgreed,
     }),
-  ),
-);
+  );
+});
 tutorClassRequestRoutes.post('/proposals/:id/decline', async (c) => {
   const { reason } = await parseJsonBody(c, declineProposalSchema);
   return ok<TutorProposalItem>(

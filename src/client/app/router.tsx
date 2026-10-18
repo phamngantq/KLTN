@@ -429,6 +429,13 @@ const tutorRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'class-requests/de-xuat/:proposalId',
+    ...page(async () => {
+      const { TutorProposalDetailPage } = await import('../pages/tutor/TutorProposalDetailPage');
+      return <TutorProposalDetailPage />;
+    }),
+  },
+  {
     path: 'class-requests/chi-tiet/:applicationId',
     ...page(async () => {
       const { TutorClassRequestDetailPage } =

@@ -3,6 +3,7 @@ import type { AssignedParentContact } from '../../../shared/schemas/admin-assign
 import type {
   CompletedAcceptance,
   IntroductionLetter,
+  ProposalFilter,
   TutorProposalItem,
 } from '../../../shared/schemas/class-requests';
 import type { ApplicationStatus } from '../../../shared/schemas/classes';
@@ -34,12 +35,16 @@ export function useRegisteredClasses(filters: {
   });
 }
 
-export function useTutorProposals(page: number) {
+export function useTutorProposals(filters: {
+  page: number;
+  q?: string | undefined;
+  status?: ProposalFilter | undefined;
+}) {
   const { user } = useSession();
   return useQuery({
-    queryKey: [...requestsKey, 'proposals', user?.id, page],
+    queryKey: [...requestsKey, 'proposals', user?.id, 'list', filters],
     queryFn: ({ signal }) =>
-      api.get<Page<TutorProposalItem>>(`/tutor/class-requests/proposals${toQuery({ page })}`, {
+      api.get<Page<TutorProposalItem>>(`/tutor/class-requests/proposals${toQuery(filters)}`, {
         signal,
       }),
     enabled: user?.role === 'tutor',
@@ -47,6 +52,19 @@ export function useTutorProposals(page: number) {
   });
 }
 
+export function useTutorProposal(id: string | undefined) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...requestsKey, 'proposals', user?.id, 'detail', id],
+    queryFn: ({ signal }) =>
+      api.get<TutorProposalItem>(`/tutor/class-requests/proposals/${encodeURIComponent(id!)}`, {
+        signal,
+      }),
+    enabled: Boolean(id && user?.role === 'tutor'),
+  });
+}
+
+/** Confirm (with the terms agreement) or decline (with a reason); every proposal view refreshes. */
 export function useRespondToProposal() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -56,7 +74,7 @@ export function useRespondToProposal() {
       input.accept
         ? api.post<TutorProposalItem>(
             `/tutor/class-requests/proposals/${encodeURIComponent(input.id)}/accept`,
-            {},
+            { termsAgreed: true },
           )
         : api.post<TutorProposalItem>(
             `/tutor/class-requests/proposals/${encodeURIComponent(input.id)}/decline`,
