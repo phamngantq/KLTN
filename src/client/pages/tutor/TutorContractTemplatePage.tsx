@@ -3,111 +3,257 @@ import type { CSSProperties, ReactNode } from 'react';
 import type { TutorProfile } from '../../../shared/schemas/tutors';
 import { Button } from '../../components/ui/Button';
 import { PageLoading } from '../../components/ui/Spinner';
-import { usePublishedContent } from '../../features/content/api';
 import { useOwnProfile } from '../../features/tutor-profile/api';
 
-/** Bên A as printed on the contract. Unknown facts stay blank (dotted) rather than invented. */
-const PARTY_A = {
-  company: 'CÔNG TY GIÁO DỤC GROWGREEN',
-  centre: 'TRUNG TÂM GIA SƯ GROWGREEN',
-  name: 'Trung tâm Gia sư GrowGreen',
-  address: 'Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội',
-  phone: '0394 618 480',
-  email: 'tuyendunggiasugio@gmail.com',
-  website: null as string | null,
-};
+const CENTRE = 'Trung tâm Gia sư Sư phạm Đỗ Hằng';
+const CENTRE_ADDRESS = 'Tầng 7, Số 41–43, Đường Khuất Duy Tiến, P. Thanh Xuân, TP Hà Nội.';
+
+/** Body blocks of one article, in reading order. */
+type Block =
+  | { kind: 'p'; text: string }
+  | { kind: 'sub'; text: string }
+  | { kind: 'item'; text: string }
+  | { kind: 'refunds' };
 
 interface Article {
   title: string;
-  paragraphs: string[];
+  blocks: Block[];
 }
 
-/** Used when the centre has not published its own contract text as "Điều 1…" sections. */
-const DEFAULT_ARTICLES: Article[] = [
+const p = (text: string): Block => ({ kind: 'p', text });
+const sub = (text: string): Block => ({ kind: 'sub', text });
+const item = (text: string): Block => ({ kind: 'item', text });
+
+/** "Bảng 5.1" — refund levels per class. */
+const REFUNDS: [string, string, string][] = [
+  [
+    'Mức 1',
+    '100%',
+    'Bên A cung cấp sai thông tin về lớp dạy, nhu cầu học của PH/HV; PH/HV thay đổi nhu cầu không học trước khi Bên B gọi điện trao đổi, gặp mặt; Các bên không thỏa thuận được nội dung phát sinh thêm so với nhu cầu ban đầu; PH/HV không bố trí được buổi học đầu tiên trong 15 ngày kể từ ngày Bên B nhận lớp mà không do lỗi hoặc vi phạm của Bên B.',
+  ],
+  [
+    'Mức 2',
+    '75%',
+    'PH/HV báo nghỉ do không hài lòng về cách trao đổi của Bên B (nói chuyện không tự tin, không lưu loát, chưa có kinh nghiệm đi dạy…); hoặc Bên B dạy 1–2 buổi đầu mà PH/HV báo nghỉ do phương pháp dạy không phù hợp.',
+  ],
+  [
+    'Mức 3',
+    '50%',
+    'Bên B dạy 1–2 buổi đầu mà PH/HV báo nghỉ dạy và phản hồi không tốt về tác phong, kỹ năng, chuyên môn, kiến thức… của Bên B.',
+  ],
+  [
+    'Mức 4',
+    '0%',
+    'Bên B vi phạm nghĩa vụ tại Khoản 2 Điều 3 và hành vi vi phạm là nguyên nhân trực tiếp dẫn đến việc PH/HV từ chối, hủy hoặc chấm dứt lớp.',
+  ],
+];
+
+/** "Hợp đồng nhận lớp dạy gia sư" — the centre's rules for taking classes, as provided. */
+const ARTICLES: Article[] = [
   {
-    title: 'Điều 1. Nội dung hợp đồng',
-    paragraphs: [
-      '1.1. Bên A giới thiệu cho Bên B lớp học phù hợp với chuyên môn và thời gian của Bên B; thông tin lớp (môn học, khối lớp, địa điểm, lịch học, học phí) được ghi trong phụ lục hoặc thư giới thiệu kèm theo hợp đồng này.',
-      '1.2. Bên B nhận lớp, trực tiếp giảng dạy theo đúng lịch học và nội dung đã thống nhất với phụ huynh/học viên.',
+    title: 'ĐIỀU 1. PHẠM VI VÀ HIỆU LỰC ÁP DỤNG',
+    blocks: [
+      p(
+        '1.1. Hợp đồng này là hợp đồng nguyên tắc, áp dụng chung cho tất cả các lớp mà Bên B nhận thông qua Bên A kể từ ngày ký. Bên B chỉ cần ký Hợp đồng này một lần và không phải ký lại cho mỗi lần nhận lớp tiếp theo.',
+      ),
+      p(
+        '1.2. Bên A đồng ý giới thiệu và hỗ trợ kết nối Bên B với phụ huynh/học viên (gọi tắt là PH/HV) có nhu cầu học tập; Bên B đồng ý nhận lớp và giảng dạy theo nội quy, quy định của Bên A.',
+      ),
+      p(
+        '1.3. Thông tin riêng của từng lớp (mã lớp, môn học, khối lớp, hình thức dạy, địa điểm, số buổi, thời lượng, học phí, phí nhận lớp, thông tin PH/HV) do Bên A cung cấp và Bên B xác nhận trước mỗi lần nhận lớp bằng “Phiếu xác nhận nhận lớp” (mẫu tại Phụ lục 01) hoặc xác nhận nhận lớp trên hệ thống của Bên A. Phiếu xác nhận từng lớp là phụ lục không tách rời của Hợp đồng này.',
+      ),
+      p(
+        '1.4. Thông tin nhu cầu học trong từng lớp là thông tin PH/HV đã cung cấp và xác nhận với Bên A.',
+      ),
     ],
   },
   {
-    title: 'Điều 2. Phí nhận lớp và phương thức thanh toán',
-    paragraphs: [
-      '2.1. Bên B thanh toán cho Bên A phí nhận lớp theo bảng giá hiện hành của Bên A: 40% × học phí một buổi × số buổi mỗi tuần × 4 tuần.',
-      '2.2. Phí nhận lớp được thanh toán bằng tiền mặt tại văn phòng Bên A hoặc chuyển khoản vào tài khoản của Bên A trước khi Bên B nhận thông tin liên hệ của phụ huynh/học viên.',
-      '2.3. Việc hoàn phí (nếu có) thực hiện theo quy định hoàn phí do Bên A công bố tại thời điểm ký hợp đồng.',
+    title: 'ĐIỀU 2. PHÍ NHẬN LỚP',
+    blocks: [
+      p(
+        '2.1. Phí dịch vụ nhận lớp chỉ thu một lần đối với mỗi lớp. Mức phí cụ thể tùy thuộc vào từng lớp, được Bên A thông báo và Bên B xác nhận trước khi nhận lớp (ghi trong Phiếu xác nhận nhận lớp của lớp đó).',
+      ),
+      p(
+        '2.2. Hình thức thanh toán phí nhận lớp của từng lớp (chuyển khoản hoặc tiền mặt tại Trung tâm) được ghi trong Phiếu xác nhận nhận lớp.',
+      ),
+      p(
+        '2.3. Bên A có hỗ trợ Bên B nợ phí khi qua trực tiếp Trung tâm nhận lớp và trong thời hạn tối đa 15 ngày (tính theo từng lớp). Bên B có trách nhiệm thanh toán đúng thời hạn và cung cấp giấy tờ cần thiết theo yêu cầu của Bên A. Số tiền nợ và hạn thanh toán của từng lớp được ghi trong Phiếu xác nhận nhận lớp.',
+      ),
     ],
   },
   {
-    title: 'Điều 3. Quyền và nghĩa vụ của Bên A',
-    paragraphs: [
-      '3.1. Cung cấp đầy đủ, trung thực thông tin lớp học và thư giới thiệu cho Bên B sau khi Bên B hoàn tất thủ tục nhận lớp.',
-      '3.2. Hỗ trợ, phối hợp giải quyết các vướng mắc phát sinh giữa Bên B và phụ huynh/học viên trong quá trình giảng dạy.',
-      '3.3. Bảo mật thông tin cá nhân của Bên B, chỉ sử dụng cho mục đích giới thiệu và quản lý lớp học.',
+    title: 'ĐIỀU 3. TRÁCH NHIỆM CỦA MỖI BÊN',
+    blocks: [
+      sub('3.1. Trách nhiệm của Bên A'),
+      item(
+        'Liên hệ với PH/HV để giới thiệu thông tin cơ bản của Bên B như: bằng cấp, thẻ sinh viên, giấy khen, kinh nghiệm… và hỗ trợ Bên B kết nối với PH/HV.',
+      ),
+      item(
+        'Cung cấp đầy đủ, chính xác cho Bên B thông tin về nhu cầu học theo nội dung PH/HV đã cung cấp và xác nhận với Bên A.',
+      ),
+      item(
+        'Hỗ trợ, hướng dẫn và giải đáp cho Bên B các vấn đề liên quan đến quá trình nhận lớp, giảng dạy và xử lý các tình huống phát sinh trong phạm vi trách nhiệm của Bên A.',
+      ),
+      item(
+        'Bảo hành lớp cho Bên B trong thời hạn 45 ngày kể từ ngày nhận lớp theo quy định tại Điều 4 và Điều 5 của Hợp đồng này.',
+      ),
+      sub('3.2. Trách nhiệm của Bên B'),
+      sub('a) Về hồ sơ, năng lực:'),
+      item(
+        'Chịu trách nhiệm về tính chính xác, trung thực và hợp pháp của thông tin cá nhân, bằng cấp, thẻ sinh viên, thẻ giáo viên và các giấy tờ liên quan đã cung cấp cho Bên A.',
+      ),
+      item(
+        'Đồng ý để Bên A sử dụng và cung cấp cho PH/HV các thông tin, hình ảnh và giấy tờ thuộc hồ sơ gia sư của Bên B trong phạm vi cần thiết nhằm mục đích giới thiệu, kết nối lớp và xác minh thông tin, năng lực của Bên B.',
+      ),
+      item(
+        'Chịu trách nhiệm về kiến thức, chuyên môn, tác phong và kỹ năng giảng dạy; đồng thời đảm bảo đủ năng lực, thời gian và sức khỏe để thực hiện việc giảng dạy trước khi quyết định nhận lớp.',
+      ),
+      item(
+        'Xuất trình giấy tờ tùy thân, bằng cấp và các giấy tờ liên quan khi đến gặp PH/HV, đồng thời chịu trách nhiệm về tính chính xác, hợp pháp của các giấy tờ đó. Trường hợp Bên B không xuất trình được giấy tờ cần thiết dẫn đến PH/HV từ chối nhận gia sư thì Bên B tự chịu trách nhiệm và Bên A không có trách nhiệm bảo hành hoặc hoàn phí.',
+      ),
+      sub('b) Về bảo mật thông tin:'),
+      item(
+        'Bảo mật toàn bộ thông tin về PH/HV do Bên A cung cấp và không được tiết lộ, chuyển giao hoặc cung cấp các thông tin này cho bên thứ ba khi chưa có sự đồng ý của Bên A.',
+      ),
+      sub('c) Về liên hệ và thông báo:'),
+      item(
+        'Sau khi nhận thông tin PH/HV, Bên B phải liên hệ trong vòng 04 giờ và chủ động hẹn lịch sớm nhất. Trường hợp Bên B chậm liên hệ hoặc không thực hiện lịch đã hẹn dẫn đến hỏng lớp, Bên A không có trách nhiệm bảo hành hoặc hoàn phí. Trường hợp bất khả kháng, Bên B phải thông báo ngay cho Bên A để được theo dõi và hỗ trợ kịp thời.',
+      ),
+      item(
+        'Trong quá trình nhận lớp, nếu phát sinh bất kỳ nội dung nào khác với thông tin hoặc thỏa thuận ban đầu giữa Bên A và PH/HV, Bên B có trách nhiệm thông báo cho Bên A trong vòng 12 giờ kể từ thời điểm phát hiện để Bên A kịp thời xác minh và giải quyết.',
+      ),
+      sub('d) Về giảng dạy và buổi dạy thử:'),
+      item(
+        'Chờ PH/HV sắp xếp buổi học đầu tiên trong thời hạn tối đa 15 ngày kể từ ngày nhận lớp và thực hiện 01 buổi dạy thử miễn phí để PH/HV đánh giá chất lượng giảng dạy.',
+      ),
+      item(
+        'Trường hợp PH/HV giảm số buổi hoặc thời lượng học, Bên B tiếp tục giảng dạy và phối hợp sắp xếp lịch phù hợp; Bên A tính lại phí dịch vụ nhận lớp theo số buổi và thời lượng dạy thực tế theo quy định tại Điều 5.',
+      ),
+      item(
+        'Bên B không được đổi người dạy, không hủy lớp, không tăng hoặc giảm số buổi học, không tăng hoặc giảm học phí, không tăng hoặc giảm thời lượng dạy, không ứng trước học phí hoặc không tạo thỏa thuận khác với PH/HV khi chưa có sự đồng ý của Bên A.',
+      ),
+      item(
+        'Tất cả các vấn đề phát sinh hoặc thỏa thuận riêng giữa Bên B và PH/HV không liên quan đến nội dung dạy và học đã được Bên A – PH/HV – Bên B thống nhất ban đầu thì Bên A không có trách nhiệm can thiệp, giải quyết hoặc chịu trách nhiệm đối với các vấn đề, thỏa thuận đó.',
+      ),
+      sub('e) Về học phí và đạo đức nghề nghiệp:'),
+      item(
+        'Bên B nhận học phí trực tiếp từ PH/HV sau mỗi tháng giảng dạy. Bên B có trách nhiệm chủ động nhắc PH/HV thanh toán học phí đúng hạn và không để học phí tồn đọng quá 01 tháng. Bên A hỗ trợ Bên B liên hệ PH/HV thanh toán học phí khi cần thiết nhưng không chịu trách nhiệm đối với khoản học phí Bên B tự để tồn đọng quá 01 tháng.',
+      ),
+      item(
+        'Trong quá trình nhận lớp và giảng dạy, nếu Bên B có hành vi vi phạm đạo đức, trộm cắp, xâm hại đến quyền, lợi ích hợp pháp hoặc tài sản của Bên A, PH/HV và gia đình PH/HV, hoặc có hành vi vi phạm pháp luật khác thì Bên B tự chịu trách nhiệm về hành vi của mình theo quy định của pháp luật hiện hành.',
+      ),
     ],
   },
   {
-    title: 'Điều 4. Quyền và nghĩa vụ của Bên B',
-    paragraphs: [
-      '4.1. Giảng dạy đúng lịch, đúng nội dung, có trách nhiệm với kết quả học tập của học viên; báo trước cho phụ huynh và Bên A khi cần nghỉ hoặc đổi buổi.',
-      '4.2. Không tự ý thay đổi người dạy, lịch học, học phí hoặc các thỏa thuận đã thống nhất khi chưa có sự đồng ý của các bên liên quan.',
-      '4.3. Giữ bí mật thông tin của phụ huynh/học viên; không chuyển giao lớp cho người khác.',
-      '4.4. Cung cấp thông tin cá nhân, giấy tờ trung thực và chịu trách nhiệm về tính chính xác của các thông tin đã cung cấp.',
+    title: 'ĐIỀU 4. BẢO HÀNH LỚP',
+    blocks: [
+      p(
+        '4.1. Bên A bảo hành từng lớp cho Bên B trong thời hạn 45 ngày kể từ ngày nhận lớp đó. Trong thời hạn bảo hành, trường hợp lớp bị gián đoạn hoặc chấm dứt từ phía PH/HV mà không xuất phát từ lỗi hoặc vi phạm của Bên B, Bên A sẽ xác minh và giải quyết theo quy định tại Điều 5.',
+      ),
+      p('4.2. Hết thời hạn 45 ngày của lớp nào, chính sách bảo hành đối với lớp đó chấm dứt.'),
     ],
   },
   {
-    title: 'Điều 5. Chấm dứt hợp đồng',
-    paragraphs: [
-      '5.1. Hợp đồng chấm dứt khi lớp học kết thúc theo thỏa thuận, hoặc khi một trong hai bên vi phạm nghĩa vụ đã cam kết.',
-      '5.2. Bên muốn chấm dứt hợp đồng trước thời hạn phải thông báo cho bên kia và phụ huynh/học viên trước ít nhất 03 ngày.',
+    title: 'ĐIỀU 5. QUY ĐỊNH VỀ MỨC HOÀN PHÍ KHI LỚP DẠY GẶP TRỞ NGẠI',
+    blocks: [
+      p('5.1. Các mức hoàn phí nhận lớp cho Bên B, áp dụng riêng cho từng lớp:'),
+      { kind: 'refunds' },
+      p(
+        '5.2. Các lý do khác phát sinh từ phía PH/HV như thay đổi nhu cầu học hoặc chấm dứt lớp trong thời hạn bảo hành 45 ngày, không xuất phát từ lỗi hoặc vi phạm của Bên B và không thuộc các trường hợp quy định tại Bảng 5.1, Bên A xác minh và xử lý như sau:',
+      ),
+      item(
+        'Sau 01 buổi dạy thử, nếu PH/HV báo nghỉ không học nữa và có hỗ trợ học phí buổi dạy thử cho Bên B, phí dịch vụ được tính lại bằng 50% số tiền thực nhận Bên B đã nhận được từ PH/HV. Bên A hoàn lại phần chênh lệch giữa phí Bên B đã đóng và phí dịch vụ được tính lại.',
+      ),
+      item(
+        'Sau 01 buổi dạy thử, nếu PH/HV đồng ý tiếp tục học nhưng thời gian học thực tế dưới 45 ngày kể từ ngày Bên B nhận lớp, phí dịch vụ được tính lại bằng 25% tổng số tiền thực nhận Bên B đã nhận từ PH/HV. Bên A hoàn lại phần chênh lệch giữa phí Bên B đã đóng và phí dịch vụ được tính lại.',
+      ),
+      item(
+        'Trường hợp PH/HV thay đổi nhu cầu học, bao gồm giảm số buổi học/tuần hoặc giảm thời lượng học/buổi so với thỏa thuận ban đầu, Bên A tính lại phí dịch vụ nhận lớp tương ứng với số buổi và thời lượng dạy thực tế của Bên B. Phần phí chênh lệch (nếu có) được hoàn lại cho Bên B.',
+      ),
+      p(
+        '5.3. Bên A thực hiện xác minh với PH/HV và xử lý hoàn phí trong thời hạn tối đa 10 ngày kể từ ngày nhận được yêu cầu của Bên B. Trong thời gian chờ xử lý, Bên B có thể lựa chọn lớp mới phù hợp để đổi lớp hoặc yêu cầu hoàn phí nếu không có nhu cầu nhận lớp khác.',
+      ),
+      p(
+        '5.4. Việc xử lý lớp hỏng và hoàn phí được thực hiện vào thứ 4 và thứ 7 hàng tuần trong giờ hành chính theo lịch hẹn trước.',
+      ),
     ],
   },
   {
-    title: 'Điều 6. Điều khoản chung',
-    paragraphs: [
-      '6.1. Hai bên cam kết thực hiện đúng các điều khoản của hợp đồng. Tranh chấp phát sinh được giải quyết trên tinh thần thương lượng; nếu không thương lượng được sẽ đưa ra cơ quan có thẩm quyền theo quy định của pháp luật.',
-      '6.2. Hợp đồng có hiệu lực kể từ ngày ký, được lập thành 02 bản có giá trị pháp lý như nhau, mỗi bên giữ 01 bản.',
+    title: 'ĐIỀU 6. GIẢI QUYẾT TRANH CHẤP',
+    blocks: [
+      p(
+        'Mọi tranh chấp phát sinh từ Hợp đồng này, hai bên ưu tiên giải quyết thông qua thương lượng, hòa giải trên tinh thần hợp tác. Trường hợp không thương lượng được, tranh chấp được giải quyết tại Tòa án có thẩm quyền theo quy định của pháp luật hiện hành.',
+      ),
+    ],
+  },
+  {
+    title: 'ĐIỀU 7. HIỆU LỰC VÀ ĐIỀU KHOẢN CHUNG',
+    blocks: [
+      p(
+        '7.1. Hai bên cam kết thực hiện đúng các nội quy, quy định đã nêu trên. Nếu bên nào vi phạm thì phải chịu hoàn toàn trách nhiệm về hành vi của mình.',
+      ),
+      p(
+        '7.2. Bên B xác nhận đã đọc, hiểu rõ và đồng ý với toàn bộ nội dung của Hợp đồng này trước khi ký. Mỗi lần Bên B xác nhận nhận lớp (bằng Phiếu xác nhận hoặc trên hệ thống), Bên B được xem là tiếp tục chấp thuận nội dung Hợp đồng này đối với lớp đó.',
+      ),
+      p(
+        '7.3. Hợp đồng có hiệu lực kể từ ngày ký và áp dụng cho mọi lớp Bên B nhận sau ngày ký, cho đến khi một bên thông báo chấm dứt bằng văn bản cho bên kia trước ít nhất 15 ngày. Việc chấm dứt Hợp đồng không ảnh hưởng đến quyền và nghĩa vụ của hai bên đối với các lớp đã nhận trước ngày chấm dứt (kể cả bảo hành, hoàn phí, nợ phí).',
+      ),
+      p(
+        '7.4. Bên A có quyền cập nhật nội quy, quy định (bao gồm mức hoàn phí). Nội dung cập nhật được thông báo cho Bên B trước ít nhất 15 ngày và chỉ áp dụng cho các lớp nhận sau ngày có hiệu lực của nội dung cập nhật; Bên B không đồng ý có quyền chấm dứt Hợp đồng theo Khoản 7.3.',
+      ),
+      p(
+        '7.5. Hợp đồng được lập thành 02 (hai) bản có giá trị pháp lý như nhau, mỗi bên giữ 01 (một) bản.',
+      ),
     ],
   },
 ];
 
-/** Reads "Điều 1. …" sections from the centre's published contract text, if written that way. */
-export function articlesFrom(text: string | undefined): Article[] | null {
-  if (!text) return null;
-  const articles: Article[] = [];
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line) continue;
-    if (/^Điều\s+\d+/i.test(line)) articles.push({ title: line, paragraphs: [] });
-    else if (articles.length) articles[articles.length - 1]!.paragraphs.push(line);
-  }
-  return articles.length ? articles : null;
-}
+const DOTS = '………………………………………………………………………………………………………………';
 
-const DOTS = '…………………………………………';
-
-function dateVi(iso: string | null): string | null {
-  if (!iso) return null;
-  const [year, month, day] = iso.slice(0, 10).split('-');
-  return year && month && day ? `${day}/${month}/${year}` : null;
-}
-
-/** One "Label: value" line; a missing value prints a dotted line to fill in by hand. */
-function Line({ label, value }: { label: string; value: ReactNode | null | undefined }) {
+/** A value, or a dotted blank to fill in by hand. */
+function Fill({ value, min = '8rem' }: { value?: string | null | undefined; min?: string }) {
+  if (value) return <span className="font-semibold">{value}</span>;
   return (
-    <p className="flex gap-2">
-      <span className="shrink-0">{label}:</span>
-      {value ? (
-        <span className="font-semibold">{value}</span>
-      ) : (
-        <span aria-label="Để trống" className="min-w-0 flex-1 overflow-hidden whitespace-nowrap">
-          {DOTS}
-          {DOTS}
-        </span>
-      )}
-    </p>
+    <span
+      aria-label="Để trống"
+      style={{ minWidth: min }}
+      className="inline-block w-0 min-w-0 flex-1 overflow-hidden align-bottom whitespace-nowrap"
+    >
+      {DOTS}
+    </span>
   );
+}
+
+/** "Label: value" pairs laid out on one line. */
+function Row({ children }: { children: ReactNode }) {
+  return <p className="flex flex-wrap items-baseline gap-x-4">{children}</p>;
+}
+
+function Field({
+  label,
+  value,
+  min,
+}: {
+  label: string;
+  value?: string | null | undefined;
+  min?: string;
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-1">
+      <span className="shrink-0">{label}:</span>
+      <Fill value={value} min={min} />
+    </span>
+  );
+}
+
+/** "dd / mm / yyyy", or the dotted date of the form. */
+function dateParts(iso: string | null | undefined): string {
+  const [year, month, day] = (iso ?? '').slice(0, 10).split('-');
+  return year && month && day ? `${day} / ${month} / ${year}` : '……… / ……… / ………';
+}
+
+function Check({ on }: { on: boolean }) {
+  return <span aria-label={on ? 'Đã chọn' : 'Chưa chọn'}>{on ? '☑' : '☐'}</span>;
 }
 
 const SHEET: CSSProperties = {
@@ -116,17 +262,70 @@ const SHEET: CSSProperties = {
   color: '#000000',
 };
 
+function ArticleBody({ article }: { article: Article }) {
+  return (
+    <section>
+      <h3 className="font-bold">{article.title}</h3>
+      {article.blocks.map((block, index) =>
+        block.kind === 'refunds' ? (
+          <table key="refunds" className="my-2 w-full border-collapse text-[12pt]">
+            <caption className="sr-only">Bảng 5.1. Các mức hoàn phí nhận lớp</caption>
+            <thead>
+              <tr>
+                {['Mức', 'Tỷ lệ hoàn', 'Trường hợp áp dụng'].map((head) => (
+                  <th key={head} scope="col" className="border border-black px-2 py-1 font-bold">
+                    {head}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {REFUNDS.map(([level, rate, cases]) => (
+                <tr key={level} className="break-inside-avoid">
+                  <th
+                    scope="row"
+                    className="border border-black px-2 py-1 align-top font-bold whitespace-nowrap"
+                  >
+                    {level}
+                  </th>
+                  <td className="border border-black px-2 py-1 text-center align-top font-bold">
+                    {rate}
+                  </td>
+                  <td className="border border-black px-2 py-1 text-justify align-top">{cases}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : block.kind === 'sub' ? (
+          <p key={index} className="mt-1 font-bold italic">
+            {block.text}
+          </p>
+        ) : block.kind === 'item' ? (
+          <p key={index} className="flex gap-2 pl-[8mm] text-justify">
+            <span aria-hidden="true">–</span>
+            <span>{block.text}</span>
+          </p>
+        ) : (
+          <p key={index} className="text-justify">
+            {block.text}
+          </p>
+        ),
+      )}
+    </section>
+  );
+}
+
 /**
- * "Hợp đồng mẫu" for tutors: an A4 administrative contract. Bên B is filled from the signed-in
- * tutor's own profile; the articles come from the centre's published contract when it is
- * written as "Điều …" sections, otherwise the standard template below.
+ * "Hợp đồng mẫu" for tutors: the centre's "Hợp đồng nhận lớp dạy gia sư" on an A4 sheet.
+ * Bên B is filled from the signed-in tutor's own profile; anything missing stays a dotted blank.
  */
 export function TutorContractTemplatePage() {
   const profile = useOwnProfile();
-  const content = usePublishedContent('contract', 'tutor-class-contract', 'tutor');
   if (profile.isPending) return <PageLoading label="Đang tải hợp đồng mẫu…" />;
   const tutor: TutorProfile | null = profile.data ?? null;
-  const articles = articlesFrom(content.data?.bodyText) ?? DEFAULT_ARTICLES;
+  const teacher = tutor?.tutorType === 'teacher';
+  const student =
+    tutor?.tutorType === 'university_student' || tutor?.tutorType === 'pedagogy_student';
 
   return (
     <section className="mx-auto flex w-full min-w-0 max-w-[230mm] flex-col gap-4">
@@ -139,90 +338,107 @@ export function TutorContractTemplatePage() {
       </div>
       <div className="min-w-0 overflow-x-auto print:overflow-visible">
         <article
-          aria-label="Hợp đồng gia sư"
+          aria-label="Hợp đồng nhận lớp dạy gia sư"
           style={SHEET}
           className="mx-auto box-border min-h-[297mm] w-[210mm] max-w-none px-[20mm] py-[18mm] text-[13pt] leading-[1.5] shadow-card print:min-h-0 print:w-auto print:p-0 print:shadow-none"
         >
-          <header className="grid grid-cols-[2fr_3fr] gap-2 whitespace-nowrap text-center text-[11pt]">
-            <div className="font-bold uppercase leading-snug">
-              <p>{PARTY_A.company}</p>
-              <p>{PARTY_A.centre}</p>
-              <p aria-hidden="true" className="mx-auto mt-1 w-24 border-t border-black" />
-            </div>
-            <div className="font-bold leading-snug">
-              <p className="uppercase">Cộng hòa xã hội chủ nghĩa Việt Nam</p>
-              <p>Độc lập - Tự do - Hạnh phúc</p>
-              <p aria-hidden="true" className="mx-auto mt-1 w-40 border-t border-black" />
-            </div>
+          <header className="text-center font-bold">
+            <p className="uppercase">Cộng hòa xã hội chủ nghĩa Việt Nam</p>
+            <p>Độc lập – Tự do – Hạnh phúc</p>
+            <p aria-hidden="true">————— * —————</p>
           </header>
 
-          <div className="mt-8 text-center">
-            <h2 className="text-[16pt] font-bold uppercase">Hợp đồng gia sư</h2>
-            <p className="mt-1">Số: ………/HĐGS-GG</p>
-            <p className="italic">Hà Nội, ngày …… tháng …… năm 20……</p>
+          <div className="mt-6 text-center">
+            <h2 className="text-[16pt] font-bold uppercase">Hợp đồng nhận lớp dạy gia sư</h2>
+            <p className="italic">(Nội quy, quy định nhận lớp tại {CENTRE})</p>
+            <p className="mt-1">Số: ………… /HĐNT-ĐH</p>
           </div>
 
-          <div className="mt-6 flex flex-col gap-1 text-justify">
-            <p className="italic">
-              - Căn cứ Bộ luật Dân sự số 91/2015/QH13 ngày 24 tháng 11 năm 2015;
-            </p>
-            <p className="italic">- Căn cứ nhu cầu và khả năng thực hiện của hai bên.</p>
-            <p className="mt-2">Hôm nay, tại văn phòng {PARTY_A.name}, chúng tôi gồm:</p>
-          </div>
+          <p className="mt-5 text-justify">
+            Hôm nay, ngày ……… tháng ……… năm ………, tại {CENTRE}, chúng tôi gồm:
+          </p>
 
-          <section aria-label="Bên A" className="mt-4 flex flex-col gap-0.5">
-            <h3 className="font-bold uppercase">A/ Bên A (Bên giới thiệu): {PARTY_A.name}</h3>
-            <Line label="Địa chỉ" value={PARTY_A.address} />
-            <Line label="Điện thoại" value={PARTY_A.phone} />
-            <Line label="Email" value={PARTY_A.email} />
-            <Line label="Website" value={PARTY_A.website} />
-            <Line label="Đại diện" value={null} />
+          <section aria-label="Bên A" className="mt-3 flex flex-col gap-0.5">
+            <h3 className="font-bold uppercase">Bên A: Trung tâm Gia sư Sư phạm Đỗ Hằng</h3>
+            <p className="text-justify">Địa chỉ duy nhất: {CENTRE_ADDRESS}</p>
+            <Row>
+              <Field label="Người đại diện: Bà" min="12rem" />
+              <Field label="Chức vụ" min="8rem" />
+            </Row>
+            <Row>
+              <Field label="Điện thoại" min="10rem" />
+              <Field label="Email" min="10rem" />
+            </Row>
           </section>
 
-          <section aria-label="Bên B" className="mt-4 flex flex-col gap-0.5">
-            <h3 className="font-bold uppercase">B/ Bên B (Gia sư)</h3>
-            <Line label="Họ và tên" value={tutor?.displayName} />
-            <Line label="Ngày sinh" value={dateVi(tutor?.dateOfBirth ?? null)} />
-            <div className="grid grid-cols-2 gap-x-4">
-              <Line label="Số CCCD" value={tutor?.idNumber} />
-              <Line label="Ngày cấp" value={dateVi(tutor?.idIssuedOn ?? null)} />
+          <section aria-label="Bên B" className="mt-3 flex flex-col gap-0.5">
+            <h3 className="font-bold uppercase">Bên B: Gia sư nhận lớp</h3>
+            <Row>
+              <Field label="Họ và tên" value={tutor?.displayName} min="14rem" />
+              <span className="shrink-0">Ngày sinh: {dateParts(tutor?.dateOfBirth)}</span>
+            </Row>
+            <Row>
+              <Field label="Số CCCD" value={tutor?.idNumber} min="9rem" />
+              <span className="shrink-0">Ngày cấp: {dateParts(tutor?.idIssuedOn)}</span>
+              <Field label="Nơi cấp" min="6rem" />
+            </Row>
+            <Row>
+              <Field label="Nơi thường trú" value={tutor?.idResidence} min="20rem" />
+            </Row>
+            <Row>
+              <Field label="Điện thoại" value={tutor?.phone} min="10rem" />
+              <Field label="Email" value={tutor?.email} min="10rem" />
+            </Row>
+            <div className="grid grid-cols-[auto_1fr] gap-x-3">
+              <span>Đối tượng:</span>
+              <span className="flex min-w-0 items-baseline gap-1">
+                <Check on={student} />
+                <span className="shrink-0">Sinh viên (Trường:</span>
+                <Fill value={student ? tutor?.school : null} min="4rem" />
+                <span className="shrink-0">)</span>
+              </span>
+              <span />
+              <span className="flex min-w-0 items-baseline gap-1">
+                <Check on={teacher} />
+                <span className="shrink-0">Giáo viên (Nơi công tác:</span>
+                <Fill value={teacher ? tutor?.school : null} min="4rem" />
+                <span className="shrink-0">)</span>
+              </span>
             </div>
-            <div className="grid grid-cols-2 gap-x-4">
-              <Line label="Điện thoại" value={tutor?.phone} />
-              <Line label="Email" value={tutor?.email} />
-            </div>
-            <Line label="Hộ khẩu thường trú" value={tutor?.idResidence} />
-            <Line label="Trường học" value={tutor?.school} />
           </section>
 
           <p className="mt-4 text-justify">
-            Sau khi bàn bạc, hai bên thống nhất ký kết hợp đồng gia sư với các điều khoản sau:
+            Hai bên thống nhất ký kết Hợp đồng nguyên tắc nhận lớp dạy gia sư (sau đây gọi là “Hợp
+            đồng”) với các điều khoản như sau:
           </p>
 
           <div className="mt-3 flex flex-col gap-3">
-            {articles.map((article) => (
-              <section key={article.title} className="break-inside-avoid">
-                <h3 className="font-bold">{article.title}</h3>
-                {article.paragraphs.map((paragraph) => (
-                  <p key={paragraph} className="text-justify indent-[10mm]">
-                    {paragraph}
-                  </p>
-                ))}
-              </section>
+            {ARTICLES.map((article) => (
+              <ArticleBody key={article.title} article={article} />
             ))}
           </div>
 
-          <footer className="mt-10 grid grid-cols-2 gap-6 text-center break-inside-avoid">
+          <footer className="mt-10 grid grid-cols-2 gap-6 text-center break-inside-avoid [&>div]:flex [&>div]:flex-col">
             <div>
               <p className="font-bold uppercase">Đại diện Bên A</p>
-              <p className="italic">(Ký, ghi rõ họ tên, đóng dấu)</p>
-              <div className="h-28" />
+              <p className="text-[11.5pt] italic">(Ký, ghi rõ họ tên, đóng dấu)</p>
+              <div className="min-h-28 flex-1" />
+              <p>Họ tên: ……………………………</p>
             </div>
             <div>
               <p className="font-bold uppercase">Bên B</p>
-              <p className="italic">(Ký, ghi rõ họ tên)</p>
-              <div className="h-28" />
-              {tutor?.displayName && <p className="font-semibold">{tutor.displayName}</p>}
+              <p className="text-[11.5pt] whitespace-nowrap italic">
+                (Ký, ghi rõ họ tên hoặc xác nhận trên hệ thống)
+              </p>
+              <div className="min-h-28 flex-1" />
+              <p>
+                Họ tên:{' '}
+                {tutor?.displayName ? (
+                  <span className="font-semibold">{tutor.displayName}</span>
+                ) : (
+                  '……………………………'
+                )}
+              </p>
             </div>
           </footer>
         </article>

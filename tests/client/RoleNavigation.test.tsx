@@ -143,6 +143,8 @@ describe('role navigation', () => {
     expect(within(content).getByRole('link', { name: 'Cẩm nang' }).getAttribute('href')).toBe(
       '/tutor/cam-nang',
     );
-    expect(await screen.findByRole('heading', { name: 'Hợp đồng gia sư' })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: 'Hợp đồng nhận lớp dạy gia sư' }),
+    ).toBeTruthy();
   });
 });
