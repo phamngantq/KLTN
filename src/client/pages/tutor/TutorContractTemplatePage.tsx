@@ -318,18 +318,27 @@ function ArticleBody({ article }: { article: Article }) {
 }
 
 /** Facts of a signed class contract, shown on the sheet and in "Phụ lục 01". */
-export interface SignedContract {
-  number: string;
-  /** Date written in "Hôm nay, ngày …": the tutor's confirmation, else the issue date. */
-  signedAt: string;
-  issuedAt: string;
-  acknowledgedAt: string | null;
+/** One class taken under the contract: a row of "Phụ lục 01 – Phiếu xác nhận nhận lớp". */
+export interface ClassConfirmation {
   classCode: string;
   feeOptionTitle: string;
   agreedTuitionPerSessionMinor: number | null;
   placementFeeAmountMinor: number | null;
   placementFeePaidAt: string | null;
-  learnerConfirmedAt: string | null;
+  /** When the tutor confirmed taking this class (contract acknowledged for it). */
+  confirmedAt: string | null;
+}
+
+/** The tutor's single signed contract ("ký một lần", Điều 1.1) and the classes under it. */
+export interface SignedContract {
+  number: string;
+  /** Date written in "Hôm nay, ngày …": the tutor's signature, else the issue date. */
+  signedAt: string;
+  issuedAt: string;
+  acknowledgedAt: string | null;
+  classes: ClassConfirmation[];
+  /** Classes beyond the listed ones (older than the latest page). */
+  moreClasses: number;
 }
 
 function dayText(iso: string): string {
@@ -366,58 +375,67 @@ function SignatureMark({ title, at, by }: { title: string; at: string; by: strin
   );
 }
 
-/** "Phụ lục 01 – Phiếu xác nhận nhận lớp" for the class this contract was issued for. */
+/** "Phụ lục 01 – Phiếu xác nhận nhận lớp": every class taken under this one contract. */
 function ClassAppendix({ signed }: { signed: SignedContract }) {
   const money = (minor: number | null) =>
-    minor === null ? 'Chưa ghi nhận' : `${minor.toLocaleString('vi-VN')} đồng`;
+    minor === null ? 'Chưa ghi nhận' : `${minor.toLocaleString('vi-VN')} đ`;
   return (
-    <section aria-label="Phụ lục 01" className="mt-6 break-inside-avoid">
+    <section aria-label="Phụ lục 01" className="mt-6">
       <h3 className="text-center font-bold uppercase">Phụ lục 01 – Phiếu xác nhận nhận lớp</h3>
-      <table className="mt-2 w-full border-collapse text-[12pt]">
-        <tbody>
-          {(
-            [
-              ['Mã lớp', signed.classCode],
-              [
-                'Học phí đã thống nhất',
-                signed.agreedTuitionPerSessionMinor === null
-                  ? 'Chưa ghi nhận'
-                  : `${money(signed.agreedTuitionPerSessionMinor)}/buổi`,
-              ],
-              ['Phương án phí nhận lớp', signed.feeOptionTitle],
-              ['Phí nhận lớp', money(signed.placementFeeAmountMinor)],
-              [
-                'Ngày thanh toán phí',
-                signed.placementFeePaidAt ? dateTime(signed.placementFeePaidAt) : 'Chưa thanh toán',
-              ],
-              [
-                'Người học xác nhận thuê',
-                signed.learnerConfirmedAt ? dateTime(signed.learnerConfirmedAt) : 'Chưa xác nhận',
-              ],
-              ['Ngày phát hành hợp đồng', dateTime(signed.issuedAt)],
-              [
-                'Ngày gia sư xác nhận',
-                signed.acknowledgedAt ? dateTime(signed.acknowledgedAt) : 'Chưa xác nhận',
-              ],
-            ] as const
-          ).map(([label, value]) => (
-            <tr key={label}>
-              <th scope="row" className="w-[38%] border border-black px-2 py-1 text-left font-bold">
-                {label}
+      <p className="text-center text-[11.5pt] italic">
+        (Phụ lục không tách rời của Hợp đồng; mỗi lớp nhận theo Hợp đồng này là một dòng)
+      </p>
+      <table className="mt-2 w-full border-collapse text-[11pt]">
+        <thead>
+          <tr>
+            {[
+              'STT',
+              'Mã lớp',
+              'Học phí/buổi',
+              'Phí nhận lớp',
+              'Thanh toán phí',
+              'Xác nhận nhận lớp',
+            ].map((head) => (
+              <th key={head} scope="col" className="border border-black px-1.5 py-1 font-bold">
+                {head}
               </th>
-              <td className="border border-black px-2 py-1">{value}</td>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {signed.classes.map((item, index) => (
+            <tr key={item.classCode} className="break-inside-avoid">
+              <td className="border border-black px-1.5 py-1 text-center">{index + 1}</td>
+              <th scope="row" className="border border-black px-1.5 py-1 text-left font-semibold">
+                {item.classCode}
+              </th>
+              <td className="border border-black px-1.5 py-1 text-right">
+                {money(item.agreedTuitionPerSessionMinor)}
+              </td>
+              <td className="border border-black px-1.5 py-1 text-right">
+                {money(item.placementFeeAmountMinor)}
+              </td>
+              <td className="border border-black px-1.5 py-1 text-center">
+                {item.placementFeePaidAt ? dateTime(item.placementFeePaidAt) : 'Chưa thanh toán'}
+              </td>
+              <td className="border border-black px-1.5 py-1 text-center">
+                {item.confirmedAt ? dateTime(item.confirmedAt) : 'Chờ xác nhận'}
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+      {signed.moreClasses > 0 && (
+        <p className="mt-1 text-[11pt] italic">… và {signed.moreClasses} lớp nhận trước đó.</p>
+      )}
     </section>
   );
 }
 
 /**
  * The A4 "Hợp đồng nhận lớp dạy gia sư". Without `signed` it is the blank template; with it the
- * contract number, date, centre contacts, "Phụ lục 01" and both parties' system confirmations
- * are filled in. Bên B always comes from the tutor's own profile.
+ * tutor's one contract: number, date, centre contacts, "Phụ lục 01" listing every class taken
+ * and both parties' system confirmations. Bên B always comes from the tutor's own profile.
  */
 export function ContractSheet({
   tutor,

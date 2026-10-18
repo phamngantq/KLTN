@@ -158,22 +158,27 @@ describe('tutor terms and contracts', () => {
       placementFeeAmountMinor: null,
       placementFeeReportedAt: null,
     };
+    // A second, later class under the same contract: only a row of Phụ lục 01.
+    const later: ClassContractRecord = {
+      ...record,
+      id: '00000000-0000-4000-8000-0000000000c2',
+      assignmentId: '00000000-0000-4000-8000-0000000000a2',
+      classCode: 'LH-LATER',
+      agreedTuitionPerSessionMinor: 220_000,
+      issuedAt: '2026-10-14T00:00:00.000Z',
+    };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === '/tutor/profile')
         return { data: { displayName: 'Gia sư Hợp đồng', email: 'gs@example.test' } };
-      if (req.path === '/tutor/contracts?page=1' && req.method === 'GET')
-        return { data: { items: [record], page: 1, pageSize: 12, total: 1 } };
+      if (req.path === '/tutor/contracts?page=1&pageSize=50' && req.method === 'GET')
+        return { data: { items: [later, record], page: 1, pageSize: 50, total: 2 } };
       if (req.path === `/tutor/contracts/${record.id}/acknowledge` && req.method === 'POST') {
         record = {
           ...record,
           status: 'acknowledged',
           version: 2,
           acknowledgedAt: '2026-10-11T00:02:00.000Z',
-          learnerConfirmedAt: null,
-          placementFeePaidAt: null,
-          placementFeeAmountMinor: null,
-          placementFeeReportedAt: null,
         };
         return { data: record };
       }
@@ -181,13 +186,20 @@ describe('tutor terms and contracts', () => {
     });
     renderRoute('/tutor/contracts');
     const user = userEvent.setup();
-    await user.click(await screen.findByRole('button', { name: 'Xem hợp đồng' }));
-    // The signed-contract view is the A4 contract sheet, filled for this class.
-    const sheet = screen.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
+    // One contract only, signed once and applied to every class.
+    const sheet = await screen.findByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
+    expect(screen.getAllByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' })).toHaveLength(
+      1,
+    );
+    expect(screen.queryByRole('button', { name: 'Xem hợp đồng' })).toBeNull();
     expect(within(sheet).getAllByText('Gia sư Hợp đồng').length).toBeGreaterThan(0);
     const appendix = within(sheet).getByRole('region', { name: 'Phụ lục 01' });
-    expect(within(appendix).getByText(/25% học phí tháng/)).toBeTruthy();
-    expect(within(appendix).getByText('180.000 đồng/buổi')).toBeTruthy();
+    const rows = within(appendix).getAllByRole('row').slice(1);
+    expect(rows.map((row) => within(row).getByRole('rowheader').textContent)).toEqual([
+      'LH-ABC',
+      'LH-LATER',
+    ]);
+    expect(within(appendix).getByText('180.000 đ')).toBeTruthy();
     expect(within(sheet).getByText(/Đã phát hành trên hệ thống/)).toBeTruthy();
     expect(within(sheet).queryByText(/Đã ký xác nhận trên hệ thống/)).toBeNull();
     await user.click(
@@ -204,6 +216,10 @@ describe('tutor terms and contracts', () => {
         screen.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' }),
       ).findByText(/Đã ký xác nhận trên hệ thống/),
     ).toBeTruthy();
+    // The earliest contract is the one signed.
+    expect(calls.find((call) => call.method === 'POST')?.path).toBe(
+      `/tutor/contracts/${record.id}/acknowledge`,
+    );
     expect(calls.find((call) => call.method === 'POST')?.body).toEqual({
       version: 1,
       acknowledged: true,

@@ -1,34 +1,17 @@
 import { useState } from 'react';
-import { CheckCircle2, FileText, Printer } from 'lucide-react';
-import { useSearchParams } from 'react-router';
+import { CheckCircle2, Printer } from 'lucide-react';
 import type { ClassContractRecord } from '../../../shared/schemas/terms-contracts';
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button } from '../../components/ui/Button';
-import { Alert, Badge, EmptyState } from '../../components/ui/Feedback';
+import { Alert, EmptyState } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
-import { useAcknowledgeContract, useTutorContracts } from '../../features/terms-contracts/api';
+import { useAcknowledgeContract, useAllTutorContracts } from '../../features/terms-contracts/api';
 import { useOwnProfile } from '../../features/tutor-profile/api';
-import { formatVnd } from '../../lib/format';
 import { ContractSheet, type SignedContract } from './TutorContractTemplatePage';
 
 /** Contract number printed on the sheet: stable, derived from the record. */
 export function contractNumber(item: ClassContractRecord): string {
   return item.id.replace(/-/g, '').slice(0, 8).toUpperCase();
-}
-
-function signedOf(item: ClassContractRecord): SignedContract {
-  return {
-    number: contractNumber(item),
-    signedAt: item.acknowledgedAt ?? item.issuedAt,
-    issuedAt: item.issuedAt,
-    acknowledgedAt: item.acknowledgedAt,
-    classCode: item.classCode,
-    feeOptionTitle: `${item.feeOptionTitle} (${feeSummary(item)})`,
-    agreedTuitionPerSessionMinor: item.agreedTuitionPerSessionMinor,
-    placementFeeAmountMinor: item.placementFeeAmountMinor,
-    placementFeePaidAt: item.placementFeePaidAt,
-    learnerConfirmedAt: item.learnerConfirmedAt,
-  };
 }
 
 function feeSummary(item: ClassContractRecord): string {
@@ -39,30 +22,60 @@ function feeSummary(item: ClassContractRecord): string {
   return `${item.rateBasisPoints / 100}% ${basis}`;
 }
 
+const time = (iso: string | null) => (iso ? Date.parse(iso) : Number.POSITIVE_INFINITY);
+
+/**
+ * The tutor signs once (Điều 1.1): the first acknowledged record is "the" contract; while none
+ * is signed, the earliest issued one awaits the signature. Every class record is a row of its
+ * "Phụ lục 01", oldest first.
+ */
+export function masterContract(items: ClassContractRecord[]): ClassContractRecord | null {
+  const signed = items
+    .filter((item) => item.acknowledgedAt)
+    .sort((a, b) => time(a.acknowledgedAt) - time(b.acknowledgedAt));
+  if (signed[0]) return signed[0];
+  return [...items].sort((a, b) => time(a.issuedAt) - time(b.issuedAt))[0] ?? null;
+}
+
+function signedOf(
+  master: ClassContractRecord,
+  items: ClassContractRecord[],
+  total: number,
+): SignedContract {
+  return {
+    number: contractNumber(master),
+    signedAt: master.acknowledgedAt ?? master.issuedAt,
+    issuedAt: master.issuedAt,
+    acknowledgedAt: master.acknowledgedAt,
+    classes: [...items]
+      .sort((a, b) => time(a.issuedAt) - time(b.issuedAt))
+      .map((item) => ({
+        classCode: item.classCode,
+        feeOptionTitle: `${item.feeOptionTitle} (${feeSummary(item)})`,
+        agreedTuitionPerSessionMinor: item.agreedTuitionPerSessionMinor,
+        placementFeeAmountMinor: item.placementFeeAmountMinor,
+        placementFeePaidAt: item.placementFeePaidAt,
+        confirmedAt: item.acknowledgedAt,
+      })),
+    moreClasses: Math.max(0, total - items.length),
+  };
+}
+
+/** "Hợp đồng đã ký": the tutor's single contract, applied to every class they take. */
 export function TutorContractsPage() {
-  const [params, setParams] = useSearchParams();
-  const rawPage = Number(params.get('page') ?? 1);
-  const page = Number.isSafeInteger(rawPage) && rawPage >= 1 && rawPage <= 1000 ? rawPage : 1;
-  const contracts = useTutorContracts(page);
+  const contracts = useAllTutorContracts();
   const profile = useOwnProfile();
   const acknowledge = useAcknowledgeContract();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [notice, setNotice] = useState('');
-  const selected = contracts.data?.items.find((item) => item.id === selectedId) ?? null;
   const readOnly = isReadOnlyPreview();
+  const items = contracts.data?.items ?? [];
+  const master = masterContract(items);
 
-  function select(id: string) {
-    setSelectedId(id);
-    setAgreed(false);
-    setNotice('');
-    acknowledge.reset();
-  }
-
-  function confirm() {
-    if (!selected || !agreed || readOnly) return;
+  function sign() {
+    if (!master || !agreed || readOnly) return;
     acknowledge.mutate(
-      { id: selected.id, version: selected.version },
+      { id: master.id, version: master.version },
       {
         onSuccess: () => {
           setAgreed(false);
@@ -73,135 +86,51 @@ export function TutorContractsPage() {
   }
 
   return (
-    <section className="mx-auto flex w-full min-w-0 max-w-7xl flex-col gap-6">
-      <header className="print:hidden">
-        <h1 className="text-3xl font-semibold text-primary">Hợp đồng đã ký</h1>
-        <p className="mt-2 text-muted">
-          Hợp đồng nhận lớp của từng lớp đã gán: xem bản hợp đồng đầy đủ, ký xác nhận và in hoặc lưu
-          PDF.
-        </p>
-      </header>
-      <div className={selected ? 'contents print:hidden' : 'contents'}>
-        {readOnly && <Alert tone="info">Bản xem trước chỉ cho phép đọc hồ sơ.</Alert>}
-        {notice && <Alert tone="success">{notice}</Alert>}
-        {contracts.isPending ? (
-          <PageLoading label="Đang tải hợp đồng…" />
-        ) : contracts.isError ? (
-          <Alert
-            tone="danger"
-            action={
-              <Button variant="secondary" onClick={() => void contracts.refetch()}>
-                Thử lại
-              </Button>
-            }
-          >
-            {contracts.error.message}
-          </Alert>
-        ) : contracts.data.items.length === 0 ? (
-          <EmptyState
-            title="Chưa có hợp đồng lớp"
-            description="Hợp đồng sẽ xuất hiện khi kiểm duyệt viên phát hành cho lớp đã gán."
-          />
-        ) : (
-          <>
-            <div className="flex items-center gap-2 rounded-lg bg-surface px-4 py-3 text-sm font-medium text-primary">
-              <FileText className="size-5" aria-hidden="true" />
-              Hợp đồng lớp của tôi ({contracts.data.total})
-            </div>
-            <ul className="grid gap-4" aria-label="Hồ sơ hợp đồng">
-              {contracts.data.items.map((item) => (
-                <li key={item.id} className="rounded-xl border border-border bg-bg p-5 shadow-card">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-surface text-primary">
-                        <FileText className="size-5" aria-hidden="true" />
-                      </span>
-                      <div>
-                        <p className="font-semibold text-primary">{item.contractTitle}</p>
-                        <p className="text-sm text-muted">
-                          Lớp {item.classCode} · phiên bản {item.contractRevision}
-                        </p>
-                        <p className="mt-1 text-sm text-primary">
-                          Học phí đã chốt:{' '}
-                          {item.agreedTuitionPerSessionMinor === null
-                            ? 'Chưa ghi nhận khi phát hành'
-                            : `${formatVnd(item.agreedTuitionPerSessionMinor)}/buổi`}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge tone={item.status === 'acknowledged' ? 'success' : 'warning'}>
-                      {item.status === 'acknowledged' ? 'Đã xác nhận' : 'Chờ xác nhận'}
-                    </Badge>
-                  </div>
-                  <div className="mt-4 flex justify-end border-t border-border pt-4">
-                    <Button
-                      variant="secondary"
-                      onClick={() => {
-                        select(item.id);
-                        window.setTimeout(
-                          () =>
-                            document
-                              .querySelector('[aria-label="Chi tiết hợp đồng"]')
-                              ?.scrollIntoView?.({ behavior: 'smooth' }),
-                          0,
-                        );
-                      }}
-                    >
-                      Xem hợp đồng
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-            <nav aria-label="Trang hợp đồng" className="flex items-center gap-3">
-              <Button
-                variant="secondary"
-                disabled={page <= 1}
-                onClick={() => {
-                  setSelectedId(null);
-                  setParams(page > 2 ? { page: String(page - 1) } : {});
-                }}
-              >
-                Trang trước
-              </Button>
-              <span className="text-sm text-muted">
-                Trang {page} /{' '}
-                {Math.max(1, Math.ceil(contracts.data.total / contracts.data.pageSize))}
-              </span>
-              <Button
-                variant="secondary"
-                disabled={page * contracts.data.pageSize >= contracts.data.total}
-                onClick={() => {
-                  setSelectedId(null);
-                  setParams({ page: String(page + 1) });
-                }}
-              >
-                Trang sau
-              </Button>
-            </nav>
-          </>
+    <section className="mx-auto flex w-full min-w-0 max-w-[230mm] flex-col gap-4">
+      <header className="flex flex-wrap items-end justify-between gap-3 print:hidden">
+        <div>
+          <h1 className="text-3xl font-semibold text-primary">Hợp đồng đã ký</h1>
+          <p className="mt-2 text-muted">
+            Bạn chỉ ký hợp đồng nhận lớp một lần; hợp đồng áp dụng cho mọi lớp nhận sau đó. Mỗi lớp
+            được ghi thành một dòng trong Phụ lục 01.
+          </p>
+        </div>
+        {master && (
+          <Button onClick={() => window.print()} className="gap-2">
+            <Printer aria-hidden="true" className="size-4" />
+            In / Lưu PDF
+          </Button>
         )}
-      </div>
-      {selected && (
-        <section aria-label="Chi tiết hợp đồng" className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 print:hidden">
-            <h2 className="text-xl font-semibold text-primary">
-              Hợp đồng lớp {selected.classCode}
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={() => window.print()} className="gap-2">
-                <Printer aria-hidden="true" className="size-4" />
-                In / Lưu PDF
-              </Button>
-              <Button variant="secondary" onClick={() => setSelectedId(null)}>
-                Đóng
-              </Button>
-            </div>
-          </div>
+      </header>
+      {readOnly && <Alert tone="info">Bản xem trước chỉ cho phép đọc hồ sơ.</Alert>}
+      {notice && <Alert tone="success">{notice}</Alert>}
+      {contracts.isPending || profile.isPending ? (
+        <PageLoading label="Đang tải hợp đồng…" />
+      ) : contracts.isError ? (
+        <Alert
+          tone="danger"
+          action={
+            <Button variant="secondary" onClick={() => void contracts.refetch()}>
+              Thử lại
+            </Button>
+          }
+        >
+          {contracts.error.message}
+        </Alert>
+      ) : !master ? (
+        <EmptyState
+          title="Chưa có hợp đồng"
+          description="Hợp đồng sẽ xuất hiện khi trung tâm phát hành hợp đồng cho lớp đầu tiên bạn nhận."
+        />
+      ) : (
+        <>
           <div className="min-w-0 overflow-x-auto print:overflow-visible">
-            <ContractSheet tutor={profile.data ?? null} signed={signedOf(selected)} />
+            <ContractSheet
+              tutor={profile.data ?? null}
+              signed={signedOf(master, items, contracts.data.total)}
+            />
           </div>
-          {selected.status === 'issued' && (
+          {master.status === 'issued' ? (
             <div className="space-y-3 rounded-xl border border-border bg-bg p-5 shadow-card print:hidden">
               <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg bg-surface p-3">
                 <input
@@ -212,26 +141,19 @@ export function TutorContractsPage() {
                 <span>Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng</span>
               </label>
               {acknowledge.isError && <Alert tone="danger">{acknowledge.error.message}</Alert>}
-              <Button
-                disabled={!agreed || readOnly}
-                loading={acknowledge.isPending}
-                onClick={confirm}
-              >
+              <Button disabled={!agreed || readOnly} loading={acknowledge.isPending} onClick={sign}>
                 Ký xác nhận hợp đồng
               </Button>
             </div>
-          )}
-          {selected.status === 'acknowledged' && (
+          ) : (
             <Alert tone="success">
               <CheckCircle2 className="mr-2 inline size-4" aria-hidden="true" />
               Bạn đã ký xác nhận hợp đồng trên hệ thống lúc{' '}
-              {selected.acknowledgedAt
-                ? new Date(selected.acknowledgedAt).toLocaleString('vi-VN')
-                : ''}
-              .
+              {master.acknowledgedAt ? new Date(master.acknowledgedAt).toLocaleString('vi-VN') : ''}
+              . Các lớp nhận sau được xác nhận ở bước “Hoàn tất nhận lớp” và ghi vào Phụ lục 01.
             </Alert>
           )}
-        </section>
+        </>
       )}
     </section>
   );

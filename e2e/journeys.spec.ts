@@ -362,11 +362,11 @@ test('parent → moderator → tutor → class, private contact, contract and ve
       contentRevisionId: contractId,
     });
     await tutor.goto('/tutor/contracts');
-    await tutor.getByRole('button', { name: 'Xem hợp đồng' }).click();
-    // The signed-contract view is the A4 contract; Phụ lục 01 carries this class's terms.
+    // One contract, signed once; this class is a row of its Phụ lục 01.
     const contractSheet = tutor.getByRole('article', { name: 'Hợp đồng nhận lớp dạy gia sư' });
-    await expect(contractSheet).toContainText('E2E học phí tháng');
-    await expect(contractSheet).toContainText(/180\.000\s*đồng\/buổi/);
+    await expect(contractSheet.getByRole('region', { name: 'Phụ lục 01' })).toContainText(
+      /180\.000\s*đ/,
+    );
     await tutor.getByLabel('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng').check();
     await tutor.getByRole('button', { name: 'Ký xác nhận hợp đồng' }).click();
     await expect(tutor.getByText('Đã ghi nhận bạn ký xác nhận hợp đồng.')).toBeVisible();

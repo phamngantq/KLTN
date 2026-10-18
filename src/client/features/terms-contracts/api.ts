@@ -86,14 +86,16 @@ export function useAdminTermsQuizActions() {
   return { create, edit, publish };
 }
 
-export function useTutorContracts(page: number) {
+/** Every class contract record of the tutor (latest 50), for the single signed contract. */
+export function useAllTutorContracts() {
   const { user } = useSession();
   return useQuery({
-    queryKey: [...contractsKey, 'tutor', user?.id, page],
+    queryKey: [...contractsKey, 'tutor', user?.id, 'all'],
     queryFn: ({ signal }) =>
-      api.get<Page<ClassContractRecord>>(`/tutor/contracts${toQuery({ page })}`, { signal }),
+      api.get<Page<ClassContractRecord>>(`/tutor/contracts${toQuery({ page: 1, pageSize: 50 })}`, {
+        signal,
+      }),
     enabled: Boolean(user),
-    placeholderData: keepPreviousData,
   });
 }
 
