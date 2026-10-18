@@ -460,6 +460,14 @@ const tutorRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'class-requests/da-hoan-tat/:assignmentId',
+    ...page(async () => {
+      const { TutorCompletedClassDetailPage } =
+        await import('../pages/tutor/TutorCompletedClassDetailPage');
+      return <TutorCompletedClassDetailPage />;
+    }),
+  },
+  {
     path: 'class-requests/:assignmentId/thu-gioi-thieu',
     ...page(async () => {
       const { TutorIntroductionLetterPage } =

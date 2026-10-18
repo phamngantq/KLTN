@@ -1,6 +1,7 @@
 import type { ApplicationAcceptance, TutorApplication } from '../../../shared/schemas/classes';
 import type {
   CompletedAcceptance,
+  CompletedClassDetail,
   IntroductionLetter,
   PaymentInstructions,
   ScheduleWindow,
@@ -576,5 +577,127 @@ export async function getIntroductionLetter(
     learnerDisplayName: row.learnerDisplayName,
     learnerPhone: row.learnerPhone,
     learnerAddress: row.learnerAddress,
+  };
+}
+
+/**
+ * "Xem chi tiết" of a completed class: class facts, weekly schedule, learner contact, street
+ * address and the introduction letter. Same completion gate as the contact; each read is audited.
+ */
+export async function getCompletedDetail(
+  db: D1Database,
+  tutorId: string,
+  assignmentId: string,
+): Promise<CompletedClassDetail> {
+  const row = await db
+    .prepare(
+      `SELECT a.id AS assignmentId, c.code AS classCode, s.name AS subjectName, c.grade, c.mode,
+         c.public_area AS publicArea, r.education_level AS educationLevel,
+         r.sessions_per_week AS sessionsPerWeek, r.expected_budget_minor AS expectedBudgetMinor,
+         r.tutor_requirements AS tutorRequirements, r.student_traits AS studentTraits,
+         a.agreed_tuition_per_session_minor AS agreedTuitionPerSessionMinor,
+         a.placement_fee_amount_minor AS placementFeeAmountMinor,
+         a.placement_fee_paid_at AS completedAt, tu.display_name AS tutorDisplayName,
+         lu.display_name AS learnerDisplayName, p.student_name AS studentName,
+         p.contact_phone AS learnerPhone, p.contact_address AS learnerAddress,
+         a.class_id AS classId, r.id AS requestId
+       FROM class_assignments a
+       JOIN class_listings c ON c.id = a.class_id
+       JOIN parent_requests r ON r.id = c.source_request_id
+       JOIN parent_request_private p ON p.request_id = r.id
+       JOIN subjects s ON s.id = c.subject_id
+       JOIN users tu ON tu.id = a.tutor_user_id
+       JOIN users lu ON lu.id = r.parent_user_id
+       WHERE a.id = ? AND a.tutor_user_id = ? AND ${COMPLETED}`,
+    )
+    .bind(assignmentId, tutorId)
+    .first<{
+      assignmentId: string;
+      classCode: string;
+      subjectName: string;
+      grade: string;
+      mode: 'online' | 'offline';
+      publicArea: string | null;
+      educationLevel: CompletedClassDetail['educationLevel'];
+      sessionsPerWeek: number | null;
+      expectedBudgetMinor: number | null;
+      tutorRequirements: string;
+      studentTraits: string;
+      agreedTuitionPerSessionMinor: number | null;
+      placementFeeAmountMinor: number;
+      completedAt: string;
+      tutorDisplayName: string;
+      learnerDisplayName: string;
+      studentName: string | null;
+      learnerPhone: string | null;
+      learnerAddress: string | null;
+      classId: string;
+      requestId: string;
+    }>();
+  if (!row || !row.learnerPhone)
+    throw new AppError(
+      404,
+      'COMPLETED_CLASS_NOT_FOUND',
+      'Chỉ xem được chi tiết khi lớp đã hoàn tất các điều kiện nhận lớp.',
+    );
+  const [windows] = await Promise.all([
+    db
+      .prepare(
+        `SELECT weekday, start_local AS startLocal, end_local AS endLocal
+         FROM request_schedule_windows WHERE request_id = ? ORDER BY weekday, start_local`,
+      )
+      .bind(row.requestId)
+      .all<ScheduleWindow>(),
+    db
+      .prepare(
+        `INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, metadata, created_at)
+         VALUES (?, ?, 'assignment.completed_detail_viewed', 'class_assignment', ?, ?, ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        tutorId,
+        assignmentId,
+        JSON.stringify({ classId: row.classId }),
+        new Date().toISOString(),
+      )
+      .run(),
+  ]);
+  return {
+    assignmentId: row.assignmentId,
+    classCode: row.classCode,
+    subjectName: row.subjectName,
+    grade: row.grade,
+    educationLevel: row.educationLevel,
+    mode: row.mode,
+    publicArea: row.publicArea,
+    sessionsPerWeek: row.sessionsPerWeek,
+    schedule: windows.results,
+    expectedBudgetMinor: row.expectedBudgetMinor,
+    agreedTuitionPerSessionMinor: row.agreedTuitionPerSessionMinor,
+    placementFeeAmountMinor: row.placementFeeAmountMinor,
+    tutorRequirements: row.tutorRequirements.trim() || null,
+    studentTraits: row.studentTraits.trim() || null,
+    completedAt: row.completedAt,
+    contact: {
+      learnerDisplayName: row.learnerDisplayName,
+      studentName: row.studentName,
+      phone: row.learnerPhone,
+      address: row.learnerAddress,
+    },
+    letter: {
+      letterNumber: `TGT-${row.classCode}`,
+      issuedAt: row.completedAt,
+      tutorDisplayName: row.tutorDisplayName,
+      classCode: row.classCode,
+      subjectName: row.subjectName,
+      grade: row.grade,
+      mode: row.mode,
+      publicArea: row.publicArea,
+      sessionsPerWeek: row.sessionsPerWeek,
+      agreedTuitionPerSessionMinor: row.agreedTuitionPerSessionMinor,
+      learnerDisplayName: row.learnerDisplayName,
+      learnerPhone: row.learnerPhone,
+      learnerAddress: row.learnerAddress,
+    },
   };
 }

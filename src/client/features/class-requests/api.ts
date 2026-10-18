@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import type { AssignedParentContact } from '../../../shared/schemas/admin-assignments';
 import type {
   CompletedAcceptance,
+  CompletedClassDetail,
   IntroductionLetter,
   PaymentInstructions,
   ProposalFilter,
@@ -173,5 +174,22 @@ export function useOwnApplication(id: string | undefined) {
         signal,
       }),
     enabled: Boolean(id && user?.role === 'tutor'),
+  });
+}
+
+/** Completed class detail with contact and letter; gated on the server, never kept in cache. */
+export function useCompletedDetail(assignmentId: string | undefined) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...requestsKey, 'completed-detail', user?.id, assignmentId],
+    queryFn: ({ signal }) =>
+      api.get<CompletedClassDetail>(
+        `/tutor/class-requests/acceptances/${encodeURIComponent(assignmentId!)}/detail`,
+        { signal },
+      ),
+    enabled: Boolean(user?.role === 'tutor' && assignmentId),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
   });
 }

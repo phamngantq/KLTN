@@ -2,6 +2,7 @@ import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   CompletedAcceptance,
+  CompletedClassDetail,
   IntroductionLetter,
   PaymentInstructions,
   TutorProposalItem,
@@ -556,6 +557,33 @@ describe('tutor class requests page', () => {
           },
         };
       if (req.path === '/tutor/class-requests/acceptances/as-9/letter') return { data: letter };
+      if (req.path === '/tutor/class-requests/acceptances/as-9/detail')
+        return {
+          data: {
+            assignmentId: 'as-9',
+            classCode: 'LH-9',
+            subjectName: 'Toán',
+            grade: 'Lớp 9',
+            educationLevel: 'lower_secondary',
+            mode: 'offline',
+            publicArea: 'Cầu Giấy',
+            sessionsPerWeek: 2,
+            schedule: [{ weekday: 3, startLocal: '19:30', endLocal: '21:00' }],
+            expectedBudgetMinor: 200_000,
+            agreedTuitionPerSessionMinor: 220_000,
+            placementFeeAmountMinor: 640_000,
+            tutorRequirements: 'Có kinh nghiệm ôn thi',
+            studentTraits: 'Học khá',
+            completedAt: '2026-10-16T01:00:00.000Z',
+            contact: {
+              learnerDisplayName: 'Phụ huynh B',
+              studentName: 'Học sinh C',
+              phone: '0912345678',
+              address: 'Số 10, ngõ 5 (địa chỉ mẫu)',
+            },
+            letter,
+          } satisfies CompletedClassDetail,
+        };
       return undefined;
     });
     const { router } = renderRoute('/tutor/class-requests?tab=hoan-tat');
@@ -566,9 +594,23 @@ describe('tutor class requests page', () => {
     const link = within(card).getByRole('link', { name: 'Thư giới thiệu' });
     expect(link.getAttribute('href')).toBe('/tutor/class-requests/as-9/thu-gioi-thieu');
 
+    expect(within(card).getByRole('link', { name: 'Xem chi tiết' }).getAttribute('href')).toBe(
+      '/tutor/class-requests/da-hoan-tat/as-9',
+    );
+    await router.navigate('/tutor/class-requests/da-hoan-tat/as-9');
+    expect(await screen.findByRole('heading', { name: 'Chi tiết lớp đã hoàn tất' })).toBeTruthy();
+    expect(screen.getByText('Thứ Tư: 19:30–21:00')).toBeTruthy();
+    expect(screen.getByText('Học sinh C')).toBeTruthy();
+    expect(screen.getByRole('link', { name: '0912345678' }).getAttribute('href')).toBe(
+      'tel:0912345678',
+    );
+    expect(screen.getAllByText('Số 10, ngõ 5 (địa chỉ mẫu)').length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { name: 'Thư giới thiệu của trung tâm' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'THƯ GIỚI THIỆU GIA SƯ' })).toBeTruthy();
+
     await router.navigate('/tutor/class-requests/as-9/thu-gioi-thieu');
     expect(await screen.findByRole('heading', { name: 'THƯ GIỚI THIỆU GIA SƯ' })).toBeTruthy();
     expect(screen.getByText(/TGT-LH-9/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'In / Lưu PDF' })).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'In / Lưu PDF' })).toBeTruthy();
   });
 });

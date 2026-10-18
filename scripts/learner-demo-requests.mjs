@@ -276,6 +276,169 @@ const REQUESTS = [
     proposals: [['D', 72]],
     days: 2,
   },
+  // Tutor "Yêu cầu nhận lớp" samples for the sample tutor (A); one per tab state.
+  {
+    key: 10,
+    // "Lớp đã đăng ký" → Chờ duyệt: the tutor applied, the centre has not decided yet.
+    state: 'applied',
+    studentName: 'Đặng Minh Khôi',
+    subjectId: 'subj_math',
+    grade: 'Lớp 8',
+    level: 'lower_secondary',
+    mode: 'offline',
+    area: 'Phường Dịch Vọng, Hà Nội',
+    publicArea: 'Cầu Giấy, Hà Nội',
+    budget: 200_000,
+    sessions: 2,
+    windows: [
+      [2, '19:30', '21:00'],
+      [5, '19:30', '21:00'],
+    ],
+    availability: [
+      [2, '19:30', '21:00'],
+      [4, '17:30', '19:00'],
+      [5, '19:30', '21:00'],
+    ],
+    tutorRequirements:
+      'Sinh viên sư phạm hoặc giáo viên Toán\nCó kinh nghiệm dạy học sinh mất gốc\nGiao bài tập về nhà và nhận xét sau mỗi buổi',
+    studentTraits:
+      'Trình độ hiện tại: trung bình, mất gốc phần phân thức đại số.\nNăng lực học tập: tiếp thu chậm nhưng chăm chỉ.\nĐiểm mạnh: tính toán cẩn thận.\nCần cải thiện: hình học và kỹ năng trình bày.',
+    days: 2,
+  },
+  {
+    key: 11,
+    // "Lớp đã đăng ký" → Đã duyệt: assigned, learner confirmed, contract issued; the returning
+    // sample tutor can confirm the contract and pay on "Hoàn tất nhận lớp".
+    state: 'assigned',
+    contractIssued: true,
+    studentName: 'Lý Thảo Vy',
+    subjectId: 'subj_english',
+    grade: 'Lớp 9',
+    level: 'lower_secondary',
+    mode: 'offline',
+    area: 'Phường Láng, Hà Nội',
+    publicArea: 'Đống Đa, Hà Nội',
+    budget: 220_000,
+    tuition: 220_000,
+    sessions: 2,
+    windows: [
+      [3, '17:30', '19:00'],
+      [7, '09:00', '10:30'],
+    ],
+    tutorRequirements:
+      'Phát âm chuẩn, có chứng chỉ IELTS 7.0 trở lên\nKinh nghiệm luyện thi vào lớp 10 chuyên Anh',
+    studentTraits:
+      'Trình độ hiện tại: khá, ngữ pháp vững.\nĐiểm mạnh: đọc hiểu tốt.\nCần cải thiện: kỹ năng viết đoạn văn và nghe.',
+    days: 7,
+  },
+  {
+    key: 12,
+    // "Lớp đã đăng ký" → Bị từ chối, with the centre's reason.
+    state: 'rejected',
+    rejectionReason:
+      'Thời gian rảnh bạn gửi chưa khớp lịch học tối Thứ Ba của lớp; phụ huynh cần gia sư cố định khung giờ này.',
+    studentName: 'Trịnh Quốc Bảo',
+    subjectId: 'subj_physics',
+    grade: 'Lớp 10',
+    level: 'upper_secondary',
+    mode: 'offline',
+    area: 'Phường Thanh Xuân, Hà Nội',
+    publicArea: 'Thanh Xuân, Hà Nội',
+    budget: 230_000,
+    sessions: 2,
+    windows: [
+      [2, '17:30', '19:00'],
+      [6, '09:00', '10:30'],
+    ],
+    availability: [[6, '09:00', '10:30']],
+    tutorRequirements: 'Giáo viên hoặc sinh viên giỏi Vật lý\nDạy chắc phần động lực học',
+    studentTraits:
+      'Trình độ hiện tại: khá.\nNăng lực học tập: tư duy nhanh, hay chủ quan.\nCần cải thiện: trình bày lời giải đầy đủ.',
+    days: 10,
+  },
+  {
+    key: 13,
+    // "Lớp được đề xuất" → Đã xác nhận: the tutor confirmed and the learner chose the tutor.
+    state: 'sourcing',
+    studentName: 'Phan Bảo Ngọc',
+    subjectId: 'subj_math',
+    grade: 'Lớp 7',
+    level: 'lower_secondary',
+    mode: 'offline',
+    area: 'Phường Nghĩa Tân, Hà Nội',
+    publicArea: 'Cầu Giấy, Hà Nội',
+    budget: 180_000,
+    sessions: 2,
+    windows: [
+      [1, '17:30', '19:00'],
+      [4, '17:30', '19:00'],
+    ],
+    tutorRequirements: 'Kiên nhẫn, có phương pháp dạy trực quan\nƯu tiên gia sư nữ',
+    studentTraits:
+      'Trình độ hiện tại: trung bình khá.\nĐiểm mạnh: ham học hỏi.\nCần cải thiện: số học và giải toán có lời văn.',
+    proposals: [
+      ['A', 92, 'selected'],
+      ['B', 87],
+    ],
+    responses: { A: ['accepted'] },
+    days: 5,
+  },
+  {
+    key: 14,
+    // "Lớp được đề xuất" → Đã từ chối, with the tutor's reason.
+    state: 'sourcing',
+    studentName: 'Đoàn Gia Bảo',
+    subjectId: 'subj_chemistry',
+    grade: 'Lớp 11',
+    level: 'upper_secondary',
+    mode: 'offline',
+    area: 'Phường Long Biên, Hà Nội',
+    publicArea: 'Long Biên, Hà Nội',
+    budget: 240_000,
+    sessions: 3,
+    windows: [
+      [2, '19:30', '21:00'],
+      [4, '19:30', '21:00'],
+      [6, '15:30', '17:00'],
+    ],
+    tutorRequirements: 'Chuyên Hóa hữu cơ, có kinh nghiệm ôn thi học sinh giỏi',
+    studentTraits: 'Trình độ hiện tại: giỏi.\nMục tiêu: đội tuyển Hóa cấp trường.',
+    proposals: [
+      ['A', 89],
+      ['C', 86],
+    ],
+    responses: {
+      A: ['declined', 'Khu vực Long Biên quá xa nơi ở, không đảm bảo đi lại 3 buổi/tuần.'],
+    },
+    days: 4,
+  },
+  {
+    key: 15,
+    // "Lớp đã hoàn tất": assigned, confirmed, contract acknowledged, fee recorded; contact,
+    // street address and the introduction letter open for the sample tutor.
+    state: 'assigned',
+    learnerConfirmed: true,
+    fee: 'formula',
+    studentName: 'Nguyễn Hoàng Nam',
+    subjectId: 'subj_math',
+    grade: 'Lớp 12',
+    level: 'upper_secondary',
+    mode: 'offline',
+    area: 'Phường Cầu Giấy, Hà Nội',
+    address: 'Số 18, ngõ 75 Trần Quốc Vượng, Cầu Giấy, Hà Nội (địa chỉ mẫu)',
+    publicArea: 'Cầu Giấy, Hà Nội',
+    budget: 250_000,
+    tuition: 250_000,
+    sessions: 2,
+    windows: [
+      [3, '19:30', '21:00'],
+      [6, '15:30', '17:00'],
+    ],
+    tutorRequirements: 'Kinh nghiệm luyện thi tốt nghiệp THPT\nCó tài liệu ôn tập theo chuyên đề',
+    studentTraits:
+      'Trình độ hiện tại: khá.\nĐiểm mạnh: đại số, giải tích.\nCần cải thiện: hình học không gian; mục tiêu 8+ thi tốt nghiệp.',
+    days: 20,
+  },
   {
     key: 6,
     state: 'draft',
@@ -478,6 +641,15 @@ WHERE NOT EXISTS (SELECT 1 FROM request_tutor_proposals WHERE id = ${sql(id)}
   AND EXISTS (SELECT 1 FROM parent_requests WHERE id = ${sql(requestId)} AND status IN ('sourcing', 'assigned'))
   AND EXISTS (SELECT 1 FROM tutor_profiles WHERE user_id = ${sql(tutorIds[ref])});`);
   });
+  // The tutor's own answer comes first: once the learner chooses, the proposal is closed.
+  item.proposals.forEach(([ref], index) => {
+    const answer = item.responses?.[ref];
+    if (!answer) return;
+    const id = sampleId(10, item.key * 10 + index);
+    out.push(`UPDATE request_tutor_proposals SET tutor_response = ${sql(answer[0])},
+  tutor_responded_at = ${sql(ago(item.days * 1440 - 450))}, tutor_decline_reason = ${sql(answer[1] ?? null)}
+WHERE id = ${sql(id)} AND status = 'proposed' AND tutor_response IS NULL;`);
+  });
   item.proposals.forEach(([, , state], index) => {
     if (state !== 'selected') return;
     const id = sampleId(10, item.key * 10 + index);
@@ -521,7 +693,8 @@ VALUES (${sql(requestId)}, ${sql(`YC-D${hex(item.key)}`)}, ${sql(learnerId)}, ${
   ${sql(item.tutorRequirements)}, ${sql(item.studentTraits)});`);
     out.push(`INSERT OR IGNORE INTO parent_request_private (request_id, contact_phone, contact_address,
   contact_consent_at, contact_consent_version, student_name)
-VALUES (${sql(requestId)}, '0901234567', ${item.mode === 'offline' ? "'Số 12, ngõ 34 (địa chỉ mẫu)'" : 'NULL'},
+VALUES (${sql(requestId)}, '0901234567',
+  ${item.mode === 'offline' ? sql(item.address ?? 'Số 12, ngõ 34 (địa chỉ mẫu)') : 'NULL'},
   ${draft ? 'NULL' : sql(created)}, ${draft ? 'NULL' : "'2026-10-12-v3'"}, ${sql(item.studentName)});`);
     for (const [weekday, start, end] of item.windows) {
       // The overlap trigger runs before OR IGNORE could skip a duplicate, so guard explicitly.
@@ -549,17 +722,36 @@ WHERE id = ${sql(requestId)} AND status = 'submitted'
       continue;
     }
 
-    const appliedAt = ago(120 - item.key);
+    // After the sample tutor's terms acknowledgement (170 minutes ago), as the D1 gate requires.
+    const appliedAt =
+      item.state === 'applied' || item.state === 'rejected'
+        ? ago(150 - item.key)
+        : ago(120 - item.key);
     const assignedAt = ago(90 - item.key);
+    const availability = (item.availability ?? item.windows).map(
+      ([weekday, startLocal, endLocal]) => ({
+        weekday,
+        startLocal,
+        endLocal,
+      }),
+    );
     out.push(`INSERT INTO tutor_applications (id, class_id, tutor_user_id, fee_option_version_id, status, version,
-  mutation_id, created_at, updated_at, match_snapshot_json)
+  mutation_id, created_at, updated_at, match_snapshot_json, availability_json)
 SELECT ${sql(applicationId)}, ${sql(classId)}, ${sql(tutorId)},
   (SELECT id FROM fee_option_versions WHERE option_key = 'monthly_percent' AND status = 'published'
      AND scope_subject_id IS NULL AND scope_mode IS NULL ORDER BY version DESC LIMIT 1),
-  'submitted', 1, ${sql(applicationId)}, ${sql(appliedAt)}, ${sql(appliedAt)}, '{}'
+  'submitted', 1, ${sql(applicationId)}, ${sql(appliedAt)}, ${sql(appliedAt)}, '{}',
+  ${sql(JSON.stringify(availability))}
 WHERE NOT EXISTS (SELECT 1 FROM tutor_applications WHERE id = ${sql(applicationId)})
   AND EXISTS (SELECT 1 FROM class_listings WHERE id = ${sql(classId)} AND status = 'open')
   AND ${tutorReady};`);
+    if (item.state === 'applied') continue;
+    if (item.state === 'rejected') {
+      out.push(`UPDATE tutor_applications SET status = 'rejected', rejection_reason = ${sql(item.rejectionReason)},
+  version = 2, updated_at = ${sql(ago(140 - item.key))}
+WHERE id = ${sql(applicationId)} AND status = 'submitted';`);
+      continue;
+    }
     out.push(`UPDATE tutor_applications SET status = 'selected', version = 2, updated_at = ${sql(assignedAt)}
 WHERE id = ${sql(applicationId)} AND status = 'submitted';`);
     out.push(`UPDATE class_listings SET status = 'active', version = 2, updated_at = ${sql(assignedAt)}
@@ -574,7 +766,7 @@ SELECT ${sql(assignmentId)}, ${sql(classId)}, ${sql(applicationId)}, ${sql(tutor
   ${sql(assignmentId)}, ${sql(assignedAt)}, ${item.tuition}, ${sql(adminId)}, ${sql(assignedAt)}
 WHERE NOT EXISTS (SELECT 1 FROM class_assignments WHERE id = ${sql(assignmentId)})
   AND EXISTS (SELECT 1 FROM parent_requests WHERE id = ${sql(requestId)} AND status = 'assigned');`);
-    if (item.learnerConfirmed) {
+    if (item.learnerConfirmed || item.contractIssued) {
       // The learner accepted the proposed tutor ("Đã xác nhận"); D1 checks the confirmer.
       out.push(`UPDATE class_assignments SET learner_confirmed_at = ${sql(ago(60 - item.key))},
   learner_confirmed_by = ${sql(learnerId)}
@@ -592,12 +784,19 @@ SELECT ${sql(contractId)}, a.id, a.class_id, a.tutor_user_id, t.fee_option_versi
 FROM class_assignments a JOIN tutor_applications t ON t.id = a.application_id
 WHERE a.id = ${sql(assignmentId)} AND a.status = 'active'
   AND NOT EXISTS (SELECT 1 FROM class_contract_records WHERE assignment_id = ${sql(assignmentId)});`);
-      out.push(`UPDATE class_contract_records SET status = 'acknowledged', acknowledged_at = ${sql(ago(45))}, version = 2
+      if (item.learnerConfirmed) {
+        // 40% × học phí/buổi × buổi/tuần × 4 for new samples; older ones keep their recorded amount.
+        const feeMinor =
+          item.fee === 'formula'
+            ? Math.round((item.budget * item.sessions * 4 * 4000) / 10_000)
+            : Math.round(item.tuition / 2);
+        out.push(`UPDATE class_contract_records SET status = 'acknowledged', acknowledged_at = ${sql(ago(45))}, version = 2
 WHERE id = ${sql(contractId)} AND status = 'issued';`);
-      out.push(`UPDATE class_assignments SET placement_fee_paid_at = ${sql(ago(40))},
-  placement_fee_amount_minor = ${Math.round(item.tuition / 2)}, placement_fee_recorded_by = ${sql(adminId)}
+        out.push(`UPDATE class_assignments SET placement_fee_paid_at = ${sql(ago(40 - item.key))},
+  placement_fee_amount_minor = ${feeMinor}, placement_fee_recorded_by = ${sql(adminId)}
 WHERE id = ${sql(assignmentId)} AND placement_fee_paid_at IS NULL
   AND EXISTS (SELECT 1 FROM class_contract_records WHERE id = ${sql(contractId)} AND status = 'acknowledged');`);
+      }
     }
     if (item.state === 'assigned') {
       // Proposals of an assigned request name its assigned tutor, added once assigned.

@@ -697,6 +697,13 @@ function CompletedTab() {
                 />
               )}
               <div className="mt-auto flex flex-wrap gap-3 border-t border-border pt-4">
+                <ButtonLink
+                  to={`/tutor/class-requests/da-hoan-tat/${encodeURIComponent(item.assignmentId)}`}
+                  className="gap-2"
+                >
+                  <Eye aria-hidden="true" className="size-4" />
+                  Xem chi tiết
+                </ButtonLink>
                 <Button
                   variant="secondary"
                   className="gap-2"

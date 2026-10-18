@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './discovery';
+import type { EducationLevel } from './requests';
 
 /** "Yêu cầu nhận lớp" (tutor): centre proposals, completed acceptances and the intro letter. */
 export const classRequestPageSchema = z.strictObject({
@@ -122,4 +123,31 @@ export interface PaymentInstructions {
   /** Set by the centre when the fee is received. */
   paidAt: string | null;
   completed: boolean;
+}
+
+/** "Xem chi tiết" of a completed class; only returned once the acceptance is complete. */
+export interface CompletedClassDetail {
+  assignmentId: string;
+  classCode: string;
+  subjectName: string;
+  grade: string;
+  educationLevel: EducationLevel | null;
+  mode: 'online' | 'offline';
+  publicArea: string | null;
+  sessionsPerWeek: number | null;
+  schedule: ScheduleWindow[];
+  expectedBudgetMinor: number | null;
+  agreedTuitionPerSessionMinor: number | null;
+  placementFeeAmountMinor: number;
+  tutorRequirements: string | null;
+  studentTraits: string | null;
+  completedAt: string;
+  contact: {
+    learnerDisplayName: string;
+    studentName: string | null;
+    phone: string;
+    /** Street address for in-person classes; null when the learner gave none. */
+    address: string | null;
+  };
+  letter: IntroductionLetter;
 }

@@ -4,6 +4,7 @@ import type { ApiSuccess } from '../../src/shared/api';
 import type { AdminAssignment } from '../../src/shared/schemas/admin-assignments';
 import type {
   CompletedAcceptance,
+  CompletedClassDetail,
   IntroductionLetter,
   PaymentInstructions,
   TutorProposalItem,
@@ -254,6 +255,18 @@ describe('tutor class requests', () => {
     });
     const other = await createPublicTutor({ teachesOffline: true });
     expect((await api(letterPath, { headers: { Cookie: other.cookie } })).status).toBe(404);
+    // "Xem chi tiết" of the completed class: facts, schedule, contact, address and the letter.
+    const detailPath = `/tutor/class-requests/acceptances/${first.assignment.id}/detail`;
+    const detail = await get<CompletedClassDetail>(detailPath, tutor);
+    expect(detail).toMatchObject({
+      classCode: first.cls.code,
+      subjectName: 'Toán',
+      schedule: [{ weekday: 1, startLocal: '18:00', endLocal: '19:30' }],
+      placementFeeAmountMinor: 400_000,
+      contact: { phone: PHONE, address: ADDRESS },
+      letter: { letterNumber: `TGT-${first.cls.code}`, learnerPhone: PHONE },
+    });
+    expect((await api(detailPath, { headers: { Cookie: other.cookie } })).status).toBe(404);
 
     // Second class: a completed acceptance exists → returning tutor; contract on the system.
     const second = await selectedClass(moderator, tutor, 'Lớp 11');
@@ -309,6 +322,8 @@ describe('tutor class requests', () => {
     });
     const secondLetter = `/tutor/class-requests/acceptances/${second.assignment.id}/letter`;
     expect((await api(secondLetter, { headers: { Cookie: tutor.cookie } })).status).toBe(404);
+    const secondDetail = `/tutor/class-requests/acceptances/${second.assignment.id}/detail`;
+    expect((await api(secondDetail, { headers: { Cookie: tutor.cookie } })).status).toBe(404);
     // The centre confirms receipt → complete.
     await data(
       await api(
@@ -318,6 +333,7 @@ describe('tutor class requests', () => {
     );
     expect((await get<PaymentInstructions>(payPath, tutor)).completed).toBe(true);
     expect((await api(secondLetter, { headers: { Cookie: tutor.cookie } })).status).toBe(200);
+    expect((await api(secondDetail, { headers: { Cookie: tutor.cookie } })).status).toBe(200);
     // The earlier class is still the tutor's first acceptance.
     expect((await ownApplication(tutor, first.application.id)).acceptance?.firstAcceptance).toBe(
       true,

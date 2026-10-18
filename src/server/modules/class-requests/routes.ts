@@ -7,6 +7,7 @@ import {
   reportTransferSchema,
   type PaymentInstructions,
   type CompletedAcceptance,
+  type CompletedClassDetail,
   type IntroductionLetter,
   type TutorProposalItem,
 } from '../../../shared/schemas/class-requests';
@@ -84,6 +85,12 @@ tutorClassRequestRoutes.post('/acceptances/:assignmentId/payment/report', async 
     ),
   );
 });
+tutorClassRequestRoutes.get('/acceptances/:assignmentId/detail', async (c) =>
+  ok<CompletedClassDetail>(
+    c,
+    await service.getCompletedDetail(c.env.DB, authOf(c).user.id, c.req.param('assignmentId')),
+  ),
+);
 tutorClassRequestRoutes.get('/acceptances/:assignmentId/letter', async (c) =>
   ok<IntroductionLetter>(
     c,
