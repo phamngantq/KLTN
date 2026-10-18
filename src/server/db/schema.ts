@@ -502,6 +502,7 @@ export const classAssignments = sqliteTable(
     placementFeeRecordedBy: text('placement_fee_recorded_by').references(() => users.id, {
       onDelete: 'restrict',
     }),
+    placementFeeReportedAt: text('placement_fee_reported_at'),
   },
   (t) => [
     uniqueIndex('class_assignments_application_uq').on(t.applicationId),

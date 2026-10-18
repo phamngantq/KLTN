@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE } from './discovery';
-import { REQUEST_GRADE_OPTIONS, requestScheduleSchema } from './requests';
+import { REQUEST_GRADE_OPTIONS, requestScheduleSchema, type EducationLevel } from './requests';
 
 export const CLASS_STATUSES = ['draft', 'open', 'active', 'completed', 'cancelled'] as const;
 export type ClassStatus = (typeof CLASS_STATUSES)[number];
@@ -128,6 +128,8 @@ export interface PublicClass {
   sessionsPerWeek: number | null;
   tutorRequirements: string | null;
   studentTraits: string | null;
+  /** "Cấp học" of the source request; absent on older payloads. */
+  educationLevel?: EducationLevel | null;
   /** "Phí nhận lớp": monthly-percent policy × budget × sessions/week × 4; null when unknown. */
   placementFeeMinor: number | null;
 }
@@ -316,6 +318,6 @@ export interface ApplicationAcceptance {
   placementFeePaidAt: string | null;
   /** Learner contact and the introduction letter open only when this is true. */
   completed: boolean;
-  /** False until an online payment gateway is configured for this deployment. */
-  onlinePaymentReady: boolean;
+  /** "Tôi đã chuyển khoản" from a returning tutor, waiting for the centre to confirm. */
+  paymentReportedAt: string | null;
 }

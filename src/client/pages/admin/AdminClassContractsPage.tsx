@@ -280,10 +280,20 @@ export function AdminClassContractsPage() {
                         ? 'Người học đã xác nhận thuê'
                         : 'Chờ người học xác nhận'}
                     </Badge>
-                    <Badge tone={item.placementFeePaidAt ? 'success' : 'neutral'}>
+                    <Badge
+                      tone={
+                        item.placementFeePaidAt
+                          ? 'success'
+                          : item.placementFeeReportedAt
+                            ? 'warning'
+                            : 'neutral'
+                      }
+                    >
                       {item.placementFeePaidAt
                         ? `Đã thu phí ${formatVnd(item.placementFeeAmountMinor ?? 0)}`
-                        : 'Chưa thu phí môi giới'}
+                        : item.placementFeeReportedAt
+                          ? 'Gia sư báo đã chuyển khoản — cần đối soát'
+                          : 'Chưa thu phí môi giới'}
                     </Badge>
                     {item.status === 'issued' && (
                       <Button

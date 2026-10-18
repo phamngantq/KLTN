@@ -4,6 +4,8 @@ import {
   classRequestPageSchema,
   declineProposalSchema,
   proposalListSchema,
+  reportTransferSchema,
+  type PaymentInstructions,
   type CompletedAcceptance,
   type IntroductionLetter,
   type TutorProposalItem,
@@ -14,6 +16,7 @@ import { parseJsonBody, parseQuery } from '../../lib/validate';
 import { authOf, requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import * as service from './service';
+import type { PaymentEnv } from './service';
 
 /** Mounted at /api/v1/tutor/class-requests; every read is scoped to the signed-in tutor. */
 export const tutorClassRequestRoutes = new Hono<AppEnv>();
@@ -58,9 +61,29 @@ tutorClassRequestRoutes.get('/completed', async (c) => {
     await service.listCompleted(c.env.DB, authOf(c).user.id, page, pageSize),
   );
 });
-tutorClassRequestRoutes.post('/acceptances/:assignmentId/payment', async (c) =>
-  service.startPlacementFeePayment(c.env.DB, authOf(c).user.id, c.req.param('assignmentId')),
+tutorClassRequestRoutes.get('/acceptances/:assignmentId/payment', async (c) =>
+  ok<PaymentInstructions>(
+    c,
+    await service.getPaymentInstructions(
+      c.env.DB,
+      c.env as PaymentEnv,
+      authOf(c).user.id,
+      c.req.param('assignmentId'),
+    ),
+  ),
 );
+tutorClassRequestRoutes.post('/acceptances/:assignmentId/payment/report', async (c) => {
+  await parseJsonBody(c, reportTransferSchema);
+  return ok<PaymentInstructions>(
+    c,
+    await service.reportTransfer(
+      c.env.DB,
+      c.env as PaymentEnv,
+      authOf(c).user.id,
+      c.req.param('assignmentId'),
+    ),
+  );
+});
 tutorClassRequestRoutes.get('/acceptances/:assignmentId/letter', async (c) =>
   ok<IntroductionLetter>(
     c,

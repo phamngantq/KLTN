@@ -41,14 +41,18 @@ export function RequestScheduleGrid({
   onChange,
   maxWindows = Number.POSITIVE_INFINITY,
   disabled = false,
+  readOnly = false,
   caption = 'Chọn thời gian học mong muốn theo tuần',
 }: {
   value: Window[];
   onChange: (windows: Window[]) => void;
   maxWindows?: number;
   disabled?: boolean;
+  /** Shows a saved selection (e.g. free time sent with a request) without editing. */
+  readOnly?: boolean;
   caption?: string;
 }) {
+  const locked = disabled || readOnly;
   const valueRef = useRef(value);
   const dragRef = useRef<'add' | 'remove' | null>(null);
   const [limitMessage, setLimitMessage] = useState('');
@@ -62,7 +66,7 @@ export function RequestScheduleGrid({
   }
 
   function change(next: Window[]) {
-    if (disabled) return;
+    if (locked) return;
     if (next.length > maxWindows) {
       setLimitMessage(`Chỉ được chọn tối đa ${maxWindows} khung giờ mỗi tuần.`);
       return;
@@ -81,7 +85,7 @@ export function RequestScheduleGrid({
   }
 
   function beginPointer(event: PointerEvent<HTMLButtonElement>, weekday: number, slot: Slot) {
-    if (disabled) return;
+    if (locked) return;
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     dragRef.current = selected(weekday, slot) ? 'remove' : 'add';
     event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -89,7 +93,7 @@ export function RequestScheduleGrid({
   }
 
   function movePointer(event: PointerEvent<HTMLDivElement>) {
-    if (disabled || !dragRef.current) return;
+    if (locked || !dragRef.current) return;
     const target = document.elementFromPoint?.(event.clientX, event.clientY);
     const cell = target?.closest<HTMLButtonElement>('[data-weekday][data-slot]');
     if (!cell || !event.currentTarget.contains(cell)) return;
@@ -99,7 +103,7 @@ export function RequestScheduleGrid({
   }
 
   function toggleGroup(cells: Window[]) {
-    if (disabled) return;
+    if (locked) return;
     const current = valueRef.current;
     const includes = (window: Window) =>
       current.some((item) => sameCell(item, window.weekday, window));
@@ -118,8 +122,8 @@ export function RequestScheduleGrid({
   return (
     <div className="min-w-0 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted">Chọn từng ô, cả ngày hoặc cả khung giờ.</p>
-        {selectedCount > 0 && !disabled && (
+        {!readOnly && <p className="text-xs text-muted">Chọn từng ô, cả ngày hoặc cả khung giờ.</p>}
+        {selectedCount > 0 && !locked && (
           <button
             type="button"
             onClick={() =>
@@ -150,7 +154,7 @@ export function RequestScheduleGrid({
                     <button
                       type="button"
                       onClick={() => toggleGroup(cells)}
-                      disabled={disabled}
+                      disabled={locked}
                       aria-label={`${allSelected ? 'Bỏ chọn' : 'Chọn'} cả ${day.name}`}
                       className={`min-h-11 w-full rounded-lg px-1 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${allSelected ? 'bg-info-surface text-primary' : 'text-muted hover:bg-info-surface'}`}
                     >
@@ -171,7 +175,7 @@ export function RequestScheduleGrid({
                     <button
                       type="button"
                       onClick={() => toggleGroup(cells)}
-                      disabled={disabled}
+                      disabled={locked}
                       aria-label={`${allSelected ? 'Bỏ chọn' : 'Chọn'} khung ${slot.startLocal}–${slot.endLocal} cả tuần`}
                       className={`min-h-11 w-full rounded-md px-1 text-[11px] leading-tight focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${allSelected ? 'font-semibold text-primary' : 'text-muted hover:text-primary'}`}
                     >
@@ -190,13 +194,13 @@ export function RequestScheduleGrid({
                           data-slot={slotIndex}
                           aria-label={`${day.name}, ${slot.startLocal}–${slot.endLocal}`}
                           aria-pressed={active}
-                          disabled={disabled}
+                          disabled={locked}
                           onPointerDown={(event) => beginPointer(event, day.weekday, slot)}
                           onClick={(event) => {
                             if (event.detail === 0)
                               applyCell(day.weekday, slot, active ? 'remove' : 'add');
                           }}
-                          className={`flex min-h-11 min-w-10 w-full touch-none items-center justify-center rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${disabled ? 'cursor-default border-border bg-surface opacity-50' : active ? 'border-primary bg-primary text-on-primary' : 'border-border bg-bg hover:border-primary hover:bg-info-surface'}`}
+                          className={`flex min-h-11 min-w-10 w-full touch-none items-center justify-center rounded-lg border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${disabled ? 'cursor-default border-border bg-surface opacity-50' : readOnly ? `cursor-default ${active ? 'border-primary bg-primary text-on-primary' : 'border-border bg-bg'}` : active ? 'border-primary bg-primary text-on-primary' : 'border-border bg-bg hover:border-primary hover:bg-info-surface'}`}
                         >
                           {active && <Check aria-hidden="true" className="size-4" />}
                         </button>
@@ -210,11 +214,13 @@ export function RequestScheduleGrid({
         </table>
       </div>
       <p className="text-xs text-muted" role="status">
-        {disabled
-          ? 'Lưới thời gian đã tắt vì bạn chọn trao đổi thời gian sau.'
-          : Number.isFinite(maxWindows)
-            ? `Đã chọn ${value.length} khung giờ/tuần · tối đa ${maxWindows} khung giờ cho cả lịch.`
-            : `Đã chọn ${value.length} khung giờ/tuần`}
+        {readOnly
+          ? `${value.length} khung giờ/tuần`
+          : disabled
+            ? 'Lưới thời gian đã tắt vì bạn chọn trao đổi thời gian sau.'
+            : Number.isFinite(maxWindows)
+              ? `Đã chọn ${value.length} khung giờ/tuần · tối đa ${maxWindows} khung giờ cho cả lịch.`
+              : `Đã chọn ${value.length} khung giờ/tuần`}
       </p>
       {limitMessage && (
         <p role="alert" className="text-sm text-danger">

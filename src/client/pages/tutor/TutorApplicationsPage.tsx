@@ -1,11 +1,14 @@
 import {
+  BookOpen,
   CalendarDays,
   ClipboardCheck,
   Clock3,
   Eye,
   FileText,
+  GraduationCap,
   MapPin,
   Phone,
+  Repeat,
   Search,
   Sparkles,
   UserRound,
@@ -16,6 +19,7 @@ import { useId, useState, type FormEvent, type KeyboardEvent, type ReactNode } f
 import { useSearchParams } from 'react-router';
 import type { ProposalFilter, TutorProposalItem } from '../../../shared/schemas/class-requests';
 import type { ApplicationStatus } from '../../../shared/schemas/classes';
+import { EDUCATION_LEVEL_LABELS } from '../../../shared/schemas/requests';
 import { isReadOnlyPreview } from '../../app/preview';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -29,8 +33,7 @@ import {
   useTutorProposals,
 } from '../../features/class-requests/api';
 import { useWithdrawApplication, type TutorClassApplication } from '../../features/classes/api';
-import { formatDate, formatVnd } from '../../lib/format';
-import { ClassAcceptancePanel } from './ClassAcceptancePanel';
+import { formatDate, formatTime, formatVnd } from '../../lib/format';
 import {
   DeclineProposalDialog,
   isPending,
@@ -38,7 +41,7 @@ import {
   proposalSchedule,
   proposalStatus,
 } from './ProposalParts';
-import { classSchedule } from './TutorClassPages';
+import { classSchedule, requirementList, sessionsOf } from './TutorClassPages';
 
 type Tab = 'registered' | 'proposed' | 'completed';
 const TABS: { key: Tab; label: string; slug: string | null; icon: typeof FileText }[] = [
@@ -147,6 +150,14 @@ const cardClass =
 
 /* ------------------------------------------------------------------ Lớp đã đăng ký */
 
+export const PENDING_MESSAGE =
+  'Yêu cầu nhận lớp của bạn đã được gửi thành công. Vui lòng chờ trung tâm xem xét và phản hồi.';
+
+/** "Thứ Năm, 15/10/2026 lúc 08:00" in the centre's time zone. */
+export function sentAt(iso: string): string {
+  return `${formatDate(iso, 'Asia/Ho_Chi_Minh')} lúc ${formatTime(iso, 'Asia/Ho_Chi_Minh')}`;
+}
+
 function RegisteredCard({
   application,
   onCancel,
@@ -154,53 +165,83 @@ function RegisteredCard({
   application: TutorClassApplication;
   onCancel: () => void;
 }) {
-  const [completing, setCompleting] = useState(false);
   const status = STATUS[application.status];
   const preview = isReadOnlyPreview();
+  const item = application.class;
+  const pending = application.status === 'submitted';
+  const sessions = sessionsOf(item);
+  const requirements = item.tutorRequirements ? requirementList(item.tutorRequirements) : [];
   return (
     <article className={cardClass}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-muted">Lớp {application.class.code}</p>
+          <p className="text-xs font-semibold text-muted">Lớp {item.code}</p>
           <h2 className="text-lg font-semibold text-primary">
-            {application.class.subjectName} · {application.class.grade}
+            {item.subjectName} · {item.grade}
           </h2>
         </div>
         <Badge tone={status.tone}>{status.label}</Badge>
       </div>
+      {pending && (
+        <p role="status" className="rounded-lg bg-info-surface p-3 text-sm text-primary">
+          {PENDING_MESSAGE}
+        </p>
+      )}
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
+        {pending && (
+          <>
+            <Fact icon={BookOpen} label="Môn học">
+              Môn học: <strong>{item.subjectName}</strong>
+            </Fact>
+            <Fact icon={GraduationCap} label="Cấp học">
+              Cấp học:{' '}
+              <strong>
+                {item.educationLevel ? EDUCATION_LEVEL_LABELS[item.educationLevel] : item.grade}
+              </strong>
+            </Fact>
+          </>
+        )}
         <Fact icon={MapPin} label="Khu vực">
-          {application.class.mode === 'online'
-            ? 'Trực tuyến'
-            : application.class.publicArea || 'Trực tiếp'}
+          {item.mode === 'online' ? 'Trực tuyến' : item.publicArea || 'Trực tiếp'}
         </Fact>
-        <Fact icon={CalendarDays} label="Ngày gửi">
-          Gửi ngày {formatDate(application.createdAt, 'Asia/Ho_Chi_Minh')}
+        <Fact icon={CalendarDays} label="Thời gian gửi yêu cầu">
+          Gửi{' '}
+          {pending
+            ? sentAt(application.createdAt)
+            : `ngày ${formatDate(application.createdAt, 'Asia/Ho_Chi_Minh')}`}
         </Fact>
         <div className="sm:col-span-2">
           <Fact icon={Clock3} label="Lịch học">
-            {classSchedule(application.class)}
+            {classSchedule(item)}
           </Fact>
         </div>
-        {application.class.expectedBudgetMinor !== null && (
-          <div className="sm:col-span-2">
-            <Fact icon={Wallet} label="Học phí dự kiến">
-              Học phí dự kiến{' '}
-              <strong className="text-primary">
-                {formatVnd(application.class.expectedBudgetMinor)}/buổi
-              </strong>
-            </Fact>
-          </div>
+        {item.expectedBudgetMinor !== null && (
+          <Fact icon={Wallet} label="Học phí dự kiến">
+            Học phí{' '}
+            <strong className="text-primary">{formatVnd(item.expectedBudgetMinor)}/buổi</strong>
+          </Fact>
+        )}
+        {pending && sessions && (
+          <Fact icon={Repeat} label="Số buổi mỗi tuần">
+            <strong>{sessions} buổi/tuần</strong>
+          </Fact>
         )}
       </dl>
-      {completing && application.acceptance && (
-        <ClassAcceptancePanel
-          acceptance={application.acceptance}
-          classCode={application.class.code}
-        />
+      {pending && item.studentTraits && (
+        <div className="rounded-lg bg-surface p-3 text-sm">
+          <p className="font-semibold text-primary">Đặc điểm học sinh</p>
+          <p className="mt-1 whitespace-pre-line">{item.studentTraits}</p>
+        </div>
       )}
-      {completing && !application.acceptance && (
-        <Alert tone="info">Trung tâm đang hoàn thiện thông tin lớp. Vui lòng quay lại sau.</Alert>
+      {pending && requirements.length > 0 && (
+        <div className="rounded-lg bg-surface p-3 text-sm">
+          <p className="font-semibold text-primary">Yêu cầu gia sư</p>
+          <ul className="mt-1 flex list-disc flex-col gap-0.5 pl-5">
+            {requirements.map((requirement) => (
+              <li key={requirement}>{requirement}</li>
+            ))}
+          </ul>
+        </div>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-3 border-t border-border pt-4">
         <ButtonLink
@@ -211,21 +252,20 @@ function RegisteredCard({
           <Eye aria-hidden="true" className="size-4" />
           Xem chi tiết
         </ButtonLink>
-        {application.status === 'submitted' && !preview && (
+        {pending && !preview && (
           <Button variant="secondary" onClick={onCancel} className="gap-2 text-danger">
             <X aria-hidden="true" className="size-4" />
             Hủy nhận lớp
           </Button>
         )}
         {application.status === 'selected' && (
-          <Button
-            aria-expanded={completing}
-            onClick={() => setCompleting(!completing)}
+          <ButtonLink
+            to={`/tutor/class-requests/hoan-tat/${encodeURIComponent(application.id)}`}
             className="gap-2"
           >
             <ClipboardCheck aria-hidden="true" className="size-4" />
             Hoàn tất nhận lớp
-          </Button>
+          </ButtonLink>
         )}
       </div>
     </article>

@@ -155,6 +155,8 @@ export interface ClassContractRecord {
   learnerConfirmedAt: string | null;
   placementFeePaidAt: string | null;
   placementFeeAmountMinor: number | null;
+  /** Tutor's "Tôi đã chuyển khoản" report, before the moderator records receipt. */
+  placementFeeReportedAt: string | null;
 }
 export const contractVersionSchema = z.strictObject({ version: z.number().int().min(1) });
 export const placementFeeSchema = z.strictObject({

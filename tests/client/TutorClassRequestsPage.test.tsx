@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type {
   CompletedAcceptance,
   IntroductionLetter,
+  PaymentInstructions,
   TutorProposalItem,
 } from '../../src/shared/schemas/class-requests';
 import type {
@@ -52,7 +53,7 @@ const acceptance = (overrides: Partial<ApplicationAcceptance> = {}): Application
   placementFeeMinor: 640_000,
   placementFeePaidAt: null,
   completed: false,
-  onlinePaymentReady: false,
+  paymentReportedAt: null,
   ...overrides,
 });
 
@@ -159,22 +160,22 @@ describe('tutor class requests page', () => {
     expect(within(rejected).queryByRole('button', { name: 'Hủy nhận lớp' })).toBeNull();
     expect(within(rejected).queryByRole('button', { name: 'Hoàn tất nhận lớp' })).toBeNull();
 
-    // Đã duyệt, lần đầu: centre guidance, no online payment.
-    fireEvent.click(within(first).getByRole('button', { name: 'Hoàn tất nhận lớp' }));
-    expect(within(first).getByText('Đến trung tâm ký hợp đồng')).toBeTruthy();
-    expect(within(first).getByText('Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội')).toBeTruthy();
-    expect(within(first).getByText('Hướng dẫn thanh toán phí nhận lớp')).toBeTruthy();
-    expect(within(first).getAllByText('640.000 ₫').length).toBeGreaterThan(0);
-    expect(within(first).queryByRole('button', { name: /Thanh toán phí nhận lớp/ })).toBeNull();
-
-    // Đã duyệt, từ lần hai: online payment, disabled until a gateway is configured.
-    fireEvent.click(within(returning).getByRole('button', { name: 'Hoàn tất nhận lớp' }));
-    expect(within(returning).getByText('Bạn đã xác nhận hợp đồng.')).toBeTruthy();
-    const pay = within(returning).getByRole('button', { name: /Thanh toán phí nhận lớp/ });
-    expect((pay as HTMLButtonElement).disabled).toBe(true);
+    // Chờ duyệt: submitted message and the full class facts on the card.
     expect(
-      within(returning).getByText(/Cổng thanh toán trực tuyến chưa được cấu hình/),
+      within(pending).getByText(
+        'Yêu cầu nhận lớp của bạn đã được gửi thành công. Vui lòng chờ trung tâm xem xét và phản hồi.',
+      ),
     ).toBeTruthy();
+    expect(within(pending).getByText('2 buổi/tuần')).toBeTruthy();
+    expect(within(pending).getByText(/lúc/)).toBeTruthy();
+
+    // Đã duyệt: "Hoàn tất nhận lớp" opens the full-body completion screen.
+    expect(
+      within(first).getByRole('link', { name: 'Hoàn tất nhận lớp' }).getAttribute('href'),
+    ).toBe('/tutor/class-requests/hoan-tat/a3');
+    expect(
+      within(returning).getByRole('link', { name: 'Hoàn tất nhận lớp' }).getAttribute('href'),
+    ).toBe('/tutor/class-requests/hoan-tat/a4');
     expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
 
     fireEvent.change(screen.getByLabelText('Trạng thái'), { target: { value: 'rejected' } });
@@ -186,6 +187,136 @@ describe('tutor class requests page', () => {
     await waitFor(() => expect(calls.some((call) => call.path.includes('q=LH-a2'))).toBe(true));
   });
 
+  it('guides a first-time tutor to the centre on the completion screen', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/applications/a3')
+        return { data: application('a3', 'selected', { acceptance: acceptance() }) };
+      return undefined;
+    });
+    renderRoute('/tutor/class-requests/hoan-tat/a3');
+    expect(
+      await screen.findByRole('heading', { name: 'Hoàn tất nhận lớp', level: 1 }),
+    ).toBeTruthy();
+    expect(screen.getByText('Đến trung tâm ký hợp đồng')).toBeTruthy();
+    const guide = screen.getByRole('region', { name: 'Hoàn tất nhận lớp' });
+    expect(within(guide).getByText('Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội')).toBeTruthy();
+    expect(within(guide).getByText('Hướng dẫn thanh toán phí nhận lớp')).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /Mã VietQR/ })).toBeNull();
+  });
+
+  it('lets a returning tutor pay by VietQR, agreeing to the contract before reporting', async () => {
+    const payment: PaymentInstructions = {
+      assignmentId: 'as-2',
+      classCode: 'LH-a4',
+      firstAcceptance: false,
+      amountMinor: 640_000,
+      transferContent: 'PHI NHAN LOP LH-a4',
+      account: {
+        bankBin: '970436',
+        bankName: 'Ngân hàng thử nghiệm',
+        accountNumber: '0123456789',
+        accountName: 'TRUNG TAM THU NGHIEM',
+      },
+      qrPayload:
+        '00020101021238540010A00000072701240006970436011001234567890208QRIBFTTA53037045406640000',
+      learnerConfirmed: true,
+      contract: { id: 'ct-2', version: 1, status: 'issued' },
+      reportedAt: null,
+      paidAt: null,
+      completed: false,
+    };
+    let current = payment;
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/applications/a4')
+        return {
+          data: application('a4', 'selected', {
+            acceptance: acceptance({ assignmentId: 'as-2', firstAcceptance: false }),
+          }),
+        };
+      if (req.path === '/tutor/class-requests/acceptances/as-2/payment') return { data: current };
+      if (req.path === '/tutor/class-requests/acceptances/as-2/payment/report') {
+        current = {
+          ...payment,
+          reportedAt: '2026-10-18T02:00:00.000Z',
+          contract: { id: 'ct-2', version: 2, status: 'acknowledged' },
+        };
+        return { data: current };
+      }
+      return undefined;
+    });
+    renderRoute('/tutor/class-requests/hoan-tat/a4');
+    expect(await screen.findByRole('heading', { name: 'Hướng dẫn thanh toán' })).toBeTruthy();
+    expect(screen.getByRole('img', { name: /Mã VietQR chuyển 640.000/ })).toBeTruthy();
+    expect(screen.getAllByText('640.000 ₫').length).toBeGreaterThan(0);
+    expect(screen.getByText('PHI NHAN LOP LH-a4')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Sao chép nội dung chuyển khoản' }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('PHI NHAN LOP LH-a4'));
+
+    const finish = screen.getByRole('button', { name: /Tôi đã chuyển khoản/ });
+    expect((finish as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByText('Vui lòng tích chọn đồng ý với các điều khoản trong hợp đồng để tiếp tục.'),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByLabelText('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng'),
+    );
+    expect((finish as HTMLButtonElement).disabled).toBe(false);
+    fireEvent.click(finish);
+    await waitFor(() =>
+      expect(calls.find((call) => call.path.endsWith('/payment/report'))?.body).toEqual({
+        contractAgreed: true,
+      }),
+    );
+    expect(await screen.findByText('Đã ghi nhận bạn chuyển khoản phí nhận lớp')).toBeTruthy();
+    // Contact stays with the centre until it confirms receipt.
+    expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
+  });
+
+  it('shows no QR and blocks reporting while the centre account is not configured', async () => {
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/applications/a4')
+        return {
+          data: application('a4', 'selected', {
+            acceptance: acceptance({ assignmentId: 'as-2', firstAcceptance: false }),
+          }),
+        };
+      if (req.path === '/tutor/class-requests/acceptances/as-2/payment')
+        return {
+          data: {
+            assignmentId: 'as-2',
+            classCode: 'LH-a4',
+            firstAcceptance: false,
+            amountMinor: 640_000,
+            transferContent: 'PHI NHAN LOP LH-a4',
+            account: null,
+            qrPayload: null,
+            learnerConfirmed: true,
+            contract: { id: 'ct-2', version: 1, status: 'issued' },
+            reportedAt: null,
+            paidAt: null,
+            completed: false,
+          } satisfies PaymentInstructions,
+        };
+      return undefined;
+    });
+    renderRoute('/tutor/class-requests/hoan-tat/a4');
+    expect(
+      await screen.findByText(/chưa cấu hình tài khoản nhận thanh toán nên chưa tạo được mã QR/),
+    ).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /Mã VietQR/ })).toBeNull();
+    fireEvent.click(
+      screen.getByLabelText('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng'),
+    );
+    expect(
+      (screen.getByRole('button', { name: /Tôi đã chuyển khoản/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
   it('opens a full detail page with the rejection reason and no learner contact', async () => {
     const rejected = application('a2', 'rejected', {
       rejectionReason: 'Lịch dạy không phù hợp.',
@@ -195,7 +326,9 @@ describe('tutor class requests page', () => {
         studentTraits: 'Học sinh chăm',
       },
     });
-    const pending = application('a1', 'submitted');
+    const pending = application('a1', 'submitted', {
+      availability: { windows: [{ weekday: 2, startLocal: '19:30', endLocal: '21:00' }] },
+    });
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === '/tutor/applications/a2') return { data: rejected };
@@ -214,6 +347,15 @@ describe('tutor class requests page', () => {
 
     await router.navigate('/tutor/class-requests/chi-tiet/a1');
     expect(await screen.findByRole('button', { name: 'Hủy nhận lớp' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /Trạng thái xử lý/ })).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Yêu cầu nhận lớp của bạn đã được gửi thành công. Vui lòng chờ trung tâm xem xét và phản hồi.',
+      ),
+    ).toBeTruthy();
+    // Free time as the Monday–Sunday matrix.
+    const matrix = screen.getByRole('table', { name: /Thời gian rảnh bạn đã gửi/ });
+    expect(within(matrix).getByText('CN')).toBeTruthy();
     expect(screen.queryByText('Lý do từ chối của trung tâm')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Hủy nhận lớp' }));
     const dialog = await screen.findByRole('dialog', { hidden: true });

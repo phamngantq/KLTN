@@ -473,6 +473,7 @@ interface ContractRow {
   learner_confirmed_at: string | null;
   placement_fee_paid_at: string | null;
   placement_fee_amount_minor: number | null;
+  placement_fee_reported_at: string | null;
 }
 const contractSelect = `SELECT r.id, r.assignment_id, r.class_id, cl.code AS class_code,
   r.tutor_user_id, r.status, r.version, r.contract_content_revision_id,
@@ -481,7 +482,8 @@ const contractSelect = `SELECT r.id, r.assignment_id, r.class_id, cl.code AS cla
   f.policy_text AS fee_policy_text, f.rate_basis_points, f.deposit_basis_points,
   r.agreed_tuition_per_session_minor,
   r.issued_at, r.acknowledged_at,
-  a.learner_confirmed_at, a.placement_fee_paid_at, a.placement_fee_amount_minor
+  a.learner_confirmed_at, a.placement_fee_paid_at, a.placement_fee_amount_minor,
+  a.placement_fee_reported_at
   FROM class_contract_records r
   JOIN class_assignments a ON a.id = r.assignment_id
   JOIN class_listings cl ON cl.id = r.class_id
@@ -513,6 +515,7 @@ function contract(row: ContractRow): ClassContractRecord {
     learnerConfirmedAt: row.learner_confirmed_at,
     placementFeePaidAt: row.placement_fee_paid_at,
     placementFeeAmountMinor: row.placement_fee_amount_minor,
+    placementFeeReportedAt: row.placement_fee_reported_at,
   };
 }
 

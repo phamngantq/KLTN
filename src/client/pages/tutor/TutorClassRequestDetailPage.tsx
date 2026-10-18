@@ -13,15 +13,20 @@ import {
 import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import type { ApplicationStatus } from '../../../shared/schemas/classes';
+import { EDUCATION_LEVEL_LABELS } from '../../../shared/schemas/requests';
 import { isReadOnlyPreview } from '../../app/preview';
-import { Button } from '../../components/ui/Button';
+import {
+  isRequestGridWindow,
+  RequestScheduleGrid,
+} from '../../components/domain/RequestScheduleGrid';
+import { Button, ButtonLink } from '../../components/ui/Button';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { Alert, Badge } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useOwnApplication } from '../../features/class-requests/api';
 import { useWithdrawApplication } from '../../features/classes/api';
-import { formatDate, WEEKDAY_LABELS } from '../../lib/format';
-import { ClassAcceptancePanel } from './ClassAcceptancePanel';
+import { WEEKDAY_LABELS } from '../../lib/format';
+import { PENDING_MESSAGE, sentAt } from './TutorApplicationsPage';
 import { BackLink, Badges, Fact, money, requirementList, ScheduleLines } from './TutorClassPages';
 
 const STATUS: Record<
@@ -47,7 +52,6 @@ export function TutorClassRequestDetailPage() {
   const detail = useOwnApplication(applicationId);
   const withdraw = useWithdrawApplication();
   const [cancelling, setCancelling] = useState(false);
-  const [completing, setCompleting] = useState(false);
   const preview = isReadOnlyPreview();
 
   if (detail.isPending) return <PageLoading label="Đang tải thông tin lớp…" />;
@@ -74,6 +78,8 @@ export function TutorClassRequestDetailPage() {
   const status = STATUS[application.status];
   const requirements = item.tutorRequirements ? requirementList(item.tutorRequirements) : [];
   const windows = application.availability?.windows ?? [];
+  const gridWindows = windows.filter(isRequestGridWindow);
+  const otherWindows = windows.filter((window) => !isRequestGridWindow(window));
 
   function confirmCancel() {
     if (withdraw.isPending || preview) return;
@@ -105,11 +111,30 @@ export function TutorClassRequestDetailPage() {
             {item.subjectName} – {item.grade}
           </h2>
           <p className="text-sm text-white/80">
-            Mã lớp: {item.code} · Gửi yêu cầu ngày{' '}
-            {formatDate(application.createdAt, 'Asia/Ho_Chi_Minh')}
+            Mã lớp: {item.code} · Gửi yêu cầu {sentAt(application.createdAt)}
           </p>
         </header>
         <div className="flex flex-col gap-6 px-6 py-6 sm:px-8">
+          <section
+            aria-labelledby="request-status"
+            className="flex flex-col gap-2 rounded-xl border border-border bg-surface p-5"
+          >
+            <h3
+              id="request-status"
+              className="flex flex-wrap items-center gap-3 text-lg font-semibold text-primary"
+            >
+              Trạng thái xử lý
+              <Badge tone={status.tone}>{status.label}</Badge>
+            </h3>
+            <p className="text-sm text-muted">
+              Thời gian gửi yêu cầu: {sentAt(application.createdAt)}
+            </p>
+            {application.status === 'submitted' && (
+              <p role="status" className="rounded-lg bg-info-surface p-3 text-primary">
+                {PENDING_MESSAGE}
+              </p>
+            )}
+          </section>
           {application.status === 'rejected' && (
             <section
               aria-labelledby="rejection-reason"
@@ -151,6 +176,13 @@ export function TutorClassRequestDetailPage() {
                     : `${money(item.expectedBudgetMinor)}/buổi`}
                 </dd>
               </Fact>
+              <Fact icon={<GraduationCap className="size-6" />}>
+                <dt className="text-sm text-muted">Môn học · Cấp học</dt>
+                <dd className="text-lg font-medium">
+                  {item.subjectName} ·{' '}
+                  {item.educationLevel ? EDUCATION_LEVEL_LABELS[item.educationLevel] : item.grade}
+                </dd>
+              </Fact>
               <Fact icon={<BookOpen className="size-6" />}>
                 <dt className="text-sm text-muted">Hình thức dạy</dt>
                 <dd className="text-lg font-medium">
@@ -161,24 +193,7 @@ export function TutorClassRequestDetailPage() {
                 <div className="sm:col-span-2">
                   <Fact icon={<UserRound className="size-6" />}>
                     <dt className="text-sm text-muted">Đặc điểm học sinh</dt>
-                    <dd className="text-lg">{item.studentTraits}</dd>
-                  </Fact>
-                </div>
-              )}
-              {windows.length > 0 && (
-                <div className="sm:col-span-2">
-                  <Fact icon={<Clock3 className="size-6" />}>
-                    <dt className="text-sm text-muted">Thời gian rảnh bạn đã gửi</dt>
-                    <dd>
-                      <ul className="flex flex-col gap-0.5">
-                        {windows.map((window) => (
-                          <li key={`${window.weekday}-${window.startLocal}`}>
-                            {WEEKDAY_LABELS[window.weekday] ?? window.weekday}: {window.startLocal}–
-                            {window.endLocal}
-                          </li>
-                        ))}
-                      </ul>
-                    </dd>
+                    <dd className="whitespace-pre-line text-lg">{item.studentTraits}</dd>
                   </Fact>
                 </div>
               )}
@@ -209,18 +224,44 @@ export function TutorClassRequestDetailPage() {
               </ul>
             </section>
           )}
+          <section
+            aria-labelledby="free-time"
+            className="flex flex-col gap-3 border-t border-border pt-6"
+          >
+            <h3
+              id="free-time"
+              className="flex items-center gap-2 text-xl font-semibold text-primary"
+            >
+              <Clock3 aria-hidden="true" className="size-6 text-accent" />
+              Thời gian rảnh bạn đã gửi
+            </h3>
+            {windows.length === 0 ? (
+              <p className="text-muted">Yêu cầu này không kèm thời gian rảnh.</p>
+            ) : (
+              <>
+                <RequestScheduleGrid
+                  value={gridWindows}
+                  onChange={() => undefined}
+                  readOnly
+                  caption="Thời gian rảnh bạn đã gửi theo tuần"
+                />
+                {otherWindows.length > 0 && (
+                  <ul className="flex flex-col gap-0.5 text-sm">
+                    {otherWindows.map((window) => (
+                      <li key={`${window.weekday}-${window.startLocal}`}>
+                        {WEEKDAY_LABELS[window.weekday] ?? window.weekday}: {window.startLocal}–
+                        {window.endLocal}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </section>
           <p className="rounded-xl bg-surface p-4 text-sm text-muted">
             Thông tin liên hệ và địa chỉ cụ thể của người học chỉ được cung cấp sau khi bạn hoàn tất
             các điều kiện nhận lớp.
           </p>
-          {completing && application.acceptance && (
-            <ClassAcceptancePanel acceptance={application.acceptance} classCode={item.code} />
-          )}
-          {completing && !application.acceptance && (
-            <Alert tone="info">
-              Trung tâm đang hoàn thiện thông tin lớp. Vui lòng quay lại sau.
-            </Alert>
-          )}
           {(application.status === 'submitted' || application.status === 'selected') && (
             <div className="flex flex-wrap gap-3 border-t border-border pt-6">
               {application.status === 'submitted' && !preview && (
@@ -246,14 +287,13 @@ export function TutorClassRequestDetailPage() {
                     Xem trong Lớp đã hoàn tất
                   </Button>
                 ) : (
-                  <Button
+                  <ButtonLink
+                    to={`/tutor/class-requests/hoan-tat/${encodeURIComponent(application.id)}`}
                     className="gap-2"
-                    aria-expanded={completing}
-                    onClick={() => setCompleting(!completing)}
                   >
                     <ClipboardCheck aria-hidden="true" className="size-4" />
                     Hoàn tất nhận lớp
-                  </Button>
+                  </ButtonLink>
                 ))}
             </div>
           )}

@@ -3,6 +3,7 @@ import type { AssignedParentContact } from '../../../shared/schemas/admin-assign
 import type {
   CompletedAcceptance,
   IntroductionLetter,
+  PaymentInstructions,
   ProposalFilter,
   TutorProposalItem,
 } from '../../../shared/schemas/class-requests';
@@ -131,16 +132,34 @@ export function useIntroductionLetter(assignmentId: string | undefined) {
   });
 }
 
-/** Online placement-fee payment for a returning tutor; the server refuses until a gateway exists. */
-export function useStartPlacementFeePayment() {
+/** Fee, transfer content and VietQR payload for a returning tutor's placement fee. */
+export function usePaymentInstructions(assignmentId: string | undefined) {
+  const { user } = useSession();
+  return useQuery({
+    queryKey: [...requestsKey, 'payment', user?.id, assignmentId],
+    queryFn: ({ signal }) =>
+      api.get<PaymentInstructions>(
+        `/tutor/class-requests/acceptances/${encodeURIComponent(assignmentId!)}/payment`,
+        { signal },
+      ),
+    enabled: Boolean(user?.role === 'tutor' && assignmentId),
+  });
+}
+
+/** "Tôi đã chuyển khoản" with the contract agreement; every class-request view refreshes. */
+export function useReportTransfer() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (assignmentId: string) =>
-      api.post<{ redirectUrl: string }>(
-        `/tutor/class-requests/acceptances/${encodeURIComponent(assignmentId)}/payment`,
-        {},
+      api.post<PaymentInstructions>(
+        `/tutor/class-requests/acceptances/${encodeURIComponent(assignmentId)}/payment/report`,
+        { contractAgreed: true },
       ),
-    onSettled: () => void queryClient.invalidateQueries({ queryKey: applicationKey }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: requestsKey });
+      void queryClient.invalidateQueries({ queryKey: applicationKey });
+      void queryClient.invalidateQueries({ queryKey: ['contracts'] });
+    },
   });
 }
 

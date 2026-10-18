@@ -436,6 +436,14 @@ const tutorRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'class-requests/hoan-tat/:applicationId',
+    ...page(async () => {
+      const { TutorCompleteAcceptancePage } =
+        await import('../pages/tutor/TutorCompleteAcceptancePage');
+      return <TutorCompleteAcceptancePage />;
+    }),
+  },
+  {
     path: 'class-requests/chi-tiet/:applicationId',
     ...page(async () => {
       const { TutorClassRequestDetailPage } =

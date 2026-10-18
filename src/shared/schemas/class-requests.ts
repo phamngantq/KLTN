@@ -20,6 +20,11 @@ export const acceptProposalSchema = z.strictObject({
   termsAgreed: z.literal(true, 'Cần xác nhận đồng ý với Điều khoản trách nhiệm.'),
 });
 
+/** "Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng" + "Tôi đã chuyển khoản". */
+export const reportTransferSchema = z.strictObject({
+  contractAgreed: z.literal(true, 'Cần đồng ý với các điều khoản trong hợp đồng.'),
+});
+
 export const declineProposalSchema = z.strictObject({
   reason: z
     .string()
@@ -93,4 +98,26 @@ export interface IntroductionLetter {
   learnerDisplayName: string;
   learnerPhone: string;
   learnerAddress: string | null;
+}
+
+/** Bank-transfer payment of the placement fee for a returning tutor. */
+export interface PaymentInstructions {
+  assignmentId: string;
+  classCode: string;
+  firstAcceptance: boolean;
+  /** Exact fee of this class; null when the budget or the policy rate is unknown. */
+  amountMinor: number | null;
+  /** ASCII content the centre matches the transfer with. */
+  transferContent: string;
+  /** Centre account from deployment config; null until configured (then no QR is shown). */
+  account: { bankBin: string; bankName: string; accountNumber: string; accountName: string } | null;
+  /** VietQR (EMVCo) payload with account, amount and content; null without an account or fee. */
+  qrPayload: string | null;
+  learnerConfirmed: boolean;
+  contract: { id: string; version: number; status: 'issued' | 'acknowledged' } | null;
+  /** The tutor's "Tôi đã chuyển khoản"; the centre still has to confirm receipt. */
+  reportedAt: string | null;
+  /** Set by the centre when the fee is received. */
+  paidAt: string | null;
+  completed: boolean;
 }

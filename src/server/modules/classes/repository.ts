@@ -82,6 +82,7 @@ const classColumns = {
   sessionsPerWeek: parentRequests.sessionsPerWeek,
   tutorRequirements: parentRequests.tutorRequirements,
   studentTraits: parentRequests.studentTraits,
+  educationLevel: parentRequests.educationLevel,
   // Rate of the placement-fee policy that applies to this class now (most specific first).
   placementRateBp: sql<number | null>`(SELECT f.rate_basis_points FROM fee_option_versions f
     WHERE f.option_key = ${PLACEMENT_FEE_OPTION_KEY} AND f.status = 'published'
@@ -150,6 +151,7 @@ function publicProjection(row: AdminClass): PublicClass {
     sessionsPerWeek: row.sessionsPerWeek,
     tutorRequirements: row.tutorRequirements,
     studentTraits: row.studentTraits,
+    educationLevel: row.educationLevel,
     placementFeeMinor: row.placementFeeMinor,
   };
 }

@@ -156,6 +156,7 @@ describe('tutor terms and contracts', () => {
       learnerConfirmedAt: null,
       placementFeePaidAt: null,
       placementFeeAmountMinor: null,
+      placementFeeReportedAt: null,
     };
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
@@ -170,6 +171,7 @@ describe('tutor terms and contracts', () => {
           learnerConfirmedAt: null,
           placementFeePaidAt: null,
           placementFeeAmountMinor: null,
+          placementFeeReportedAt: null,
         };
         return { data: record };
       }
@@ -331,6 +333,7 @@ describe('moderator terms and contracts', () => {
           learnerConfirmedAt: null,
           placementFeePaidAt: null,
           placementFeeAmountMinor: null,
+          placementFeeReportedAt: null,
         };
         return { status: 201, data: record };
       }

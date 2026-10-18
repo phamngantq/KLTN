@@ -2,6 +2,7 @@ import type { ApplicationAcceptance, TutorApplication } from '../../../shared/sc
 import type {
   CompletedAcceptance,
   IntroductionLetter,
+  PaymentInstructions,
   ScheduleWindow,
   ProposalFilter,
   TutorProposalItem,
@@ -12,14 +13,9 @@ import {
   PLACEMENT_FEE_OPTION_KEY,
   placementFee,
 } from '../../../shared/schemas/classes';
+import { transferText, vietQrPayload } from '../../../shared/vietqr';
 import { AppError } from '../../lib/errors';
 import { COMPLETED } from './sql';
-
-/**
- * No payment gateway is wired into this deployment yet. Online payment stays unavailable —
- * never simulated — until a real provider and its secrets are configured.
- */
-export const ONLINE_PAYMENT_READY = false;
 
 /**
  * First-time acceptor: no other class of this tutor had its placement fee recorded before this
@@ -28,6 +24,17 @@ export const ONLINE_PAYMENT_READY = false;
 const FIRST_ACCEPTANCE = `NOT EXISTS (SELECT 1 FROM class_assignments o
   WHERE o.tutor_user_id = a.tutor_user_id AND o.id <> a.id AND o.placement_fee_paid_at IS NOT NULL
     AND (a.placement_fee_paid_at IS NULL OR o.placement_fee_paid_at < a.placement_fee_paid_at))`;
+
+/** Rate of the placement-fee policy that applies to the request now (most specific first). */
+const PLACEMENT_RATE = `(SELECT f.rate_basis_points FROM fee_option_versions f
+  WHERE f.option_key = '${PLACEMENT_FEE_OPTION_KEY}' AND f.status = 'published'
+    AND f.published_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+    AND (f.effective_from IS NULL OR f.effective_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    AND (f.effective_to IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', 'now') < f.effective_to)
+    AND (f.scope_subject_id IS NULL OR f.scope_subject_id = q.subject_id)
+    AND (f.scope_mode IS NULL OR f.scope_mode = q.mode)
+  ORDER BY ((f.scope_subject_id IS NOT NULL) + (f.scope_mode IS NOT NULL)) DESC,
+    f.version DESC LIMIT 1)`;
 
 interface AcceptanceRow {
   id: string;
@@ -39,12 +46,13 @@ interface AcceptanceRow {
   contract_id: string | null;
   contract_version: number | null;
   contract_status: 'issued' | 'acknowledged' | null;
+  placement_fee_reported_at: string | null;
   first_acceptance: number;
   completed: number;
 }
 
 const acceptanceSelect = `SELECT a.id, a.application_id, a.status, a.learner_confirmed_at,
-  a.placement_fee_paid_at, a.placement_fee_amount_minor,
+  a.placement_fee_paid_at, a.placement_fee_amount_minor, a.placement_fee_reported_at,
   k.id AS contract_id, k.version AS contract_version, k.status AS contract_status,
   ${FIRST_ACCEPTANCE} AS first_acceptance,
   EXISTS (SELECT 1 FROM class_listings c JOIN parent_requests r ON r.id = c.source_request_id
@@ -66,7 +74,7 @@ function acceptanceOf(row: AcceptanceRow, estimatedFee: number | null): Applicat
     placementFeeMinor: row.placement_fee_amount_minor ?? estimatedFee,
     placementFeePaidAt: row.placement_fee_paid_at,
     completed: Boolean(row.completed),
-    onlinePaymentReady: ONLINE_PAYMENT_READY,
+    paymentReportedAt: row.placement_fee_reported_at,
   };
 }
 
@@ -91,40 +99,182 @@ export async function withAcceptances<T extends TutorApplication>(
   });
 }
 
-/**
- * "Thanh toán phí nhận lớp" for a returning tutor. Every precondition is checked on the server;
- * then, with no gateway configured, the request fails honestly instead of faking a payment.
- */
-export async function startPlacementFeePayment(
-  db: D1Database,
-  tutorId: string,
-  assignmentId: string,
-): Promise<never> {
+/** Account that receives placement fees; Worker vars, unset until the centre configures them. */
+export interface PaymentEnv {
+  PAYMENT_BANK_BIN?: string;
+  PAYMENT_BANK_NAME?: string;
+  PAYMENT_ACCOUNT_NUMBER?: string;
+  PAYMENT_ACCOUNT_NAME?: string;
+}
+
+function receivingAccount(env: PaymentEnv): PaymentInstructions['account'] {
+  const bankBin = env.PAYMENT_BANK_BIN?.trim();
+  const accountNumber = env.PAYMENT_ACCOUNT_NUMBER?.trim();
+  const accountName = env.PAYMENT_ACCOUNT_NAME?.trim();
+  if (
+    !bankBin ||
+    !/^\d{6}$/.test(bankBin) ||
+    !accountNumber ||
+    !/^[0-9A-Za-z]{4,19}$/.test(accountNumber) ||
+    !accountName
+  )
+    return null;
+  return {
+    bankBin,
+    bankName: env.PAYMENT_BANK_NAME?.trim() || bankBin,
+    accountNumber,
+    accountName,
+  };
+}
+
+interface PaymentRow extends AcceptanceRow {
+  class_code: string;
+  expected_budget_minor: number | null;
+  sessions_per_week: number | null;
+  window_count: number;
+  placement_rate_bp: number | null;
+}
+
+async function ownAcceptance(db: D1Database, tutorId: string, assignmentId: string) {
   const row = await db
-    .prepare(`${acceptanceSelect} WHERE a.id = ? AND a.tutor_user_id = ?`)
+    .prepare(
+      `SELECT x.*, c.code AS class_code, q.expected_budget_minor, q.sessions_per_week,
+         (SELECT count(*) FROM request_schedule_windows w WHERE w.request_id = q.id) AS window_count,
+         ${PLACEMENT_RATE} AS placement_rate_bp
+       FROM (${acceptanceSelect} WHERE a.id = ? AND a.tutor_user_id = ?) x
+       JOIN class_assignments a ON a.id = x.id
+       JOIN class_listings c ON c.id = a.class_id
+       JOIN parent_requests q ON q.id = c.source_request_id`,
+    )
     .bind(assignmentId, tutorId)
-    .first<AcceptanceRow>();
+    .first<PaymentRow>();
   if (!row || row.status !== 'active')
     throw new AppError(404, 'ASSIGNMENT_NOT_FOUND', 'Không tìm thấy lớp đã được duyệt.');
-  if (row.placement_fee_paid_at)
-    throw new AppError(409, 'PLACEMENT_FEE_ALREADY_PAID', 'Phí nhận lớp đã được thanh toán.');
+  return row;
+}
+
+/**
+ * "Thanh toán phí nhận lớp" for a returning tutor: the exact fee of this class, the transfer
+ * content and a VietQR payload for the centre's account. No account configured → no QR.
+ */
+export async function getPaymentInstructions(
+  db: D1Database,
+  env: PaymentEnv,
+  tutorId: string,
+  assignmentId: string,
+): Promise<PaymentInstructions> {
+  const row = await ownAcceptance(db, tutorId, assignmentId);
+  const amountMinor =
+    row.placement_fee_amount_minor ??
+    placementFee(
+      row.expected_budget_minor,
+      feeSessionsPerWeek(row.sessions_per_week, row.window_count),
+      row.placement_rate_bp,
+    );
+  const transferContent = transferText(`PHI NHAN LOP ${row.class_code}`);
+  const account = receivingAccount(env);
+  return {
+    assignmentId: row.id,
+    classCode: row.class_code,
+    firstAcceptance: Boolean(row.first_acceptance),
+    amountMinor,
+    transferContent,
+    account,
+    qrPayload:
+      account && amountMinor !== null && amountMinor > 0
+        ? vietQrPayload({
+            bankBin: account.bankBin,
+            accountNumber: account.accountNumber,
+            amountMinor,
+            content: transferContent,
+          })
+        : null,
+    learnerConfirmed: row.learner_confirmed_at !== null,
+    contract:
+      row.contract_id && row.contract_version && row.contract_status
+        ? { id: row.contract_id, version: row.contract_version, status: row.contract_status }
+        : null,
+    reportedAt: row.placement_fee_reported_at,
+    paidAt: row.placement_fee_paid_at,
+    completed: Boolean(row.completed),
+  };
+}
+
+/**
+ * "Tôi đã chuyển khoản": with the contract agreement ticked, acknowledges the contract (when
+ * still issued) and records the tutor's transfer report in one batch. Completion — learner
+ * contact and the letter — still waits for the centre to record the fee as received.
+ */
+export async function reportTransfer(
+  db: D1Database,
+  env: PaymentEnv,
+  tutorId: string,
+  assignmentId: string,
+): Promise<PaymentInstructions> {
+  const row = await ownAcceptance(db, tutorId, assignmentId);
   if (row.first_acceptance)
     throw new AppError(
       409,
       'FIRST_ACCEPTANCE_AT_CENTRE',
-      'Lần nhận lớp đầu tiên cần ký hợp đồng và chuyển khoản phí môi giới tại trung tâm.',
+      'Lần nhận lớp đầu tiên cần ký hợp đồng và thanh toán phí tại trung tâm.',
     );
-  if (!row.learner_confirmed_at || row.contract_status !== 'acknowledged')
+  if (row.placement_fee_paid_at || row.placement_fee_reported_at)
+    throw new AppError(409, 'TRANSFER_ALREADY_REPORTED', 'Bạn đã báo chuyển khoản cho lớp này.');
+  if (!row.learner_confirmed_at)
+    throw new AppError(409, 'PLACEMENT_FEE_NOT_READY', 'Chờ người học xác nhận thuê gia sư.');
+  if (!row.contract_id || !row.contract_version)
     throw new AppError(
       409,
-      'PLACEMENT_FEE_NOT_READY',
-      'Cần người học xác nhận thuê và bạn xác nhận hợp đồng trước khi thanh toán.',
+      'CONTRACT_NOT_ISSUED',
+      'Trung tâm đang chuẩn bị hợp đồng cho lớp này. Vui lòng quay lại sau.',
     );
-  throw new AppError(
-    503,
-    'PAYMENT_GATEWAY_NOT_CONFIGURED',
-    'Cổng thanh toán trực tuyến chưa được cấu hình. Vui lòng liên hệ trung tâm để thanh toán.',
+  const now = new Date().toISOString();
+  const statements: D1PreparedStatement[] = [];
+  if (row.contract_status === 'issued')
+    statements.push(
+      db
+        .prepare(
+          `UPDATE class_contract_records
+           SET status = 'acknowledged', version = version + 1, acknowledged_at = ?, mutation_id = ?
+           WHERE id = ? AND tutor_user_id = ? AND status = 'issued' AND version = ?`,
+        )
+        .bind(now, crypto.randomUUID(), row.contract_id, tutorId, row.contract_version),
+    );
+  statements.push(
+    db
+      .prepare(
+        `UPDATE class_assignments SET placement_fee_reported_at = ?
+         WHERE id = ? AND tutor_user_id = ? AND placement_fee_reported_at IS NULL
+           AND placement_fee_paid_at IS NULL`,
+      )
+      .bind(now, assignmentId, tutorId),
+    db
+      .prepare(
+        `INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, metadata, created_at)
+         SELECT ?, ?, 'assignment.fee_transfer_reported', 'class_assignment', ?, ?, ?
+         WHERE EXISTS (SELECT 1 FROM class_assignments WHERE id = ? AND placement_fee_reported_at = ?)`,
+      )
+      .bind(
+        crypto.randomUUID(),
+        tutorId,
+        assignmentId,
+        JSON.stringify({ contractId: row.contract_id, contractAgreed: true }),
+        now,
+        assignmentId,
+        now,
+      ),
   );
+  try {
+    const results = await db.batch(statements);
+    if (results[statements.length - 2]?.meta.changes !== 1)
+      throw new AppError(409, 'TRANSFER_ALREADY_REPORTED', 'Bạn đã báo chuyển khoản cho lớp này.');
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    if (String(error).includes('FEE_TRANSFER_REPORT_INVALID'))
+      throw new AppError(409, 'PLACEMENT_FEE_NOT_READY', 'Chưa đủ điều kiện báo chuyển khoản.');
+    throw error;
+  }
+  return getPaymentInstructions(db, env, tutorId, assignmentId);
 }
 
 interface ProposalRow {
@@ -147,17 +297,6 @@ interface ProposalRow {
   student_traits: string;
   placement_rate_bp: number | null;
 }
-
-/** Rate of the placement-fee policy that applies to the request now (most specific first). */
-const PLACEMENT_RATE = `(SELECT f.rate_basis_points FROM fee_option_versions f
-  WHERE f.option_key = '${PLACEMENT_FEE_OPTION_KEY}' AND f.status = 'published'
-    AND f.published_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-    AND (f.effective_from IS NULL OR f.effective_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
-    AND (f.effective_to IS NULL OR strftime('%Y-%m-%dT%H:%M:%fZ', 'now') < f.effective_to)
-    AND (f.scope_subject_id IS NULL OR f.scope_subject_id = q.subject_id)
-    AND (f.scope_mode IS NULL OR f.scope_mode = q.mode)
-  ORDER BY ((f.scope_subject_id IS NOT NULL) + (f.scope_mode IS NOT NULL)) DESC,
-    f.version DESC LIMIT 1)`;
 
 const proposalSelect = `SELECT p.id, p.request_id, q.code AS request_code, s.name AS subject_name,
   q.grade, q.mode, q.area, q.expected_budget_minor, q.sessions_per_week, p.fit_score, p.status,

@@ -5,6 +5,7 @@ import type { AdminAssignment } from '../../src/shared/schemas/admin-assignments
 import type {
   CompletedAcceptance,
   IntroductionLetter,
+  PaymentInstructions,
   TutorProposalItem,
 } from '../../src/shared/schemas/class-requests';
 import type { AdminClass, TutorApplication } from '../../src/shared/schemas/classes';
@@ -195,11 +196,11 @@ describe('tutor class requests', () => {
       contract: null,
       placementFeeMinor: 400_000, // 40% × 250.000 × 1 buổi × 4 tuần
       completed: false,
-      onlinePaymentReady: false,
+      paymentReportedAt: null,
     });
     const payFirst = await api(
-      `/tutor/class-requests/acceptances/${first.assignment.id}/payment`,
-      jsonInit('POST', {}, tutor),
+      `/tutor/class-requests/acceptances/${first.assignment.id}/payment/report`,
+      jsonInit('POST', { contractAgreed: true }, tutor),
     );
     expect(payFirst.status).toBe(409);
     expect(await errorCode(payFirst)).toBe('FIRST_ACCEPTANCE_AT_CENTRE');
@@ -264,30 +265,59 @@ describe('tutor class requests', () => {
       ),
     ).toEqual([second.application.id]);
     const payPath = `/tutor/class-requests/acceptances/${second.assignment.id}/payment`;
-    const early = await api(payPath, jsonInit('POST', {}, tutor));
+    const reportPath = `${payPath}/report`;
+    const instructions = await get<PaymentInstructions>(payPath, tutor);
+    expect(instructions).toMatchObject({
+      classCode: second.cls.code,
+      firstAcceptance: false,
+      amountMinor: 400_000,
+      transferContent: `PHI NHAN LOP ${second.cls.code}`,
+      // No receiving account configured in tests: no QR is ever made up.
+      account: null,
+      qrPayload: null,
+      reportedAt: null,
+    });
+    const stranger = await createPublicTutor({ teachesOffline: true });
+    expect((await api(payPath, { headers: { Cookie: stranger.cookie } })).status).toBe(404);
+    const early = await api(reportPath, jsonInit('POST', { contractAgreed: true }, tutor));
     expect(early.status).toBe(409);
     expect(await errorCode(early)).toBe('PLACEMENT_FEE_NOT_READY');
     await learnerConfirms(second.parent, second.request.id, second.assignment.id);
-    const secondContract = await issueContract(moderator, second.assignment);
+    const noContract = await api(reportPath, jsonInit('POST', { contractAgreed: true }, tutor));
+    expect(await errorCode(noContract)).toBe('CONTRACT_NOT_ISSUED');
+    await issueContract(moderator, second.assignment);
+    // The contract agreement is required.
+    expect((await api(reportPath, jsonInit('POST', {}, tutor))).status).toBe(422);
+    const reported = await data<PaymentInstructions>(
+      await api(reportPath, jsonInit('POST', { contractAgreed: true }, tutor)),
+    );
+    expect(reported).toMatchObject({
+      contract: { status: 'acknowledged' },
+      reportedAt: expect.any(String),
+      paidAt: null,
+      completed: false,
+    });
+    expect((await api(reportPath, jsonInit('POST', { contractAgreed: true }, tutor))).status).toBe(
+      409,
+    );
+    // A transfer report alone never opens the contact or the letter.
+    view = await ownApplication(tutor, second.application.id);
+    expect(view.acceptance).toMatchObject({
+      completed: false,
+      placementFeePaidAt: null,
+      paymentReportedAt: expect.any(String),
+    });
+    const secondLetter = `/tutor/class-requests/acceptances/${second.assignment.id}/letter`;
+    expect((await api(secondLetter, { headers: { Cookie: tutor.cookie } })).status).toBe(404);
+    // The centre confirms receipt → complete.
     await data(
       await api(
-        `/tutor/contracts/${secondContract.id}/acknowledge`,
-        jsonInit('POST', { version: 1, acknowledged: true }, tutor),
+        `/admin/contracts/${reported.contract!.id}/placement-fee`,
+        jsonInit('POST', { amountMinor: 400_000 }, moderator),
       ),
     );
-    // No gateway configured: an honest failure, never a simulated success.
-    const pay = await api(payPath, jsonInit('POST', {}, tutor));
-    expect(pay.status).toBe(503);
-    expect(await errorCode(pay)).toBe('PAYMENT_GATEWAY_NOT_CONFIGURED');
-    view = await ownApplication(tutor, second.application.id);
-    expect(view.acceptance).toMatchObject({ completed: false, placementFeePaidAt: null });
-    expect(
-      (
-        await api(`/tutor/class-requests/acceptances/${second.assignment.id}/letter`, {
-          headers: { Cookie: tutor.cookie },
-        })
-      ).status,
-    ).toBe(404);
+    expect((await get<PaymentInstructions>(payPath, tutor)).completed).toBe(true);
+    expect((await api(secondLetter, { headers: { Cookie: tutor.cookie } })).status).toBe(200);
     // The earlier class is still the tutor's first acceptance.
     expect((await ownApplication(tutor, first.application.id)).acceptance?.firstAcceptance).toBe(
       true,
@@ -412,5 +442,26 @@ describe('tutor class requests', () => {
         .bind(new Date().toISOString(), declineId)
         .run(),
     ).rejects.toThrow(/PROPOSAL_DECLINED_BY_TUTOR/);
+  });
+});
+
+describe('VietQR payload', () => {
+  it('uses CRC-16/CCITT-FALSE and EMVCo fields with ASCII content', async () => {
+    const { crc16, transferText, vietQrPayload } = await import('../../src/shared/vietqr');
+    expect(crc16('123456789')).toBe('29B1');
+    expect(transferText('Phí nhận lớp Đà Nẵng #1')).toBe('Phi nhan lop Da Nang 1');
+    const payload = vietQrPayload({
+      bankBin: '970436',
+      accountNumber: '0123456789',
+      amountMinor: 400_000,
+      content: 'PHI NHAN LOP LH-1',
+    });
+    expect(payload.startsWith('000201010212')).toBe(true);
+    expect(payload).toContain('0010A000000727');
+    expect(payload).toContain('0006970436');
+    expect(payload).toContain('5406400000');
+    expect(payload).toContain('0817PHI NHAN LOP LH-1');
+    expect(payload.slice(-8, -4)).toBe('6304');
+    expect(payload.slice(-4)).toBe(crc16(payload.slice(0, -4)));
   });
 });
