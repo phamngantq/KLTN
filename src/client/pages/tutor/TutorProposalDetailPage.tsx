@@ -11,12 +11,14 @@ import {
 import { useState } from 'react';
 import { useParams, useSearchParams } from 'react-router';
 import { isReadOnlyPreview } from '../../app/preview';
-import { Button } from '../../components/ui/Button';
+import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { useTutorProposal } from '../../features/class-requests/api';
 import { formatDate, WEEKDAY_LABELS } from '../../lib/format';
 import {
+  canComplete,
+  completionPath,
   ConfirmProposalPanel,
   DeclineProposalDialog,
   isPending,
@@ -198,6 +200,14 @@ export function TutorProposalDetailPage() {
               Trung tâm sẽ liên hệ với phụ huynh và hẹn bạn đến văn phòng để ký hợp đồng cam kết,
               thanh toán phí nhận lớp.
             </Alert>
+          )}
+          {canComplete(item) && (
+            <div className="flex flex-wrap gap-3 border-t border-border pt-6">
+              <ButtonLink to={completionPath(item)} className="gap-2">
+                <ClipboardCheck aria-hidden="true" className="size-4" />
+                Hoàn tất nhận lớp
+              </ButtonLink>
+            </div>
           )}
           {pending && !confirming && !preview && (
             <div className="flex flex-wrap gap-3 border-t border-border pt-6">

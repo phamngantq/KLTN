@@ -26,13 +26,21 @@ export function proposalStatus(item: TutorProposalItem): { label: string; tone: 
 
 /** What happened on the learner's side, when it matters to the tutor. */
 export function proposalNote(item: TutorProposalItem): string | null {
-  if (item.status === 'selected')
-    return 'Người học đã chọn bạn. Trung tâm sẽ liên hệ để hoàn tất thủ tục.';
-  if (item.status === 'declined' && item.tutorResponse !== 'declined')
-    return 'Người học đã chọn gia sư khác cho lớp này.';
-  if (item.tutorResponse === 'accepted')
-    return 'Trung tâm đã nhận xác nhận của bạn và sẽ thông báo khi người học chọn gia sư.';
-  return null;
+  if (item.tutorResponse !== 'accepted') return null;
+  if (item.status === 'selected') return 'Người học đã chọn bạn. Hãy hoàn tất thủ tục nhận lớp.';
+  if (item.status === 'declined') return 'Người học đã chọn gia sư khác cho lớp này.';
+  return 'Vui lòng chờ trung tâm liên hệ với người học và cập nhật kết quả.';
+}
+
+/** "Hoàn tất nhận lớp" appears only once the tutor confirmed and the learner chose them. */
+export const canComplete = (item: TutorProposalItem) =>
+  item.tutorResponse === 'accepted' && item.status === 'selected';
+
+/** The approved class's completion screen when it exists, else the proposal's own guidance. */
+export function completionPath(item: TutorProposalItem): string {
+  return item.applicationId
+    ? `/tutor/class-requests/hoan-tat/${encodeURIComponent(item.applicationId)}`
+    : `/tutor/class-requests/de-xuat/${encodeURIComponent(item.id)}/hoan-tat`;
 }
 
 export const isPending = (item: TutorProposalItem) =>

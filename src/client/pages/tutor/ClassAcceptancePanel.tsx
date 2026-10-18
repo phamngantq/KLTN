@@ -1,27 +1,10 @@
-import { Building2, Circle, CircleCheck, Landmark } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { Building2, Landmark } from 'lucide-react';
 import type { ApplicationAcceptance } from '../../../shared/schemas/classes';
 import { Badge } from '../../components/ui/Feedback';
 import { formatVnd } from '../../lib/format';
 
 export const CENTRE_ADDRESS = 'Số 41 Khuất Duy Tiến, Thanh Xuân, Hà Nội';
 export const CENTRE_PHONE = '0394 618 480';
-
-export function Step({ done, children }: { done: boolean; children: ReactNode }) {
-  return (
-    <li className="flex items-start gap-2">
-      {done ? (
-        <CircleCheck aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
-      ) : (
-        <Circle aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-muted" />
-      )}
-      <span className={done ? 'text-fg' : 'text-muted'}>
-        {children}
-        <span className="sr-only">{done ? ' (đã xong)' : ' (chưa xong)'}</span>
-      </span>
-    </li>
-  );
-}
 
 /**
  * "Hoàn tất nhận lớp" for a first-time tutor: sign the contract and pay at the centre. The centre
@@ -50,15 +33,6 @@ export function ClassAcceptancePanel({
       <p>
         Phí nhận lớp: <strong className="text-primary">{fee}</strong>
       </p>
-      <ul className="flex flex-col gap-1.5">
-        <Step done={acceptance.learnerConfirmed}>Người học xác nhận thuê gia sư</Step>
-        <Step done={acceptance.contract?.status === 'acknowledged'}>
-          Ký hợp đồng nhận lớp tại trung tâm
-        </Step>
-        <Step done={acceptance.placementFeePaidAt !== null}>
-          Thanh toán phí nhận lớp — trung tâm xác nhận đã nhận
-        </Step>
-      </ul>
       <div className="flex gap-3 rounded-lg border border-accent bg-warning-surface p-4 leading-relaxed">
         <Building2 aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-warning" />
         <div>

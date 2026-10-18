@@ -67,6 +67,8 @@ export interface TutorProposalItem {
   placementRateBasisPoints: number | null;
   /** Rate × học phí/buổi × buổi/tuần × 4; null when the budget or rate is unknown. */
   placementFeeMinor: number | null;
+  /** Own application behind the centre's assignment for this request, once it exists. */
+  applicationId: string | null;
 }
 
 /** A class whose acceptance is complete; contact and letter are separate gated reads. */

@@ -296,15 +296,25 @@ interface ProposalRow {
   tutor_requirements: string;
   student_traits: string;
   placement_rate_bp: number | null;
+  application_id: string | null;
 }
 
 const proposalSelect = `SELECT p.id, p.request_id, q.code AS request_code, s.name AS subject_name,
   q.grade, q.mode, q.area, q.expected_budget_minor, q.sessions_per_week, p.fit_score, p.status,
   p.tutor_response, p.tutor_responded_at, p.tutor_decline_reason, p.created_at,
-  q.tutor_requirements, q.student_traits, ${PLACEMENT_RATE} AS placement_rate_bp
+  q.tutor_requirements, q.student_traits, ${PLACEMENT_RATE} AS placement_rate_bp,
+  (SELECT a.application_id FROM class_assignments a JOIN class_listings c ON c.id = a.class_id
+    WHERE c.source_request_id = p.request_id AND a.tutor_user_id = p.tutor_user_id
+      AND a.status = 'active' LIMIT 1) AS application_id
   FROM request_tutor_proposals p
   JOIN parent_requests q ON q.id = p.request_id
   JOIN subjects s ON s.id = q.subject_id`;
+
+/**
+ * Tutors see only proposals they can still answer or have answered: "Đã đóng" ones (the learner
+ * chose before this tutor replied) are left out of the list and the detail.
+ */
+const VISIBLE_PROPOSAL = `NOT (p.tutor_response IS NULL AND p.status <> 'proposed')`;
 
 /** "Chờ phản hồi" / "Đã xác nhận" / "Đã từ chối" as SQL over the proposal `p`. */
 const PROPOSAL_FILTERS: Record<ProposalFilter, string> = {
@@ -347,6 +357,7 @@ async function proposalItems(db: D1Database, rows: ProposalRow[]): Promise<Tutor
       tutorRequirements: row.tutor_requirements.trim() || null,
       studentTraits: row.student_traits.trim() || null,
       placementRateBasisPoints: row.placement_rate_bp,
+      applicationId: row.application_id,
       placementFeeMinor: placementFee(
         row.expected_budget_minor,
         feeSessionsPerWeek(row.sessions_per_week, schedule.length),
@@ -366,7 +377,7 @@ export async function listProposals(
     status?: ProposalFilter | undefined;
   },
 ): Promise<Page<TutorProposalItem>> {
-  const conditions = ['p.tutor_user_id = ?'];
+  const conditions = ['p.tutor_user_id = ?', VISIBLE_PROPOSAL];
   const params: unknown[] = [tutorId];
   if (query.status) conditions.push(PROPOSAL_FILTERS[query.status]);
   if (query.q) {
@@ -409,7 +420,7 @@ export async function getProposal(
 
 async function ownProposal(db: D1Database, tutorId: string, id: string) {
   const row = await db
-    .prepare(`${proposalSelect} WHERE p.id = ? AND p.tutor_user_id = ?`)
+    .prepare(`${proposalSelect} WHERE p.id = ? AND p.tutor_user_id = ? AND ${VISIBLE_PROPOSAL}`)
     .bind(id, tutorId)
     .first<ProposalRow>();
   if (!row) throw new AppError(404, 'PROPOSAL_NOT_FOUND', 'Không tìm thấy lớp được đề xuất.');

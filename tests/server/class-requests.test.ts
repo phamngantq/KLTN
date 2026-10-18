@@ -345,7 +345,11 @@ describe('tutor class requests', () => {
   it('lets a proposed tutor confirm or decline once, hiding declined proposals from the learner', async () => {
     const moderator = await makeModerator();
     const learner = await register('parent');
-    const [accepting, declining] = await Promise.all([createPublicTutor(), createPublicTutor()]);
+    const [accepting, declining, silent] = await Promise.all([
+      createPublicTutor(),
+      createPublicTutor(),
+      createPublicTutor(),
+    ]);
     const request = await submittedRequest(learner, 'Lớp 9');
     const propose = async (tutorId: string, score: number) => {
       const id = crypto.randomUUID();
@@ -360,6 +364,7 @@ describe('tutor class requests', () => {
     await seedFee(moderator);
     const acceptId = await propose(accepting.userId, 95);
     const declineId = await propose(declining.userId, 90);
+    const silentId = await propose(silent.userId, 88);
 
     const mine = await get<Page<TutorProposalItem>>('/tutor/class-requests/proposals', accepting);
     expect(mine.items).toHaveLength(1);
@@ -429,7 +434,7 @@ describe('tutor class requests', () => {
     expect((await list(declining, '?status=accepted')).total).toBe(0);
 
     const own = await get<OwnParentRequest>(`/parent/requests/${request.id}`, learner);
-    expect(own.proposals.map((item) => item.id)).toEqual([acceptId]);
+    expect(own.proposals.map((item) => item.id)).toEqual([acceptId, silentId]);
     const select = await api(
       `/parent/requests/${request.id}/proposals/${declineId}/select`,
       jsonInit('POST', { version: own.version }, learner),
@@ -442,6 +447,35 @@ describe('tutor class requests', () => {
         .bind(new Date().toISOString(), declineId)
         .run(),
     ).rejects.toThrow(/PROPOSAL_DECLINED_BY_TUTOR/);
+
+    // The learner chooses the confirmed tutor: the unanswered proposal closes ("Đã đóng")
+    // and disappears for its tutor; the chosen tutor keeps it as confirmed and selected.
+    const chooser = await get<OwnParentRequest>(`/parent/requests/${request.id}`, learner);
+    await data(
+      await api(
+        `/parent/requests/${request.id}/proposals/${acceptId}/select`,
+        jsonInit('POST', { version: chooser.version }, learner),
+      ),
+    );
+    expect((await list(silent, '')).total).toBe(0);
+    expect(
+      (
+        await api(`/tutor/class-requests/proposals/${silentId}`, {
+          headers: { Cookie: silent.cookie },
+        })
+      ).status,
+    ).toBe(404);
+    const chosen = await get<TutorProposalItem>(
+      `/tutor/class-requests/proposals/${acceptId}`,
+      accepting,
+    );
+    expect(chosen).toMatchObject({
+      tutorResponse: 'accepted',
+      status: 'selected',
+      applicationId: null,
+    });
+    // A declined proposal stays visible to the tutor who declined it.
+    expect((await list(declining, '')).total).toBe(1);
   });
 });
 

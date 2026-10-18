@@ -429,6 +429,14 @@ const tutorRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'class-requests/de-xuat/:proposalId/hoan-tat',
+    ...page(async () => {
+      const { TutorProposalCompletePage } =
+        await import('../pages/tutor/TutorProposalCompletePage');
+      return <TutorProposalCompletePage />;
+    }),
+  },
+  {
     path: 'class-requests/de-xuat/:proposalId',
     ...page(async () => {
       const { TutorProposalDetailPage } = await import('../pages/tutor/TutorProposalDetailPage');

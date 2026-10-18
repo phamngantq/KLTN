@@ -35,6 +35,8 @@ import {
 import { useWithdrawApplication, type TutorClassApplication } from '../../features/classes/api';
 import { formatDate, formatTime, formatVnd } from '../../lib/format';
 import {
+  canComplete,
+  completionPath,
   DeclineProposalDialog,
   isPending,
   proposalNote,
@@ -553,6 +555,12 @@ function ProposedTab() {
                         <Eye aria-hidden="true" className="size-4" />
                         Xem chi tiết
                       </ButtonLink>
+                      {canComplete(item) && (
+                        <ButtonLink to={completionPath(item)} className="gap-2">
+                          <ClipboardCheck aria-hidden="true" className="size-4" />
+                          Hoàn tất nhận lớp
+                        </ButtonLink>
+                      )}
                       {isPending(item) && !preview && (
                         <>
                           <ButtonLink to={`${detail}?xac-nhan=1`} className="gap-2">

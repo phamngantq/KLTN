@@ -13,7 +13,7 @@ import {
   useReportTransfer,
 } from '../../features/class-requests/api';
 import { formatDate, formatVnd } from '../../lib/format';
-import { CENTRE_PHONE, ClassAcceptancePanel, Step } from './ClassAcceptancePanel';
+import { CENTRE_PHONE, ClassAcceptancePanel } from './ClassAcceptancePanel';
 import { BackLink } from './TutorClassPages';
 
 const BACK = '/tutor/class-requests';
@@ -228,20 +228,7 @@ function ReturningTutorPayment({ assignmentId }: { assignmentId: string }) {
         {payment.error.message}
       </Alert>
     );
-  const data = payment.data;
-  return (
-    <div className="flex flex-col gap-6">
-      <ul className="flex flex-col gap-1.5 text-sm">
-        <Step done={data.learnerConfirmed}>Người học xác nhận thuê gia sư</Step>
-        <Step done={data.contract?.status === 'acknowledged'}>Đồng ý hợp đồng nhận lớp</Step>
-        <Step done={data.reportedAt !== null || data.paidAt !== null}>
-          Chuyển khoản phí nhận lớp
-        </Step>
-        <Step done={data.paidAt !== null}>Trung tâm xác nhận đã nhận phí</Step>
-      </ul>
-      <PaymentScreen payment={data} />
-    </div>
-  );
+  return <PaymentScreen payment={payment.data} />;
 }
 
 /** "Hoàn tất nhận lớp" (full body): centre guidance for a first class, payment for later ones. */

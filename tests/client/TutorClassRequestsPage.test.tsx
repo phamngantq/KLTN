@@ -100,6 +100,7 @@ function proposalItem(id: string, overrides: Partial<TutorProposalItem> = {}): T
     studentTraits: null,
     placementRateBasisPoints: 4000,
     placementFeeMinor: 800_000,
+    applicationId: null,
     ...overrides,
   };
 }
@@ -250,6 +251,9 @@ describe('tutor class requests page', () => {
     });
     renderRoute('/tutor/class-requests/hoan-tat/a4');
     expect(await screen.findByRole('heading', { name: 'Hướng dẫn thanh toán' })).toBeTruthy();
+    // No progress checklist on the completion screen.
+    expect(screen.queryByText('Trung tâm xác nhận đã nhận phí')).toBeNull();
+    expect(screen.queryByText('Người học xác nhận thuê gia sư')).toBeNull();
     expect(screen.getByRole('img', { name: /Mã VietQR chuyển 640.000/ })).toBeTruthy();
     expect(screen.getAllByText('640.000 ₫').length).toBeGreaterThan(0);
     expect(screen.getByText('PHI NHAN LOP LH-a4')).toBeTruthy();
@@ -317,6 +321,26 @@ describe('tutor class requests page', () => {
     ).toBe(true);
   });
 
+  it('shows the centre procedure for a chosen proposal before the class is set up', async () => {
+    const chosen = proposalItem('p3', {
+      status: 'selected',
+      tutorResponse: 'accepted',
+      tutorRespondedAt: '2026-10-16T01:00:00.000Z',
+    });
+    mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/class-requests/proposals/p3') return { data: chosen };
+      return undefined;
+    });
+    renderRoute('/tutor/class-requests/de-xuat/p3/hoan-tat');
+    expect(
+      await screen.findByRole('heading', { name: 'Hoàn tất nhận lớp', level: 1 }),
+    ).toBeTruthy();
+    expect(screen.getByText('Thủ tục nhận lớp')).toBeTruthy();
+    expect(screen.getByText('800.000 ₫')).toBeTruthy();
+    expect(screen.queryByText('Người học xác nhận thuê gia sư')).toBeNull();
+  });
+
   it('opens a full detail page with the rejection reason and no learner contact', async () => {
     const rejected = application('a2', 'rejected', {
       rejectionReason: 'Lịch dạy không phù hợp.',
@@ -368,6 +392,12 @@ describe('tutor class requests page', () => {
 
   it('lists proposals with search and status filter, declining only with a reason', async () => {
     const pending = proposalItem('p1');
+    const chosen = proposalItem('p3', {
+      status: 'selected',
+      tutorResponse: 'accepted',
+      tutorRespondedAt: '2026-10-16T01:00:00.000Z',
+      applicationId: 'app-9',
+    });
     const accepted = proposalItem('p2', {
       subjectName: 'Toán',
       tutorResponse: 'accepted',
@@ -375,13 +405,18 @@ describe('tutor class requests page', () => {
     });
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
-      if (req.path.startsWith('/tutor/class-requests/proposals?')) return page([pending, accepted]);
+      if (req.path.startsWith('/tutor/class-requests/proposals?'))
+        return page([pending, accepted, chosen]);
       if (req.path === '/tutor/class-requests/proposals/p1/decline')
         return { data: { ...pending, tutorResponse: 'declined', tutorDeclineReason: 'Bận' } };
       return undefined;
     });
     renderRoute('/tutor/class-requests?tab=de-xuat');
-    const [open, done] = (await screen.findAllByRole('article')) as [HTMLElement, HTMLElement];
+    const [open, done, picked] = (await screen.findAllByRole('article')) as [
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+    ];
     expect(within(open).getByText('Phù hợp 92%')).toBeTruthy();
     expect(within(open).getByText('Chờ phản hồi')).toBeTruthy();
     expect(within(open).getByRole('link', { name: 'Xem chi tiết' }).getAttribute('href')).toBe(
@@ -392,6 +427,17 @@ describe('tutor class requests page', () => {
     );
     // Actions only while the proposal waits for the tutor.
     expect(within(done).getByText('Đã xác nhận')).toBeTruthy();
+    // Confirmed, learner not decided yet: wait message, no completion button.
+    expect(
+      within(done).getByText('Vui lòng chờ trung tâm liên hệ với người học và cập nhật kết quả.'),
+    ).toBeTruthy();
+    expect(within(done).queryByRole('link', { name: 'Hoàn tất nhận lớp' })).toBeNull();
+    // Confirmed and chosen by the learner: completion button to the approved class.
+    expect(within(picked).getByText('Đã xác nhận')).toBeTruthy();
+    expect(
+      within(picked).getByRole('link', { name: 'Hoàn tất nhận lớp' }).getAttribute('href'),
+    ).toBe('/tutor/class-requests/hoan-tat/app-9');
+    expect(within(picked).queryByText(/Vui lòng chờ trung tâm/)).toBeNull();
     expect(within(done).queryByRole('link', { name: 'Xác nhận nhận lớp' })).toBeNull();
     expect(within(done).queryByRole('button', { name: 'Từ chối nhận lớp' })).toBeNull();
 
