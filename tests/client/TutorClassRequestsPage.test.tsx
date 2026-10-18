@@ -418,7 +418,8 @@ describe('tutor class requests page', () => {
       HTMLElement,
       HTMLElement,
     ];
-    expect(within(open).getByText('Phù hợp 92%')).toBeTruthy();
+    // The fit score stays internal to the centre on the tutor side.
+    expect(within(open).queryByText(/Phù hợp/)).toBeNull();
     expect(within(open).getByText('Chờ phản hồi')).toBeTruthy();
     expect(within(open).getByRole('link', { name: 'Xem chi tiết' }).getAttribute('href')).toBe(
       '/tutor/class-requests/de-xuat/p1',

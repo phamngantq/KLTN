@@ -518,7 +518,6 @@ function ProposedTab() {
                         </h2>
                       </div>
                       <div className="flex flex-wrap gap-2">
-                        <Badge tone="info">Phù hợp {item.fitScore}%</Badge>
                         <Badge tone={state.tone}>{state.label}</Badge>
                       </div>
                     </div>

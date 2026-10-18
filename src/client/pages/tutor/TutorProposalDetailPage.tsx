@@ -84,9 +84,6 @@ export function TutorProposalDetailPage() {
               <span className="rounded-full bg-accent px-3 py-0.5 text-on-accent">
                 {item.subjectName}
               </span>
-              <span className="rounded-full border border-white/60 px-3 py-0.5">
-                Phù hợp {item.fitScore}%
-              </span>
             </div>
             <Badge tone={state.tone}>{state.label}</Badge>
           </div>

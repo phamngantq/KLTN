@@ -514,15 +514,9 @@ const tutorRoutes: RouteObject[] = [
   {
     path: 'hop-dong-mau',
     ...page(async () => {
-      const { PublishedContentPage } = await import('../pages/public/PublishedContentPage');
-      return (
-        <PublishedContentPage
-          kind="contract"
-          slug="tutor-class-contract"
-          audience="tutor"
-          fallbackTitle="Hợp đồng mẫu"
-        />
-      );
+      const { TutorContractTemplatePage } =
+        await import('../pages/tutor/TutorContractTemplatePage');
+      return <TutorContractTemplatePage />;
     }),
   },
   {

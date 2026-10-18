@@ -69,6 +69,7 @@ describe('role navigation', () => {
   it('shows the tutor menu with collapsible groups and a nested contract group', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/profile') return { data: null };
       if (req.path.startsWith('/content/contract/tutor-class-contract'))
         return {
           data: {
@@ -142,6 +143,6 @@ describe('role navigation', () => {
     expect(within(content).getByRole('link', { name: 'Cẩm nang' }).getAttribute('href')).toBe(
       '/tutor/cam-nang',
     );
-    expect(await screen.findByText('Nội dung hợp đồng mẫu.')).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: 'Hợp đồng gia sư' })).toBeTruthy();
   });
 });
