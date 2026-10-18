@@ -38,6 +38,6 @@ describe('AccountPage deletion', () => {
         confirmation: 'DELETE',
       }),
     );
-    expect(within(screen.getByRole('main')).getByText('Nguyễn An')).toBeTruthy();
+    expect(within(screen.getByRole('main')).getByDisplayValue('Nguyễn An')).toBeTruthy();
   });
 });

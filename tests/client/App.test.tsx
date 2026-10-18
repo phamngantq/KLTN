@@ -120,7 +120,8 @@ describe('logout', () => {
     await screen.findByRole('heading', { name: 'Tài khoản' });
 
     await user.click(screen.getByLabelText(/Tài khoản của/));
-    await user.click(screen.getByRole('button', { name: 'Đăng xuất' }));
+    // The account menu in the header (the account page has its own sign-out button too).
+    await user.click(within(screen.getByRole('banner')).getByRole('button', { name: 'Đăng xuất' }));
     const error = await screen.findByRole('alert');
     expect(error.textContent).toContain('Máy chủ tạm gián đoạn.');
     expect(router.state.location.pathname).toBe('/account');

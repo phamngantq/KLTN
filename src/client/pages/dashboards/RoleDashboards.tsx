@@ -17,11 +17,11 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Link } from 'react-router';
-import type { ClassRecommendation, PublicClass } from '../../../shared/schemas/classes';
+import type { ClassRecommendation } from '../../../shared/schemas/classes';
 import type { Page } from '../../../shared/schemas/discovery';
 import type { ParentDashboard, TutorDashboard } from '../../../shared/schemas/reports';
 import { useSession } from '../../app/auth';
-import { Button } from '../../components/ui/Button';
+import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import { classScheduleText } from '../../components/domain/ClassCard';
@@ -221,44 +221,25 @@ const TUTOR_TIPS = [
   'Duy trì chất lượng và uy tín giảng dạy.',
 ];
 
-const NEW_CLASS_LIMIT = 4;
+const MATCHED_CLASS_LIMIT = 4;
 
-/** Newest open classes, the tutor's best matches first, each listed once. */
-function useNewClassesForTutor(enabled: boolean) {
+/** "Lớp học phù hợp": open classes the server matches to the tutor's profile, best first. */
+function useMatchedClassesForTutor(enabled: boolean) {
   const recommendations = useQuery({
     queryKey: ['tutor-dashboard', 'recommendations'],
     queryFn: ({ signal }) =>
       api.get<Page<ClassRecommendation>>(
-        `/tutor/classes/recommendations${toQuery({ page: 1, pageSize: NEW_CLASS_LIMIT })}`,
+        `/tutor/classes/recommendations${toQuery({ page: 1, pageSize: MATCHED_CLASS_LIMIT })}`,
         { signal },
       ),
     enabled,
   });
-  const latest = useQuery({
-    queryKey: ['tutor-dashboard', 'latest-classes'],
-    queryFn: ({ signal }) =>
-      api.get<Page<PublicClass>>(`/classes${toQuery({ page: 1, pageSize: NEW_CLASS_LIMIT * 2 })}`, {
-        signal,
-      }),
-    enabled,
-  });
-  const matched = recommendations.data?.items ?? [];
-  const seen = new Set(matched.map((item) => item.class.id));
-  const items: { item: PublicClass; score: number | null }[] = [
-    ...matched.map((item) => ({ item: item.class, score: item.match.score })),
-    ...(latest.data?.items ?? [])
-      .filter((item) => !seen.has(item.id))
-      .map((item) => ({ item, score: null })),
-  ].slice(0, NEW_CLASS_LIMIT);
   return {
-    items,
+    items: (recommendations.data?.items ?? []).map((item) => item.class),
     matchedTotal: recommendations.data?.total ?? null,
-    isPending: recommendations.isPending || latest.isPending,
-    error: recommendations.error ?? latest.error,
-    refetch: () => {
-      void recommendations.refetch();
-      void latest.refetch();
-    },
+    isPending: recommendations.isPending,
+    error: recommendations.error,
+    refetch: () => void recommendations.refetch(),
   };
 }
 
@@ -270,7 +251,7 @@ export function TutorDashboardPage() {
     queryFn: ({ signal }) => api.get<TutorDashboard>('/tutor/dashboard', { signal }),
     enabled: isTutor,
   });
-  const classes = useNewClassesForTutor(isTutor);
+  const classes = useMatchedClassesForTutor(isTutor);
 
   return (
     <section className="space-y-8">
@@ -319,10 +300,7 @@ export function TutorDashboardPage() {
           />
         </div>
       )}
-      <section aria-labelledby="tutor-actions-title">
-        <h2 id="tutor-actions-title" className="mb-4 text-2xl font-semibold text-primary">
-          Lối tắt chức năng
-        </h2>
+      <section aria-label="Lối tắt">
         <div className="grid gap-4 md:grid-cols-3">
           <ActionCard
             title="Tìm lớp học"
@@ -345,33 +323,35 @@ export function TutorDashboardPage() {
         </div>
       </section>
       <section
-        aria-labelledby="tutor-new-classes-title"
+        aria-labelledby="tutor-matched-classes-title"
         className="rounded-xl border border-border bg-bg p-5 shadow-card sm:p-6"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 id="tutor-new-classes-title" className="text-2xl font-semibold text-primary">
-              Lớp học mới
+            <h2 id="tutor-matched-classes-title" className="text-2xl font-semibold text-primary">
+              Lớp học phù hợp
             </h2>
-            <p className="mt-1 text-sm text-muted">Lớp mới đăng, ưu tiên lớp phù hợp với bạn.</p>
+            <p className="mt-1 text-sm text-muted">
+              Lớp phù hợp với hồ sơ của bạn và yêu cầu của lớp học.
+            </p>
           </div>
           <Link
-            to="/tutor/new-classes"
+            to="/tutor/matched-classes"
             className="inline-flex min-h-11 items-center gap-1 rounded-md px-3 text-sm font-semibold text-primary underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
           >
-            Xem tất cả lớp học
+            Xem tất cả lớp phù hợp
             <ArrowRight aria-hidden="true" className="size-4" />
           </Link>
         </div>
         {classes.isPending ? (
           <div className="mt-4">
-            <PageLoading label="Đang tải lớp học mới…" />
+            <PageLoading label="Đang tải lớp học phù hợp…" />
           </div>
         ) : classes.error ? (
           <div className="mt-4">
             <Alert
               tone="danger"
-              title="Không tải được lớp học mới"
+              title="Không tải được lớp học phù hợp"
               action={
                 <Button variant="secondary" onClick={classes.refetch}>
                   Thử lại
@@ -382,25 +362,32 @@ export function TutorDashboardPage() {
             </Alert>
           </div>
         ) : classes.items.length === 0 ? (
-          <p className="mt-4 text-sm text-muted">
-            Chưa có lớp mới. Lớp sẽ xuất hiện ở đây khi trung tâm đăng lớp tìm gia sư.
-          </p>
+          <div className="mt-4 flex flex-col gap-3 rounded-lg bg-surface p-4 text-sm">
+            <p>
+              Hiện chưa có lớp phù hợp với hồ sơ của bạn. Hãy cập nhật môn dạy, khối lớp, khu vực và
+              thời gian rảnh để nhận gợi ý chính xác hơn.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <ButtonLink to="/tutor/profile" variant="secondary">
+                Cập nhật hồ sơ
+              </ButtonLink>
+              <ButtonLink to="/tutor/new-classes" variant="secondary">
+                Xem danh sách lớp mới
+              </ButtonLink>
+            </div>
+          </div>
         ) : (
           <ul className="mt-4 grid gap-3 lg:grid-cols-2">
-            {classes.items.map(({ item, score }) => (
+            {classes.items.map((item) => (
               <li
                 key={item.id}
                 className="flex min-w-0 flex-col gap-3 rounded-lg border border-border p-4"
               >
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <p className="text-xs font-semibold text-muted">Lớp {item.code}</p>
                   <h3 className="font-semibold text-primary">
                     {item.subjectName} - {item.grade}
                   </h3>
-                  {score !== null && (
-                    <span className="rounded-full bg-success-surface px-2.5 py-0.5 text-xs font-semibold text-success">
-                      Phù hợp {score}%
-                    </span>
-                  )}
                 </div>
                 <dl className="grid gap-1.5 text-sm text-muted">
                   <div className="flex items-start gap-2">

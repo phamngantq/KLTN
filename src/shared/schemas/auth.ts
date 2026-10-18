@@ -21,6 +21,18 @@ export const loginSchema = z.strictObject({
 });
 export type LoginInput = z.infer<typeof loginSchema>;
 
+/** "Chỉnh sửa thông tin tài khoản": fields every role may change for itself. */
+export const updateAccountSchema = z.strictObject({
+  displayName: z.string().trim().min(1, 'Vui lòng nhập họ tên.').max(100),
+});
+export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
+
+export const changePasswordSchema = z.strictObject({
+  currentPassword: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại.').max(128),
+  newPassword: password,
+});
+export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
+
 export type UserRole = 'student' | 'tutor' | 'admin';
 export type ProductRole = 'parent' | 'tutor' | 'moderator';
 

@@ -1,10 +1,17 @@
 import { Hono } from 'hono';
-import { loginSchema, registerSchema, type SessionPayload } from '../../../shared/schemas/auth';
+import {
+  changePasswordSchema,
+  loginSchema,
+  registerSchema,
+  updateAccountSchema,
+  type SessionPayload,
+} from '../../../shared/schemas/auth';
 import { ok } from '../../lib/respond';
 import { parseJsonBody } from '../../lib/validate';
 import { authOf, requireAuth } from '../../middleware/guards';
 import { clientIp, rateLimit } from '../../middleware/rate-limit';
 import type { AppEnv } from '../../types';
+import * as account from './account';
 import * as service from './service';
 import { clearSessionCookie, deriveCsrfToken, writeSessionCookie } from './session';
 
@@ -40,3 +47,29 @@ meRoutes.get('/', requireAuth, (c) => {
   const { user, csrfToken } = authOf(c);
   return ok<SessionPayload>(c, { user, csrfToken });
 });
+
+/** Own account: display name for every role (moderators included). */
+meRoutes.patch('/', requireAuth, async (c) => {
+  const { user, csrfToken } = authOf(c);
+  const input = await parseJsonBody(c, updateAccountSchema);
+  return ok<SessionPayload>(c, {
+    user: await account.updateAccount(c.env.DB, user.id, input),
+    csrfToken,
+  });
+});
+
+meRoutes.post(
+  '/password',
+  requireAuth,
+  rateLimit('AUTH_LIMITER', (c) => authOf(c).user.id),
+  async (c) => {
+    const { user, sessionId } = authOf(c);
+    await account.changePassword(
+      c.env.DB,
+      user.id,
+      sessionId,
+      await parseJsonBody(c, changePasswordSchema),
+    );
+    return ok(c, { changed: true });
+  },
+);

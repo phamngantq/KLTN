@@ -49,18 +49,19 @@ const page = (items: unknown[], total = items.length) => ({
 });
 
 describe('tutor dashboard', () => {
-  it('shows the three stats, shortcuts, new classes with matches first and tips', async () => {
-    const matched = publicClass('m1', { subjectName: 'Vật lý', grade: 'Lớp 11' });
-    const latest = [
+  it('shows the three stats, shortcuts without a heading, matched classes and tips', async () => {
+    const matched = [
       publicClass('m1', { subjectName: 'Vật lý', grade: 'Lớp 11' }),
-      publicClass('n1', { mode: 'online', publicArea: null, expectedBudgetMinor: null }),
+      publicClass('m2', { mode: 'online', publicArea: null, expectedBudgetMinor: null }),
     ];
     const { calls } = mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
       if (req.path === '/tutor/dashboard') return { data: metrics };
       if (req.path.startsWith('/tutor/classes/recommendations'))
-        return page([{ class: matched, match: { score: 92 } }], 5);
-      if (req.path.startsWith('/classes?')) return page(latest);
+        return page(
+          matched.map((item, index) => ({ class: item, match: { score: 92 - index } })),
+          5,
+        );
       return undefined;
     });
 
@@ -70,9 +71,10 @@ describe('tutor dashboard', () => {
     expect(registered.getAttribute('href')).toBe('/tutor/class-requests');
     expect((await screen.findByText('Lớp phù hợp')).closest('a')?.textContent).toContain('5');
     expect(screen.getByText('Lớp đã hoàn tất nhận').closest('a')?.textContent).toContain('1');
-    expect(screen.queryByText('Đơn đang chờ')).toBeNull();
 
-    const shortcuts = screen.getByRole('region', { name: 'Lối tắt chức năng' });
+    // The shortcuts stay, without the "Lối tắt chức năng" heading.
+    expect(screen.queryByText('Lối tắt chức năng')).toBeNull();
+    const shortcuts = screen.getByRole('region', { name: 'Lối tắt' });
     expect(
       within(shortcuts)
         .getAllByRole('link')
@@ -83,14 +85,16 @@ describe('tutor dashboard', () => {
       ['Cẩm nang gia sư', '/tutor/cam-nang'],
     ]);
 
-    const classes = screen.getByRole('region', { name: 'Lớp học mới' });
+    // "Lớp học phù hợp" replaces "Lớp học mới": matched classes only, no fit percentage.
+    expect(screen.queryByRole('region', { name: 'Lớp học mới' })).toBeNull();
+    const classes = screen.getByRole('region', { name: 'Lớp học phù hợp' });
     const headings = await within(classes).findAllByRole('heading', { level: 3 });
-    // The matching class comes first and is not repeated from the latest list.
     expect(headings.map((heading) => heading.textContent)).toEqual([
       'Vật lý - Lớp 11',
       'Toán - Lớp 9',
     ]);
-    expect(within(classes).getByText('Phù hợp 92%')).toBeTruthy();
+    expect(within(classes).getByText('Lớp LH-m1')).toBeTruthy();
+    expect(within(classes).queryByText(/Phù hợp \d+%/)).toBeNull();
     expect(within(classes).getByText('Trực tiếp · Cầu Giấy, Hà Nội')).toBeTruthy();
     expect(within(classes).getByText('Trực tuyến')).toBeTruthy();
     expect(within(classes).getByText('Thù lao thỏa thuận')).toBeTruthy();
@@ -100,13 +104,13 @@ describe('tutor dashboard', () => {
     ).toBe('/tutor/new-classes/m1');
     expect(
       within(classes)
-        .getByRole('link', { name: /Xem tất cả lớp học/ })
+        .getByRole('link', { name: /Xem tất cả lớp phù hợp/ })
         .getAttribute('href'),
-    ).toBe('/tutor/new-classes');
+    ).toBe('/tutor/matched-classes');
+    expect(calls.some((call) => call.path.startsWith('/classes?'))).toBe(false);
 
     const tips = screen.getByRole('region', { name: 'Mẹo tăng cơ hội nhận lớp' });
     expect(within(tips).getAllByRole('listitem')).toHaveLength(5);
-    expect(within(tips).getByText('Phản hồi nhanh khi có lớp phù hợp.')).toBeTruthy();
     expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
   });
 
@@ -119,8 +123,13 @@ describe('tutor dashboard', () => {
       return undefined;
     });
     renderRoute('/tutor');
-    const classes = await screen.findByRole('region', { name: 'Lớp học mới' });
-    expect(await within(classes).findByText(/Chưa có lớp mới/)).toBeTruthy();
+    const classes = await screen.findByRole('region', { name: 'Lớp học phù hợp' });
+    expect(
+      await within(classes).findByText(/Hiện chưa có lớp phù hợp với hồ sơ của bạn/),
+    ).toBeTruthy();
+    expect(within(classes).getByRole('link', { name: 'Cập nhật hồ sơ' }).getAttribute('href')).toBe(
+      '/tutor/profile',
+    );
     cleanup();
     vi.unstubAllGlobals();
 
@@ -133,7 +142,7 @@ describe('tutor dashboard', () => {
       return undefined;
     });
     renderRoute('/tutor');
-    const failed = await screen.findByRole('region', { name: 'Lớp học mới' });
+    const failed = await screen.findByRole('region', { name: 'Lớp học phù hợp' });
     expect(await within(failed).findByRole('alert')).toHaveProperty(
       'textContent',
       expect.stringContaining('Máy chủ tạm gián đoạn.'),
