@@ -9,31 +9,127 @@ import { timingSafeEqualStrings } from '../../lib/crypto';
 import { AppError } from '../../lib/errors';
 import { PLACEMENT_RATE, type PaymentEnv } from '../class-requests/service';
 
+/** Form fields arrive as strings; an empty optional field means "no value". */
+const optionalText = (max: number) =>
+  z.preprocess(
+    (value) => (value === '' || value === undefined ? null : value),
+    z.string().max(max).nullable(),
+  );
+
 /**
- * SePay "webhook" body for one bank transaction (extra fields are ignored). SePay retries until
- * it gets HTTP 200/201 with {"success": true}; `id` makes every delivery idempotent.
+ * One bank transaction as SePay posts it (developer.sepay.vn → Tích hợp webhook). Extra fields
+ * are ignored. `id` is SePay's transaction id: the same on retries and replays, so it is the
+ * deduplication key. `code` is the payment code SePay detected, null when none matched.
  */
 export const sepayWebhookSchema = z.object({
-  id: z.union([z.number().int().nonnegative(), z.string().trim().min(1).max(64)]),
-  gateway: z.string().max(100).nullish(),
+  id: z.union([
+    z.number().int().nonnegative(),
+    z
+      .string()
+      .trim()
+      .regex(/^\d{1,20}$/),
+  ]),
+  gateway: optionalText(100),
   transactionDate: z.string().trim().min(1).max(40),
-  accountNumber: z.string().max(40).nullish(),
-  code: z.string().max(60).nullish(),
-  content: z.string().max(1000).nullish(),
+  accountNumber: optionalText(40),
+  subAccount: optionalText(40),
+  code: optionalText(60),
+  content: optionalText(1000),
   transferType: z.enum(['in', 'out']),
-  transferAmount: z.number().int().nonnegative().max(100_000_000_000),
-  referenceCode: z.string().max(100).nullish(),
-  description: z.string().max(1000).nullish(),
+  transferAmount: z.coerce.number().int().nonnegative().max(100_000_000_000),
+  accumulated: z.coerce.number().optional(),
+  referenceCode: optionalText(100),
+  description: optionalText(1000),
 });
 export type SepayWebhook = z.infer<typeof sepayWebhookSchema>;
 
-/** SePay sends "Authorization: Apikey <key>"; compared in constant time. */
-export function assertSepayAuth(env: PaymentEnv, header: string | undefined) {
+/** SePay's published webhook source addresses (developer.sepay.vn → Địa chỉ IP). */
+export const SEPAY_IPS = [
+  '172.236.138.20',
+  '172.233.83.68',
+  '171.244.35.2',
+  '151.158.108.68',
+  '151.158.109.79',
+  '103.255.238.139',
+  '45.57.137.67',
+  '2400:8905::2000:8cff:fe98:45cd',
+  '2600:3c15::2000:8aff:fedd:874b',
+];
+
+const unauthorized = () => new AppError(401, 'SEPAY_UNAUTHORIZED', 'Webhook không được xác thực.');
+
+function hex(bytes: ArrayBuffer): string {
+  return [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Verifies the request came from SePay, using the method configured on the SePay webhook:
+ * HMAC-SHA256 (recommended: `X-SePay-Signature: sha256=<hex>` over "{timestamp}.{raw body}",
+ * timestamp within 5 minutes) when `SEPAY_WEBHOOK_SECRET` is set, otherwise the API key
+ * (`Authorization: Apikey <key>`). Optionally the source IP must be one of SePay's.
+ */
+export async function assertSepayRequest(
+  env: PaymentEnv,
+  headers: { get(name: string): string | null | undefined },
+  rawBody: string,
+  now = Date.now(),
+): Promise<void> {
+  const secret = env.SEPAY_WEBHOOK_SECRET?.trim();
   const key = env.SEPAY_WEBHOOK_API_KEY?.trim();
-  if (!key) throw new AppError(503, 'SEPAY_NOT_CONFIGURED', 'Webhook SePay chưa được cấu hình.');
-  const provided = (header ?? '').replace(/^apikey\s+/i, '').trim();
-  if (!timingSafeEqualStrings(provided, key))
-    throw new AppError(401, 'SEPAY_UNAUTHORIZED', 'Sai khóa xác thực webhook.');
+  if (!secret && !key)
+    throw new AppError(503, 'SEPAY_NOT_CONFIGURED', 'Webhook SePay chưa được cấu hình.');
+  if (env.SEPAY_ENFORCE_IP === 'true') {
+    const ip = headers.get('CF-Connecting-IP') ?? '';
+    if (!SEPAY_IPS.includes(ip.toLowerCase())) throw unauthorized();
+  }
+  if (secret) {
+    const timestamp = headers.get('X-SePay-Timestamp') ?? '';
+    const signature = headers.get('X-SePay-Signature') ?? '';
+    const seconds = Number(timestamp);
+    if (!/^\d{1,12}$/.test(timestamp) || Math.abs(now / 1000 - seconds) > 300) throw unauthorized();
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const expected = `sha256=${hex(
+      await crypto.subtle.sign(
+        'HMAC',
+        cryptoKey,
+        new TextEncoder().encode(`${timestamp}.${rawBody}`),
+      ),
+    )}`;
+    if (!timingSafeEqualStrings(signature.trim().toLowerCase(), expected)) throw unauthorized();
+    return;
+  }
+  const header = headers.get('Authorization') ?? '';
+  if (!/^apikey\s+/i.test(header)) throw unauthorized();
+  if (!timingSafeEqualStrings(header.replace(/^apikey\s+/i, '').trim(), key!)) throw unauthorized();
+}
+
+/** JSON (default), form-urlencoded or multipart bodies, as SePay may send any of them. */
+export async function parseSepayBody(rawBody: string, contentType: string): Promise<SepayWebhook> {
+  let data: unknown;
+  try {
+    if (/^application\/x-www-form-urlencoded/i.test(contentType))
+      data = Object.fromEntries(new URLSearchParams(rawBody));
+    else if (/^multipart\/form-data/i.test(contentType)) {
+      const form = await new Request('https://sepay.invalid/', {
+        method: 'POST',
+        headers: { 'Content-Type': contentType },
+        body: rawBody,
+      }).formData();
+      data = Object.fromEntries([...form.entries()].map(([name, value]) => [name, String(value)]));
+    } else data = JSON.parse(rawBody);
+  } catch {
+    throw new AppError(400, 'SEPAY_BODY_INVALID', 'Không đọc được dữ liệu webhook.');
+  }
+  const parsed = sepayWebhookSchema.safeParse(data);
+  if (!parsed.success)
+    throw new AppError(422, 'SEPAY_BODY_INVALID', 'Dữ liệu webhook không hợp lệ.');
+  return parsed.data;
 }
 
 /** Candidate payment codes ("PNL…") in the transfer content and SePay's detected code. */

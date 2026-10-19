@@ -13,29 +13,54 @@ của gia sư hiện **Thanh toán thành công** (tự kiểm tra mỗi 5 giây
 | `PAYMENT_BANK_NAME` | Tên ngân hàng hiển thị cho gia sư |
 | `PAYMENT_ACCOUNT_NUMBER` | Số tài khoản nhận tiền (đã liên kết với SePay) |
 | `PAYMENT_ACCOUNT_NAME` | Tên chủ tài khoản, IN HOA không dấu |
-| `SEPAY_WEBHOOK_API_KEY` | API key dùng để xác thực webhook SePay (tự tạo chuỗi ngẫu nhiên dài) |
+| `SEPAY_WEBHOOK_SECRET` | Secret Key của webhook khi chọn xác thực **HMAC-SHA256** (khuyến nghị) |
+| `SEPAY_WEBHOOK_API_KEY` | API key khi chọn xác thực **API Key** (dùng khi không đặt HMAC) |
+| `SEPAY_ENFORCE_IP` | `true` để chỉ nhận webhook từ 9 địa chỉ IP SePay công bố (tùy chọn) |
 
 ```
 npx wrangler secret put PAYMENT_BANK_BIN --env staging_v2
 npx wrangler secret put PAYMENT_BANK_NAME --env staging_v2
 npx wrangler secret put PAYMENT_ACCOUNT_NUMBER --env staging_v2
 npx wrangler secret put PAYMENT_ACCOUNT_NAME --env staging_v2
-npx wrangler secret put SEPAY_WEBHOOK_API_KEY --env staging_v2
+npx wrangler secret put SEPAY_WEBHOOK_SECRET --env staging_v2   # nếu dùng HMAC-SHA256
+npx wrangler secret put SEPAY_WEBHOOK_API_KEY --env staging_v2  # nếu dùng API Key
+npx wrangler secret put SEPAY_ENFORCE_IP --env staging_v2       # tùy chọn, nhập: true
 ```
 
-Khi chưa có `SEPAY_WEBHOOK_API_KEY`, hệ thống giữ luồng cũ: gia sư bấm "Tôi đã chuyển khoản" và
+Khi chưa có `SEPAY_WEBHOOK_SECRET` lẫn `SEPAY_WEBHOOK_API_KEY`, hệ thống giữ luồng cũ: gia sư bấm "Tôi đã chuyển khoản" và
 kiểm duyệt viên ghi nhận phí sau khi đối soát.
 
 ## 2. Cấu hình trên SePay (my.sepay.vn)
 
-1. Liên kết tài khoản ngân hàng nhận phí (đúng `PAYMENT_ACCOUNT_NUMBER`).
-2. **Cấu hình công ty → Cấu trúc mã thanh toán**: thêm tiền tố `PNL` để SePay nhận diện mã.
-3. **Tích hợp Webhooks → Thêm webhook**:
-   - Sự kiện: *Có tiền vào*.
-   - URL: `https://<tên-miền>/api/v1/payments/sepay/webhook`
-   - Kiểu chứng thực: *API Key*, giá trị bằng `SEPAY_WEBHOOK_API_KEY` (SePay gửi header
-     `Authorization: Apikey <key>`).
-   - Bật "Bỏ qua nếu không có mã thanh toán" nếu chỉ muốn nhận giao dịch có mã `PNL…`.
+Theo tài liệu developer.sepay.vn (SePay Webhooks):
+
+1. **Tài khoản ngân hàng**: liên kết tài khoản nhận phí (đúng `PAYMENT_ACCOUNT_NUMBER`).
+2. **Cấu hình Công ty → Cấu hình chung → Cấu trúc mã thanh toán**: bật *Nhận diện mã thanh
+   toán*, thêm mẫu: tiền tố `PNL`, kiểu ký tự *Số và chữ*, độ dài hậu tố tối thiểu 6, tối đa 30,
+   trạng thái *Đang hoạt động*. SePay sẽ điền trường `code` (ví dụ `PNLLHD0000000000B`).
+3. **Webhooks → Thêm webhook**:
+   - Sự kiện: *Có tiền vào*; có thể bật *Chỉ gửi khi có mã thanh toán*.
+   - URL (HTTPS): `https://<tên-miền>/api/v1/payments/sepay/webhook`
+   - Xác thực **HMAC-SHA256** (khuyến nghị): sao chép Secret Key vào `SEPAY_WEBHOOK_SECRET`.
+     SePay gửi `X-SePay-Signature: sha256=<hex>` và `X-SePay-Timestamp`; hệ thống ký lại
+     `{timestamp}.{raw body}` và từ chối request lệch quá 5 phút.
+   - Hoặc **API Key**: SePay gửi `Authorization: Apikey <key>`; lưu key vào
+     `SEPAY_WEBHOOK_API_KEY` (key chỉ hiện đầy đủ một lần khi tạo).
+4. Thử trước ở **Test mode** (cấu hình mã thanh toán riêng), giả lập giao dịch, rồi sao chép
+   cấu hình sang Live.
+
+**Hành vi của endpoint** (khớp yêu cầu SePay):
+- Nhận body `application/json`, `application/x-www-form-urlencoded` hoặc `multipart/form-data`.
+- Thành công trả HTTP 200 với đúng `{"success": true}` (kể cả khi giao dịch đã nhận trước đó),
+  nên SePay không gửi lại; sai xác thực trả 401, dữ liệu hỏng trả 400/422 để SePay thử lại tối
+  đa 7 lần trong ~33 phút.
+- Chống trùng bằng `id` của SePay (cột duy nhất), xử lý nhanh trong một batch D1 (dưới 30 giây).
+- Kiểm tra `accountNumber` là tài khoản của trung tâm (khi đã đặt `PAYMENT_ACCOUNT_NUMBER`),
+  `code`/nội dung khớp mã lớp và `transferAmount` đủ phí nhận lớp trước khi xác nhận.
+- IP SePay (khi bật `SEPAY_ENFORCE_IP`): 172.236.138.20, 172.233.83.68, 171.244.35.2,
+  151.158.108.68, 151.158.109.79, 103.255.238.139, 45.57.137.67,
+  2400:8905::2000:8cff:fe98:45cd, 2600:3c15::2000:8aff:fedd:874b — danh sách có thể thay đổi,
+  kiểm tra lại trang "Địa chỉ IP" của SePay.
 
 ## 3. Mã thanh toán và đối chiếu
 

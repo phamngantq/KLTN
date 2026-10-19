@@ -547,6 +547,14 @@ describe('SePay webhook', () => {
         ...(key === null ? {} : { Authorization: `Apikey ${key}` }),
       },
     });
+  const statusOf = async (id: number) =>
+    (
+      await env.DB.prepare(
+        "SELECT status FROM payment_transactions WHERE provider = 'sepay' AND provider_transaction_id = ?",
+      )
+        .bind(String(id))
+        .first<{ status: string }>()
+    )?.status;
   const transfer = (id: number, content: string, amount: number) => ({
     id,
     gateway: 'Vietcombank',
@@ -583,7 +591,8 @@ describe('SePay webhook', () => {
     // Not ready yet (no hire confirmation, no contract): kept for review, nothing recorded.
     const early = await hook(transfer(base + 1, `CT DEN ${code} chuyen tien`, 400_000));
     expect(early.status).toBe(200);
-    expect(await early.json()).toMatchObject({ success: true, status: 'not_ready' });
+    expect(await early.json()).toEqual({ success: true });
+    expect(await statusOf(base + 1)).toBe('not_ready');
 
     await learnerConfirms(selected.parent, selected.request.id, selected.assignment.id);
     const contract = await issueContract(moderator, selected.assignment);
@@ -594,14 +603,16 @@ describe('SePay webhook', () => {
       ),
     );
     const under = await hook(transfer(base + 2, code, 100_000));
-    expect(await under.json()).toMatchObject({ status: 'underpaid' });
+    expect(await under.json()).toEqual({ success: true });
+    expect(await statusOf(base + 2)).toBe('underpaid');
     expect((await ownApplication(tutor, selected.application.id)).acceptance?.completed).toBe(
       false,
     );
 
     // The bank glued text to the code and dropped the spaces: still this class.
     const paid = await hook(transfer(base + 3, `MBVCB.123.${code}CHUYENTIEN`, 400_000));
-    expect(await paid.json()).toMatchObject({ success: true, status: 'matched' });
+    expect(await paid.json()).toEqual({ success: true });
+    expect(await statusOf(base + 3)).toBe('matched');
     const view = await ownApplication(tutor, selected.application.id);
     expect(view.acceptance).toMatchObject({ completed: true, placementFeeMinor: 400_000 });
     expect(
@@ -612,11 +623,22 @@ describe('SePay webhook', () => {
 
     // SePay retries: the same transaction id is stored once.
     const again = await hook(transfer(base + 3, `MBVCB.123.${code}CHUYENTIEN`, 400_000));
-    expect(await again.json()).toMatchObject({ success: true, duplicate: true });
+    expect(await again.json()).toEqual({ success: true });
+    expect(
+      (
+        await env.DB.prepare(
+          'SELECT count(*) AS n FROM payment_transactions WHERE provider_transaction_id = ?',
+        )
+          .bind(String(base + 3))
+          .first<{ n: number }>()
+      )?.n,
+    ).toBe(1);
     const second = await hook(transfer(base + 4, code, 400_000));
-    expect(await second.json()).toMatchObject({ status: 'already_paid' });
+    expect(await second.json()).toEqual({ success: true });
+    expect(await statusOf(base + 4)).toBe('already_paid');
     const stranger = await hook(transfer(base + 5, 'ung ho quy lop', 50_000));
-    expect(await stranger.json()).toMatchObject({ status: 'unmatched' });
+    expect(await stranger.json()).toEqual({ success: true });
+    expect(await statusOf(base + 5)).toBe('unmatched');
 
     const history = await get<Page<{ status: string; providerTransactionId: string }>>(
       '/admin/payments?pageSize=50',
@@ -637,5 +659,126 @@ describe('SePay webhook', () => {
     await expect(
       env.DB.prepare("UPDATE payment_transactions SET status = 'matched'").run(),
     ).rejects.toThrow(/immutable/);
+  });
+});
+
+describe('SePay request verification', () => {
+  const body = JSON.stringify({ id: 1, transferType: 'in', transferAmount: 1 });
+  const headers = (values: Record<string, string>) => new Headers(values);
+  async function sign(secret: string, timestamp: string, raw: string) {
+    const key = await crypto.subtle.importKey(
+      'raw',
+      new TextEncoder().encode(secret),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const bytes = await crypto.subtle.sign(
+      'HMAC',
+      key,
+      new TextEncoder().encode(`${timestamp}.${raw}`),
+    );
+    return `sha256=${[...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  it('accepts a valid HMAC-SHA256 signature within 5 minutes and rejects anything else', async () => {
+    const { assertSepayRequest } = await import('../../src/server/modules/payments/sepay');
+    const env = { SEPAY_WEBHOOK_SECRET: 'bi-mat-thu-nghiem', SEPAY_WEBHOOK_API_KEY: 'khoa' };
+    const now = Date.UTC(2026, 9, 19, 3, 0, 0);
+    const ts = String(now / 1000);
+    const good = await sign(env.SEPAY_WEBHOOK_SECRET, ts, body);
+    await expect(
+      assertSepayRequest(
+        env,
+        headers({ 'X-SePay-Timestamp': ts, 'X-SePay-Signature': good }),
+        body,
+        now,
+      ),
+    ).resolves.toBeUndefined();
+    // Tampered body, wrong secret, stale timestamp, or only the API key: refused.
+    await expect(
+      assertSepayRequest(
+        env,
+        headers({ 'X-SePay-Timestamp': ts, 'X-SePay-Signature': good }),
+        `${body} `,
+        now,
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    const wrong = await sign('khac', ts, body);
+    await expect(
+      assertSepayRequest(
+        env,
+        headers({ 'X-SePay-Timestamp': ts, 'X-SePay-Signature': wrong }),
+        body,
+        now,
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    await expect(
+      assertSepayRequest(
+        env,
+        headers({ 'X-SePay-Timestamp': ts, 'X-SePay-Signature': good }),
+        body,
+        now + 301_000,
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+    await expect(
+      assertSepayRequest(env, headers({ Authorization: 'Apikey khoa' }), body, now),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('checks the API key, the optional IP allowlist and missing configuration', async () => {
+    const { assertSepayRequest, SEPAY_IPS } =
+      await import('../../src/server/modules/payments/sepay');
+    await expect(assertSepayRequest({}, headers({}), body)).rejects.toMatchObject({ status: 503 });
+    const env = { SEPAY_WEBHOOK_API_KEY: 'khoa-bi-mat', SEPAY_ENFORCE_IP: 'true' };
+    await expect(
+      assertSepayRequest(
+        env,
+        headers({ Authorization: 'Apikey khoa-bi-mat', 'CF-Connecting-IP': SEPAY_IPS[0]! }),
+        body,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      assertSepayRequest(
+        env,
+        headers({ Authorization: 'Apikey khoa-bi-mat', 'CF-Connecting-IP': '203.0.113.9' }),
+        body,
+      ),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('reads JSON, form-urlencoded and multipart bodies', async () => {
+    const { parseSepayBody } = await import('../../src/server/modules/payments/sepay');
+    const fields = {
+      id: '93',
+      gateway: 'Vietcombank',
+      transactionDate: '2026-10-19 10:00:00',
+      accountNumber: '0123456789',
+      code: '',
+      content: 'PNLLH1234 chuyen tien',
+      transferType: 'in',
+      transferAmount: '400000',
+      referenceCode: 'FT1',
+      description: '',
+    };
+    const fromForm = await parseSepayBody(
+      new URLSearchParams(fields).toString(),
+      'application/x-www-form-urlencoded',
+    );
+    expect(fromForm).toMatchObject({ id: '93', transferAmount: 400_000, code: null });
+    const form = new FormData();
+    for (const [name, value] of Object.entries(fields)) form.append(name, value);
+    const request = new Request('https://x.invalid/', { method: 'POST', body: form });
+    const multipart = await parseSepayBody(
+      await request.text(),
+      request.headers.get('Content-Type') ?? '',
+    );
+    expect(multipart).toMatchObject({ transferAmount: 400_000, content: 'PNLLH1234 chuyen tien' });
+    const json = await parseSepayBody(
+      JSON.stringify({ ...fields, id: 93, transferAmount: 400_000, code: null }),
+      'application/json',
+    );
+    expect(json).toMatchObject({ id: 93, code: null });
+    await expect(parseSepayBody('{', 'application/json')).rejects.toMatchObject({ status: 400 });
   });
 });

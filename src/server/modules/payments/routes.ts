@@ -3,7 +3,7 @@ import type { Page } from '../../../shared/schemas/discovery';
 import type { PaymentTransaction } from '../../../shared/schemas/payments';
 import { AppError } from '../../lib/errors';
 import { ok } from '../../lib/respond';
-import { parseJsonBody, parseQuery } from '../../lib/validate';
+import { parseQuery } from '../../lib/validate';
 import { requireRole } from '../../middleware/guards';
 import type { AppEnv } from '../../types';
 import type { PaymentEnv } from '../class-requests/service';
@@ -16,16 +16,27 @@ import * as sepay from './sepay';
  */
 export const paymentWebhookRoutes = new Hono<AppEnv>();
 paymentWebhookRoutes.post('/sepay/webhook', async (c) => {
+  const env = c.env as PaymentEnv;
+  // The raw bytes are what SePay signs; parse only after verifying them.
+  const rawBody = await c.req.text();
   try {
-    sepay.assertSepayAuth(c.env as PaymentEnv, c.req.header('Authorization'));
+    await sepay.assertSepayRequest(env, c.req.raw.headers, rawBody);
   } catch (error) {
     if (error instanceof AppError)
-      return c.json({ success: false, message: error.message }, error.status as 401);
+      return c.json({ success: false, message: error.message }, error.status as 401 | 503);
     throw error;
   }
-  const payload = await parseJsonBody(c, sepay.sepayWebhookSchema);
-  const outcome = await sepay.handleSepayWebhook(c.env.DB, c.env as PaymentEnv, payload);
-  return c.json({ success: true, status: outcome.status, duplicate: outcome.duplicate }, 200);
+  let payload: sepay.SepayWebhook;
+  try {
+    payload = await sepay.parseSepayBody(rawBody, c.req.header('Content-Type') ?? '');
+  } catch (error) {
+    if (error instanceof AppError)
+      return c.json({ success: false, message: error.message }, error.status as 400 | 422);
+    throw error;
+  }
+  await sepay.handleSepayWebhook(c.env.DB, env, payload);
+  // SePay counts a delivery as done only for 200/201 with exactly {"success": true}.
+  return c.json({ success: true }, 200);
 });
 
 /** Mounted at /api/v1/admin/payments: "Lịch sử giao dịch" for moderators. */

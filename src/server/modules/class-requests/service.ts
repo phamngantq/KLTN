@@ -106,8 +106,12 @@ export interface PaymentEnv {
   PAYMENT_BANK_NAME?: string;
   PAYMENT_ACCOUNT_NUMBER?: string;
   PAYMENT_ACCOUNT_NAME?: string;
-  /** SePay webhook API key; when set, transfers are confirmed automatically. */
+  /** SePay webhook "API Key" authentication; when set, transfers are confirmed automatically. */
   SEPAY_WEBHOOK_API_KEY?: string;
+  /** SePay webhook HMAC-SHA256 secret (recommended); takes precedence over the API key. */
+  SEPAY_WEBHOOK_SECRET?: string;
+  /** "true" accepts webhooks only from SePay's published IP addresses. */
+  SEPAY_ENFORCE_IP?: string;
 }
 
 /**
@@ -118,7 +122,8 @@ export function paymentCodeFor(classCode: string): string {
   return `PNL${classCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}`;
 }
 
-export const autoConfirmReady = (env: PaymentEnv) => Boolean(env.SEPAY_WEBHOOK_API_KEY?.trim());
+export const autoConfirmReady = (env: PaymentEnv) =>
+  Boolean(env.SEPAY_WEBHOOK_SECRET?.trim() || env.SEPAY_WEBHOOK_API_KEY?.trim());
 
 function receivingAccount(env: PaymentEnv): PaymentInstructions['account'] {
   const bankBin = env.PAYMENT_BANK_BIN?.trim();
