@@ -121,9 +121,14 @@ export interface PaymentInstructions {
   contract: { id: string; version: number; status: 'issued' | 'acknowledged' } | null;
   /** The tutor's "Tôi đã chuyển khoản"; the centre still has to confirm receipt. */
   reportedAt: string | null;
-  /** Set by the centre when the fee is received. */
+  /** Set when the fee is received (by the SePay webhook or a moderator). */
   paidAt: string | null;
   completed: boolean;
+  /**
+   * SePay webhook configured: the transfer is confirmed automatically; the screen waits for
+   * the payment instead of asking the tutor to report it.
+   */
+  autoConfirm: boolean;
 }
 
 /** "Xem chi tiết" of a completed class; only returned once the acceptance is complete. */

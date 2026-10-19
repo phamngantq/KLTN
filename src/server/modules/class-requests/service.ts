@@ -14,7 +14,7 @@ import {
   PLACEMENT_FEE_OPTION_KEY,
   placementFee,
 } from '../../../shared/schemas/classes';
-import { transferText, vietQrPayload } from '../../../shared/vietqr';
+import { vietQrPayload } from '../../../shared/vietqr';
 import { AppError } from '../../lib/errors';
 import { COMPLETED } from './sql';
 
@@ -27,7 +27,7 @@ const FIRST_ACCEPTANCE = `NOT EXISTS (SELECT 1 FROM class_assignments o
     AND (a.placement_fee_paid_at IS NULL OR o.placement_fee_paid_at < a.placement_fee_paid_at))`;
 
 /** Rate of the placement-fee policy that applies to the request now (most specific first). */
-const PLACEMENT_RATE = `(SELECT f.rate_basis_points FROM fee_option_versions f
+export const PLACEMENT_RATE = `(SELECT f.rate_basis_points FROM fee_option_versions f
   WHERE f.option_key = '${PLACEMENT_FEE_OPTION_KEY}' AND f.status = 'published'
     AND f.published_at <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
     AND (f.effective_from IS NULL OR f.effective_from <= strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
@@ -106,7 +106,19 @@ export interface PaymentEnv {
   PAYMENT_BANK_NAME?: string;
   PAYMENT_ACCOUNT_NUMBER?: string;
   PAYMENT_ACCOUNT_NAME?: string;
+  /** SePay webhook API key; when set, transfers are confirmed automatically. */
+  SEPAY_WEBHOOK_API_KEY?: string;
 }
+
+/**
+ * Transfer content that identifies one class: "PNL" + the class code without separators, so a
+ * bank that strips spaces or dashes still keeps it readable for the SePay webhook.
+ */
+export function paymentCodeFor(classCode: string): string {
+  return `PNL${classCode.replace(/[^A-Za-z0-9]/g, '').toUpperCase()}`;
+}
+
+export const autoConfirmReady = (env: PaymentEnv) => Boolean(env.SEPAY_WEBHOOK_API_KEY?.trim());
 
 function receivingAccount(env: PaymentEnv): PaymentInstructions['account'] {
   const bankBin = env.PAYMENT_BANK_BIN?.trim();
@@ -172,7 +184,7 @@ export async function getPaymentInstructions(
       feeSessionsPerWeek(row.sessions_per_week, row.window_count),
       row.placement_rate_bp,
     );
-  const transferContent = transferText(`PHI NHAN LOP ${row.class_code}`);
+  const transferContent = paymentCodeFor(row.class_code);
   const account = receivingAccount(env);
   return {
     assignmentId: row.id,
@@ -198,7 +210,63 @@ export async function getPaymentInstructions(
     reportedAt: row.placement_fee_reported_at,
     paidAt: row.placement_fee_paid_at,
     completed: Boolean(row.completed),
+    autoConfirm: autoConfirmReady(env),
   };
+}
+
+/** Preconditions shared by agreeing to the contract and reporting a transfer. */
+function assertPayable(row: PaymentRow) {
+  if (row.first_acceptance)
+    throw new AppError(
+      409,
+      'FIRST_ACCEPTANCE_AT_CENTRE',
+      'Lần nhận lớp đầu tiên cần ký hợp đồng và thanh toán phí tại trung tâm.',
+    );
+  if (row.placement_fee_paid_at)
+    throw new AppError(409, 'PLACEMENT_FEE_ALREADY_PAID', 'Phí nhận lớp đã được thanh toán.');
+  if (!row.learner_confirmed_at)
+    throw new AppError(409, 'PLACEMENT_FEE_NOT_READY', 'Chờ người học xác nhận thuê gia sư.');
+  if (!row.contract_id || !row.contract_version)
+    throw new AppError(
+      409,
+      'CONTRACT_NOT_ISSUED',
+      'Trung tâm đang chuẩn bị hợp đồng cho lớp này. Vui lòng quay lại sau.',
+    );
+}
+
+/**
+ * "Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng" before paying by QR: acknowledges
+ * the class contract, so the SePay webhook can record the fee as soon as the money arrives.
+ */
+export async function agreeContract(
+  db: D1Database,
+  env: PaymentEnv,
+  tutorId: string,
+  assignmentId: string,
+): Promise<PaymentInstructions> {
+  const row = await ownAcceptance(db, tutorId, assignmentId);
+  assertPayable(row);
+  if (row.contract_status === 'issued') {
+    const now = new Date().toISOString();
+    const mutationId = crypto.randomUUID();
+    await db.batch([
+      db
+        .prepare(
+          `UPDATE class_contract_records
+           SET status = 'acknowledged', version = version + 1, acknowledged_at = ?, mutation_id = ?
+           WHERE id = ? AND tutor_user_id = ? AND status = 'issued' AND version = ?`,
+        )
+        .bind(now, mutationId, row.contract_id, tutorId, row.contract_version),
+      db
+        .prepare(
+          `INSERT INTO audit_logs (id, actor_id, action, target_type, target_id, metadata, created_at)
+           SELECT ?, ?, 'class_contract.acknowledged', 'class_contract', ?, '{"via":"payment"}', ?
+           WHERE EXISTS (SELECT 1 FROM class_contract_records WHERE id = ? AND mutation_id = ?)`,
+        )
+        .bind(crypto.randomUUID(), tutorId, row.contract_id, now, row.contract_id, mutationId),
+    ]);
+  }
+  return getPaymentInstructions(db, env, tutorId, assignmentId);
 }
 
 /**
@@ -213,22 +281,9 @@ export async function reportTransfer(
   assignmentId: string,
 ): Promise<PaymentInstructions> {
   const row = await ownAcceptance(db, tutorId, assignmentId);
-  if (row.first_acceptance)
-    throw new AppError(
-      409,
-      'FIRST_ACCEPTANCE_AT_CENTRE',
-      'Lần nhận lớp đầu tiên cần ký hợp đồng và thanh toán phí tại trung tâm.',
-    );
-  if (row.placement_fee_paid_at || row.placement_fee_reported_at)
+  if (row.placement_fee_reported_at)
     throw new AppError(409, 'TRANSFER_ALREADY_REPORTED', 'Bạn đã báo chuyển khoản cho lớp này.');
-  if (!row.learner_confirmed_at)
-    throw new AppError(409, 'PLACEMENT_FEE_NOT_READY', 'Chờ người học xác nhận thuê gia sư.');
-  if (!row.contract_id || !row.contract_version)
-    throw new AppError(
-      409,
-      'CONTRACT_NOT_ISSUED',
-      'Trung tâm đang chuẩn bị hợp đồng cho lớp này. Vui lòng quay lại sau.',
-    );
+  assertPayable(row);
   const now = new Date().toISOString();
   const statements: D1PreparedStatement[] = [];
   if (row.contract_status === 'issued')
@@ -729,7 +784,7 @@ export async function getProposalPayment(
     .bind(tutorId)
     .first<{ done: number }>();
   const amountMinor = item!.placementFeeMinor;
-  const transferContent = transferText(`PHI NHAN LOP ${row.request_code}`);
+  const transferContent = paymentCodeFor(row.request_code);
   const account = receivingAccount(env);
   return {
     assignmentId: null,
@@ -752,5 +807,6 @@ export async function getProposalPayment(
     reportedAt: null,
     paidAt: null,
     completed: false,
+    autoConfirm: autoConfirmReady(env),
   };
 }

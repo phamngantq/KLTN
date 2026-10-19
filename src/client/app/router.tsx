@@ -653,6 +653,13 @@ const moderatorRoutes: RouteObject[] = [
     }),
   },
   {
+    path: 'payments',
+    ...page(async () => {
+      const { AdminPaymentsPage } = await import('../pages/admin/AdminPaymentsPage');
+      return <AdminPaymentsPage />;
+    }),
+  },
+  {
     path: 'contracts',
     ...page(async () => {
       const { AdminClassContractsPage } = await import('../pages/admin/AdminClassContractsPage');

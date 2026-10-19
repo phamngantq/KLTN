@@ -84,6 +84,18 @@ tutorClassRequestRoutes.get('/acceptances/:assignmentId/payment', async (c) =>
     ),
   ),
 );
+tutorClassRequestRoutes.post('/acceptances/:assignmentId/payment/agree', async (c) => {
+  await parseJsonBody(c, reportTransferSchema);
+  return ok<PaymentInstructions>(
+    c,
+    await service.agreeContract(
+      c.env.DB,
+      c.env as PaymentEnv,
+      authOf(c).user.id,
+      c.req.param('assignmentId'),
+    ),
+  );
+});
 tutorClassRequestRoutes.post('/acceptances/:assignmentId/payment/report', async (c) => {
   await parseJsonBody(c, reportTransferSchema);
   return ok<PaymentInstructions>(

@@ -213,7 +213,7 @@ describe('tutor class requests page', () => {
       classCode: 'LH-a4',
       firstAcceptance: false,
       amountMinor: 640_000,
-      transferContent: 'PHI NHAN LOP LH-a4',
+      transferContent: 'PNLLHa4',
       account: {
         bankBin: '970436',
         bankName: 'Ngân hàng thử nghiệm',
@@ -227,6 +227,7 @@ describe('tutor class requests page', () => {
       reportedAt: null,
       paidAt: null,
       completed: false,
+      autoConfirm: false,
     };
     let current = payment;
     const writeText = vi.fn(async () => undefined);
@@ -257,9 +258,9 @@ describe('tutor class requests page', () => {
     expect(screen.queryByText('Người học xác nhận thuê gia sư')).toBeNull();
     expect(screen.getByRole('img', { name: /Mã VietQR chuyển 640.000/ })).toBeTruthy();
     expect(screen.getAllByText('640.000 ₫').length).toBeGreaterThan(0);
-    expect(screen.getByText('PHI NHAN LOP LH-a4')).toBeTruthy();
+    expect(screen.getByText('PNLLHa4')).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Sao chép nội dung chuyển khoản' }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledWith('PHI NHAN LOP LH-a4'));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith('PNLLHa4'));
 
     const finish = screen.getByRole('button', { name: /Tôi đã chuyển khoản/ });
     expect((finish as HTMLButtonElement).disabled).toBe(true);
@@ -281,6 +282,70 @@ describe('tutor class requests page', () => {
     expect(calls.some((call) => call.path.includes('/contact'))).toBe(false);
   });
 
+  it('with SePay, shows the QR after the contract agreement and confirms the payment by itself', async () => {
+    const base: PaymentInstructions = {
+      assignmentId: 'as-2',
+      classCode: 'LH-a4',
+      firstAcceptance: false,
+      amountMinor: 640_000,
+      transferContent: 'PNLLHa4',
+      account: {
+        bankBin: '970436',
+        bankName: 'Ngân hàng thử nghiệm',
+        accountNumber: '0123456789',
+        accountName: 'TRUNG TAM THU NGHIEM',
+      },
+      qrPayload: '00020101021238540010A000000727',
+      learnerConfirmed: true,
+      contract: { id: 'ct-2', version: 1, status: 'issued' },
+      reportedAt: null,
+      paidAt: null,
+      completed: false,
+      autoConfirm: true,
+    };
+    let current = base;
+    const { calls } = mockApi((req) => {
+      if (req.path === '/me') return sessionOf({ role: 'tutor' });
+      if (req.path === '/tutor/applications/a4')
+        return {
+          data: application('a4', 'selected', {
+            acceptance: acceptance({ assignmentId: 'as-2', firstAcceptance: false }),
+          }),
+        };
+      if (req.path === '/tutor/class-requests/acceptances/as-2/payment') return { data: current };
+      if (req.path === '/tutor/class-requests/acceptances/as-2/payment/agree') {
+        current = { ...base, contract: { id: 'ct-2', version: 2, status: 'acknowledged' } };
+        return { data: current };
+      }
+      return undefined;
+    });
+    renderRoute('/tutor/class-requests/hoan-tat/a4');
+    expect(await screen.findByRole('heading', { name: 'Hướng dẫn thanh toán' })).toBeTruthy();
+    // No QR until the contract is agreed, and no manual "Tôi đã chuyển khoản".
+    expect(screen.queryByRole('img', { name: /Mã VietQR/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Tôi đã chuyển khoản/ })).toBeNull();
+    const show = screen.getByRole('button', { name: 'Đồng ý hợp đồng & hiện mã QR' });
+    expect((show as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(
+      screen.getByLabelText('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng'),
+    );
+    fireEvent.click(show);
+    expect(await screen.findByRole('img', { name: /Mã VietQR/ })).toBeTruthy();
+    expect(screen.getByText(/Đang chờ thanh toán/)).toBeTruthy();
+    expect(calls.find((call) => call.path.endsWith('/payment/agree'))?.body).toEqual({
+      contractAgreed: true,
+    });
+
+    // SePay reports the transfer: the next poll shows the success screen.
+    current = { ...current, paidAt: '2026-10-19T03:00:00.000Z', completed: true };
+    expect(
+      await screen.findByRole('region', { name: 'Thanh toán thành công' }, { timeout: 8000 }),
+    ).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Xem lớp đã hoàn tất' }).getAttribute('href')).toBe(
+      '/tutor/class-requests?tab=hoan-tat',
+    );
+  }, 15_000);
+
   it('shows no QR and blocks reporting while the centre account is not configured', async () => {
     mockApi((req) => {
       if (req.path === '/me') return sessionOf({ role: 'tutor' });
@@ -297,7 +362,7 @@ describe('tutor class requests page', () => {
             classCode: 'LH-a4',
             firstAcceptance: false,
             amountMinor: 640_000,
-            transferContent: 'PHI NHAN LOP LH-a4',
+            transferContent: 'PNLLHa4',
             account: null,
             qrPayload: null,
             learnerConfirmed: true,
@@ -305,6 +370,7 @@ describe('tutor class requests page', () => {
             reportedAt: null,
             paidAt: null,
             completed: false,
+            autoConfirm: false,
           } satisfies PaymentInstructions,
         };
       return undefined;
@@ -333,7 +399,7 @@ describe('tutor class requests page', () => {
       classCode: 'YC-p3',
       firstAcceptance,
       amountMinor: 800_000,
-      transferContent: 'PHI NHAN LOP YC-p3',
+      transferContent: 'PNLYCp3',
       account: null,
       qrPayload: null,
       learnerConfirmed: true,
@@ -341,6 +407,7 @@ describe('tutor class requests page', () => {
       reportedAt: null,
       paidAt: null,
       completed: false,
+      autoConfirm: false,
     });
     let first = false;
     mockApi((req) => {
@@ -357,7 +424,7 @@ describe('tutor class requests page', () => {
     // Returning tutor: payment guide, amount, content and contract agreement.
     expect(await screen.findByRole('heading', { name: 'Hướng dẫn thanh toán' })).toBeTruthy();
     expect(screen.getAllByText('800.000 ₫').length).toBeGreaterThan(0);
-    expect(screen.getByText('PHI NHAN LOP YC-p3')).toBeTruthy();
+    expect(screen.getByText('PNLYCp3')).toBeTruthy();
     expect(screen.getByText('Đã từng nhận lớp')).toBeTruthy();
     expect(
       screen.getByLabelText('Tôi đã đọc và đồng ý với các điều khoản trong hợp đồng'),

@@ -12,7 +12,14 @@ export default defineConfig(async () => {
           plugins: [
             cloudflareTest({
               wrangler: { configPath: './wrangler.jsonc' },
-              miniflare: { bindings: { APP_ENV: 'test', TEST_MIGRATIONS: migrations } },
+              miniflare: {
+                bindings: {
+                  APP_ENV: 'test',
+                  TEST_MIGRATIONS: migrations,
+                  // Synthetic test-only key for the SePay webhook; never a real credential.
+                  SEPAY_WEBHOOK_API_KEY: 'test-sepay-webhook-key',
+                },
+              },
             }),
           ],
           test: {

@@ -284,7 +284,7 @@ describe('tutor class requests', () => {
       classCode: second.cls.code,
       firstAcceptance: false,
       amountMinor: 400_000,
-      transferContent: `PHI NHAN LOP ${second.cls.code}`,
+      transferContent: `PNL${second.cls.code.replace(/-/g, '')}`,
       // No receiving account configured in tests: no QR is ever made up.
       account: null,
       qrPayload: null,
@@ -500,7 +500,7 @@ describe('tutor class requests', () => {
       classCode: request.code,
       firstAcceptance: true,
       amountMinor: 400_000,
-      transferContent: `PHI NHAN LOP ${request.code}`,
+      transferContent: `PNL${request.code.replace(/-/g, '')}`,
       contract: null,
     });
     expect(
@@ -533,5 +533,109 @@ describe('VietQR payload', () => {
     expect(payload).toContain('0817PHI NHAN LOP LH-1');
     expect(payload.slice(-8, -4)).toBe('6304');
     expect(payload.slice(-4)).toBe(crc16(payload.slice(0, -4)));
+  });
+});
+
+describe('SePay webhook', () => {
+  const KEY = 'test-sepay-webhook-key';
+  const hook = (body: Record<string, unknown>, key: string | null = KEY) =>
+    api('/payments/sepay/webhook', {
+      method: 'POST',
+      body: JSON.stringify(body),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(key === null ? {} : { Authorization: `Apikey ${key}` }),
+      },
+    });
+  const transfer = (id: number, content: string, amount: number) => ({
+    id,
+    gateway: 'Vietcombank',
+    transactionDate: '2026-10-19 10:00:00',
+    accountNumber: '0123456789',
+    code: null,
+    content,
+    transferType: 'in',
+    transferAmount: amount,
+    accumulated: 0,
+    subAccount: null,
+    referenceCode: `FT${id}`,
+    description: content,
+  });
+
+  it('records the fee automatically for a matching full transfer and keeps every transaction', async () => {
+    const moderator = await makeModerator();
+    const tutor = await createPublicTutor({ teachesOffline: true });
+    await publishTutorTermsQuiz(moderator);
+    await passAndAcknowledgeTutorTerms(tutor);
+    const selected = await selectedClass(moderator, tutor, 'Lớp 10');
+    const code = `PNL${selected.cls.code.replace(/-/g, '').toUpperCase()}`;
+    const payment = await get<PaymentInstructions>(
+      `/tutor/class-requests/acceptances/${selected.assignment.id}/payment`,
+      tutor,
+    );
+    expect(payment).toMatchObject({ transferContent: code, autoConfirm: true });
+    const base = Math.floor(Date.now() % 1_000_000_000) * 10;
+
+    // Only SePay's key is accepted.
+    expect((await hook(transfer(base + 1, code, 400_000), null)).status).toBe(401);
+    expect((await hook(transfer(base + 1, code, 400_000), 'sai-khoa')).status).toBe(401);
+
+    // Not ready yet (no hire confirmation, no contract): kept for review, nothing recorded.
+    const early = await hook(transfer(base + 1, `CT DEN ${code} chuyen tien`, 400_000));
+    expect(early.status).toBe(200);
+    expect(await early.json()).toMatchObject({ success: true, status: 'not_ready' });
+
+    await learnerConfirms(selected.parent, selected.request.id, selected.assignment.id);
+    const contract = await issueContract(moderator, selected.assignment);
+    await data(
+      await api(
+        `/admin/contracts/${contract.id}/signed-at-centre`,
+        jsonInit('POST', { version: 1 }, moderator),
+      ),
+    );
+    const under = await hook(transfer(base + 2, code, 100_000));
+    expect(await under.json()).toMatchObject({ status: 'underpaid' });
+    expect((await ownApplication(tutor, selected.application.id)).acceptance?.completed).toBe(
+      false,
+    );
+
+    // The bank glued text to the code and dropped the spaces: still this class.
+    const paid = await hook(transfer(base + 3, `MBVCB.123.${code}CHUYENTIEN`, 400_000));
+    expect(await paid.json()).toMatchObject({ success: true, status: 'matched' });
+    const view = await ownApplication(tutor, selected.application.id);
+    expect(view.acceptance).toMatchObject({ completed: true, placementFeeMinor: 400_000 });
+    expect(
+      (await get<Page<CompletedAcceptance>>('/tutor/class-requests/completed', tutor)).items.map(
+        (item) => item.assignmentId,
+      ),
+    ).toContain(selected.assignment.id);
+
+    // SePay retries: the same transaction id is stored once.
+    const again = await hook(transfer(base + 3, `MBVCB.123.${code}CHUYENTIEN`, 400_000));
+    expect(await again.json()).toMatchObject({ success: true, duplicate: true });
+    const second = await hook(transfer(base + 4, code, 400_000));
+    expect(await second.json()).toMatchObject({ status: 'already_paid' });
+    const stranger = await hook(transfer(base + 5, 'ung ho quy lop', 50_000));
+    expect(await stranger.json()).toMatchObject({ status: 'unmatched' });
+
+    const history = await get<Page<{ status: string; providerTransactionId: string }>>(
+      '/admin/payments?pageSize=50',
+      moderator,
+    );
+    const mine = history.items.filter((item) =>
+      [1, 2, 3, 4, 5].map((n) => String(base + n)).includes(item.providerTransactionId),
+    );
+    expect(mine.map((item) => item.status).sort()).toEqual([
+      'already_paid',
+      'matched',
+      'not_ready',
+      'underpaid',
+      'unmatched',
+    ]);
+    expect((await api('/admin/payments', { headers: { Cookie: tutor.cookie } })).status).toBe(403);
+    // The history is append-only.
+    await expect(
+      env.DB.prepare("UPDATE payment_transactions SET status = 'matched'").run(),
+    ).rejects.toThrow(/immutable/);
   });
 });

@@ -144,6 +144,33 @@ export function usePaymentInstructions(assignmentId: string | undefined) {
         { signal },
       ),
     enabled: Boolean(user?.role === 'tutor' && assignmentId),
+    // With SePay, wait for the webhook: poll while the QR is shown and the fee is unpaid.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.autoConfirm && data.contract?.status === 'acknowledged' && !data.paidAt
+        ? 5_000
+        : false;
+    },
+  });
+}
+
+/** Contract agreement before paying by QR (SePay confirms the transfer afterwards). */
+export function useAgreeContract() {
+  const queryClient = useQueryClient();
+  const { user } = useSession();
+  return useMutation({
+    mutationFn: (assignmentId: string) =>
+      api.post<PaymentInstructions>(
+        `/tutor/class-requests/acceptances/${encodeURIComponent(assignmentId)}/payment/agree`,
+        { contractAgreed: true },
+      ),
+    onSuccess: (payment) => {
+      queryClient.setQueryData(
+        [...requestsKey, 'payment', user?.id, payment.assignmentId],
+        payment,
+      );
+      void queryClient.invalidateQueries({ queryKey: ['contracts'] });
+    },
   });
 }
 

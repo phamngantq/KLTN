@@ -101,6 +101,7 @@ const AREAS: Record<Area, { label: string; entries: MenuEntry[] }> = {
           { to: '/admin/applications', label: 'Đơn nhận lớp', icon: FileText },
           { to: '/admin/classes', label: 'Lớp học', icon: GraduationCap },
           { to: '/admin/contracts', label: 'Hợp đồng lớp', icon: FileText },
+          { to: '/admin/payments', label: 'Giao dịch thanh toán', icon: Wallet },
           { to: '/admin/tutors', label: 'Duyệt hồ sơ gia sư', icon: Users },
         ],
       },

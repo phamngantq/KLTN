@@ -17,6 +17,7 @@ import {
   tutorAssignmentRoutes,
 } from './modules/admin/assignments-routes';
 import { tutorClassRequestRoutes } from './modules/class-requests/routes';
+import { adminPaymentRoutes, paymentWebhookRoutes } from './modules/payments/routes';
 import { adminContentRoutes, contentRoutes } from './modules/content/routes';
 import { bookingRoutes } from './modules/bookings/routes';
 import {
@@ -117,6 +118,8 @@ export function createApp() {
   api.route('/tutor', tutorClassRoutes);
   api.route('/tutor', tutorTermsContractRoutes);
   api.route('/tutor/class-requests', tutorClassRequestRoutes);
+  api.route('/payments', paymentWebhookRoutes);
+  api.route('/admin/payments', adminPaymentRoutes);
   api.route('/tutor/assignments', tutorAssignmentRoutes);
   api.route('/tutor/dashboard', tutorDashboardRoutes);
   api.route('/subjects', subjectRoutes);

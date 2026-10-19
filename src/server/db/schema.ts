@@ -503,6 +503,7 @@ export const classAssignments = sqliteTable(
       onDelete: 'restrict',
     }),
     placementFeeReportedAt: text('placement_fee_reported_at'),
+    placementFeeTransactionId: text('placement_fee_transaction_id'),
   },
   (t) => [
     uniqueIndex('class_assignments_application_uq').on(t.applicationId),
@@ -831,6 +832,37 @@ export const tutorDocuments = sqliteTable(
       .on(t.tutorId, t.kind)
       .where(sql`${t.kind} <> 'credential'`),
     index('tutor_documents_tutor_idx').on(t.tutorId, t.createdAt),
+  ],
+);
+
+/** Bank transactions reported by SePay; immutable history, matched ones record the fee. */
+export const paymentTransactions = sqliteTable(
+  'payment_transactions',
+  {
+    id: text('id').primaryKey(),
+    provider: text('provider', { enum: ['sepay'] }).notNull(),
+    providerTransactionId: text('provider_transaction_id').notNull(),
+    gateway: text('gateway'),
+    accountNumber: text('account_number'),
+    transferType: text('transfer_type', { enum: ['in', 'out'] }).notNull(),
+    amountMinor: integer('amount_minor').notNull(),
+    content: text('content').notNull(),
+    referenceCode: text('reference_code'),
+    transactionAt: text('transaction_at').notNull(),
+    paymentCode: text('payment_code'),
+    assignmentId: text('assignment_id').references(() => classAssignments.id, {
+      onDelete: 'restrict',
+    }),
+    expectedAmountMinor: integer('expected_amount_minor'),
+    status: text('status', {
+      enum: ['matched', 'underpaid', 'not_ready', 'already_paid', 'unmatched', 'outgoing'],
+    }).notNull(),
+    receivedAt: text('received_at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('payment_transactions_provider_uq').on(t.provider, t.providerTransactionId),
+    index('payment_transactions_received_idx').on(desc(t.receivedAt), t.id),
+    index('payment_transactions_assignment_idx').on(t.assignmentId, desc(t.receivedAt)),
   ],
 );
 

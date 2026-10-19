@@ -1,4 +1,13 @@
-import { Check, ClipboardCheck, Copy, FileText, QrCode, Wallet } from 'lucide-react';
+import {
+  Check,
+  CircleCheck,
+  ClipboardCheck,
+  Copy,
+  FileText,
+  LoaderCircle,
+  QrCode,
+  Wallet,
+} from 'lucide-react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { PaymentInstructions } from '../../../shared/schemas/class-requests';
@@ -8,6 +17,7 @@ import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
 import {
+  useAgreeContract,
   useOwnApplication,
   usePaymentInstructions,
   useReportTransfer,
@@ -52,7 +62,9 @@ function CopyButton({ text, label }: { text: string; label: string }) {
  */
 export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
   const report = useReportTransfer();
+  const agree = useAgreeContract();
   const [agreed, setAgreed] = useState(false);
+  const auto = payment.autoConfirm;
   const preview = isReadOnlyPreview();
   const amount = payment.amountMinor === null ? null : formatVnd(payment.amountMinor);
   const contractDone = payment.contract?.status === 'acknowledged';
@@ -64,7 +76,29 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
         ? `Trung tâm chưa cấu hình tài khoản nhận thanh toán nên chưa tạo được mã QR. Vui lòng liên hệ ${CENTRE_PHONE}.`
         : null;
 
-  if (payment.reportedAt)
+  if (payment.paidAt)
+    return (
+      <section
+        aria-label="Thanh toán thành công"
+        className="flex flex-col gap-3 rounded-xl border border-success/40 bg-success-surface p-6"
+      >
+        <h3 className="flex items-center gap-2 text-xl font-semibold text-success">
+          <CircleCheck aria-hidden="true" className="size-6" />
+          Thanh toán thành công
+        </h3>
+        <p>
+          Hệ thống đã nhận phí nhận lớp {amount ? <strong>{amount}</strong> : null} cho lớp{' '}
+          <strong>{payment.classCode}</strong> lúc {formatDate(payment.paidAt, 'Asia/Ho_Chi_Minh')}.
+          Lớp đã chuyển sang “Lớp đã hoàn tất” — thông tin liên hệ người học và thư giới thiệu của
+          trung tâm đã sẵn sàng.
+        </p>
+        <ButtonLink to="/tutor/class-requests?tab=hoan-tat" className="self-start">
+          Xem lớp đã hoàn tất
+        </ButtonLink>
+      </section>
+    );
+
+  if (payment.reportedAt && !auto)
     return (
       <Alert tone="info" title="Đã ghi nhận bạn chuyển khoản phí nhận lớp">
         Bạn báo chuyển khoản lúc {formatDate(payment.reportedAt, 'Asia/Ho_Chi_Minh')}. Trung tâm
@@ -85,12 +119,20 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
             Hướng dẫn thanh toán
           </h3>
           <ol className="flex flex-col gap-3 text-sm leading-relaxed">
-            {[
-              'Mở ứng dụng ngân hàng hoặc ví điện tử, chọn quét mã QR và quét mã bên cạnh.',
-              'Kiểm tra đúng số tiền và nội dung chuyển khoản như dưới đây, rồi xác nhận chuyển.',
-              'Đọc hợp đồng, tích đồng ý với các điều khoản và bấm “Tôi đã chuyển khoản – Hoàn tất nhận lớp”.',
-              'Trung tâm đối soát và xác nhận đã nhận phí; thông tin liên hệ người học và thư giới thiệu sẽ hiển thị trong tab Lớp đã hoàn tất.',
-            ].map((text, index) => (
+            {(auto
+              ? [
+                  'Đọc hợp đồng, tích đồng ý với các điều khoản và bấm “Đồng ý hợp đồng & hiện mã QR”.',
+                  'Mở ứng dụng ngân hàng, quét mã QR; giữ nguyên số tiền và nội dung chuyển khoản.',
+                  'Hệ thống tự xác nhận ngay khi tiền vào tài khoản trung tâm — không cần báo lại.',
+                  'Lớp chuyển sang “Lớp đã hoàn tất” cùng thông tin liên hệ người học và thư giới thiệu.',
+                ]
+              : [
+                  'Mở ứng dụng ngân hàng hoặc ví điện tử, chọn quét mã QR và quét mã bên cạnh.',
+                  'Kiểm tra đúng số tiền và nội dung chuyển khoản như dưới đây, rồi xác nhận chuyển.',
+                  'Đọc hợp đồng, tích đồng ý với các điều khoản và bấm “Tôi đã chuyển khoản – Hoàn tất nhận lớp”.',
+                  'Trung tâm đối soát và xác nhận đã nhận phí; thông tin liên hệ người học và thư giới thiệu sẽ hiển thị trong tab Lớp đã hoàn tất.',
+                ]
+            ).map((text, index) => (
               <li key={text} className="flex items-start gap-3">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-on-primary">
                   {index + 1}
@@ -141,7 +183,12 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
             <QrCode aria-hidden="true" className="size-5" />
             Mã QR thanh toán
           </h3>
-          {payment.qrPayload ? (
+          {auto && payment.qrPayload && !contractDone ? (
+            <p className="text-center text-sm text-muted">
+              Tích đồng ý với các điều khoản hợp đồng và bấm “Đồng ý hợp đồng &amp; hiện mã QR” để
+              hiện mã thanh toán.
+            </p>
+          ) : payment.qrPayload ? (
             <>
               <div className="size-64 max-w-full">
                 <VietQrCode
@@ -152,6 +199,15 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
               <p className="text-center text-xs text-muted">
                 VietQR · {amount} · {payment.transferContent}
               </p>
+              {auto && (
+                <p
+                  role="status"
+                  className="flex items-center gap-2 rounded-md bg-info-surface px-3 py-2 text-center text-sm text-primary"
+                >
+                  <LoaderCircle aria-hidden="true" className="size-4 shrink-0 animate-spin" />
+                  Đang chờ thanh toán — hệ thống tự xác nhận khi nhận được tiền.
+                </p>
+              )}
             </>
           ) : (
             <p className="text-center text-sm text-muted">
@@ -177,34 +233,51 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
         {contractDone && (
           <p className="text-sm text-success">Bạn đã xác nhận hợp đồng của lớp này.</p>
         )}
-        <label className="flex min-h-11 items-start gap-3 rounded-xl border border-border bg-bg p-4 text-sm">
-          <input
-            type="checkbox"
-            className="mt-0.5 size-4 accent-[var(--color-primary)]"
-            checked={agreed}
-            onChange={(event) => setAgreed(event.target.checked)}
-          />
-          {CONTRACT_AGREEMENT}
-        </label>
+        {!(auto && contractDone) && (
+          <label className="flex min-h-11 items-start gap-3 rounded-xl border border-border bg-bg p-4 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5 size-4 accent-[var(--color-primary)]"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+            />
+            {CONTRACT_AGREEMENT}
+          </label>
+        )}
         {blocked && <Alert tone="warning">{blocked}</Alert>}
-        {!agreed && !blocked && (
+        {!agreed && !blocked && !(auto && contractDone) && (
           <p className="text-sm text-muted" role="status">
             Vui lòng tích chọn đồng ý với các điều khoản trong hợp đồng để tiếp tục.
           </p>
         )}
         {report.isError && <Alert tone="danger">{report.error.message}</Alert>}
-        <Button
-          className="gap-2 self-start"
-          disabled={!agreed || Boolean(blocked) || preview}
-          loading={report.isPending}
-          onClick={() => payment.assignmentId && report.mutate(payment.assignmentId)}
-        >
-          <ClipboardCheck aria-hidden="true" className="size-4" />
-          Tôi đã chuyển khoản – Hoàn tất nhận lớp
-        </Button>
+        {agree.isError && <Alert tone="danger">{agree.error.message}</Alert>}
+        {auto ? (
+          !contractDone && (
+            <Button
+              className="gap-2 self-start"
+              disabled={!agreed || Boolean(blocked) || preview}
+              loading={agree.isPending}
+              onClick={() => payment.assignmentId && agree.mutate(payment.assignmentId)}
+            >
+              <QrCode aria-hidden="true" className="size-4" />
+              Đồng ý hợp đồng &amp; hiện mã QR
+            </Button>
+          )
+        ) : (
+          <Button
+            className="gap-2 self-start"
+            disabled={!agreed || Boolean(blocked) || preview}
+            loading={report.isPending}
+            onClick={() => payment.assignmentId && report.mutate(payment.assignmentId)}
+          >
+            <ClipboardCheck aria-hidden="true" className="size-4" />
+            Tôi đã chuyển khoản – Hoàn tất nhận lớp
+          </Button>
+        )}
         <p className="text-sm text-muted">
-          Thông tin liên hệ chi tiết của người học và thư giới thiệu chỉ được cung cấp sau khi trung
-          tâm xác nhận đã nhận phí.
+          Thông tin liên hệ chi tiết của người học và thư giới thiệu chỉ được cung cấp sau khi
+          {auto ? ' hệ thống xác nhận đã nhận phí.' : ' trung tâm xác nhận đã nhận phí.'}
         </p>
       </section>
     </div>
