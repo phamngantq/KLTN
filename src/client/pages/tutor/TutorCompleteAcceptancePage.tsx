@@ -12,7 +12,6 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { PaymentInstructions } from '../../../shared/schemas/class-requests';
 import { isReadOnlyPreview } from '../../app/preview';
-import { VietQrCode } from '../../components/domain/VietQrCode';
 import { Button, ButtonLink } from '../../components/ui/Button';
 import { Alert, Badge } from '../../components/ui/Feedback';
 import { PageLoading } from '../../components/ui/Spinner';
@@ -72,7 +71,7 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
     ? 'Chờ người học xác nhận thuê gia sư trước khi thanh toán.'
     : !payment.contract || !payment.assignmentId
       ? 'Trung tâm đang chuẩn bị hợp đồng cho lớp này. Vui lòng quay lại sau.'
-      : !payment.account || !payment.qrPayload
+      : !payment.account || !payment.qrImageUrl
         ? `Trung tâm chưa cấu hình tài khoản nhận thanh toán nên chưa tạo được mã QR. Vui lòng liên hệ ${CENTRE_PHONE}.`
         : null;
 
@@ -169,8 +168,12 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
                   {payment.account.accountNumber}
                   <CopyButton text={payment.account.accountNumber} label="Sao chép số tài khoản" />
                 </dd>
-                <dt className="text-muted">Chủ tài khoản</dt>
-                <dd className="font-medium">{payment.account.accountName}</dd>
+                {payment.account.accountName && (
+                  <>
+                    <dt className="text-muted">Chủ tài khoản</dt>
+                    <dd className="font-medium">{payment.account.accountName}</dd>
+                  </>
+                )}
               </div>
             )}
           </dl>
@@ -183,17 +186,19 @@ export function PaymentScreen({ payment }: { payment: PaymentInstructions }) {
             <QrCode aria-hidden="true" className="size-5" />
             Mã QR thanh toán
           </h3>
-          {auto && payment.qrPayload && !contractDone ? (
+          {auto && payment.qrImageUrl && !contractDone ? (
             <p className="text-center text-sm text-muted">
               Tích đồng ý với các điều khoản hợp đồng và bấm “Đồng ý hợp đồng &amp; hiện mã QR” để
               hiện mã thanh toán.
             </p>
-          ) : payment.qrPayload ? (
+          ) : payment.qrImageUrl ? (
             <>
               <div className="size-64 max-w-full">
-                <VietQrCode
-                  payload={payment.qrPayload}
-                  label={`Mã VietQR chuyển ${amount ?? ''} với nội dung ${payment.transferContent}`}
+                <img
+                  src={payment.qrImageUrl}
+                  alt={`Mã VietQR chuyển ${amount ?? ''} với nội dung ${payment.transferContent}`}
+                  className="size-full rounded-lg bg-white object-contain"
+                  referrerPolicy="no-referrer"
                 />
               </div>
               <p className="text-center text-xs text-muted">

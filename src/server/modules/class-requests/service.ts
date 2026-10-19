@@ -14,7 +14,7 @@ import {
   PLACEMENT_FEE_OPTION_KEY,
   placementFee,
 } from '../../../shared/schemas/classes';
-import { vietQrPayload } from '../../../shared/vietqr';
+import { transferText } from '../../../shared/vietqr';
 import { AppError } from '../../lib/errors';
 import { COMPLETED } from './sql';
 
@@ -103,6 +103,8 @@ export async function withAcceptances<T extends TutorApplication>(
 /** Account that receives placement fees; Worker vars, unset until the centre configures them. */
 export interface PaymentEnv {
   PAYMENT_BANK_BIN?: string;
+  /** vietqr.app short bank code (e.g. ACB, VCB); derived from the BIN when missing. */
+  PAYMENT_BANK_CODE?: string;
   PAYMENT_BANK_NAME?: string;
   PAYMENT_ACCOUNT_NUMBER?: string;
   PAYMENT_ACCOUNT_NAME?: string;
@@ -125,28 +127,64 @@ export function paymentCodeFor(classCode: string): string {
 export const autoConfirmReady = (env: PaymentEnv) =>
   Boolean(env.SEPAY_WEBHOOK_SECRET?.trim() || env.SEPAY_WEBHOOK_API_KEY?.trim());
 
+/** NAPAS BIN → vietqr.app short bank code, for deployments configured with a BIN only. */
+const BANK_CODES: Record<string, string> = {
+  '970436': 'VCB',
+  '970415': 'ICB',
+  '970418': 'BIDV',
+  '970405': 'VBA',
+  '970407': 'TCB',
+  '970422': 'MB',
+  '970416': 'ACB',
+  '970432': 'VPB',
+  '970423': 'TPB',
+  '970403': 'STB',
+  '970426': 'MSB',
+  '970448': 'OCB',
+  '970443': 'SHB',
+  '970437': 'HDB',
+  '970441': 'VIB',
+};
+
 function receivingAccount(env: PaymentEnv): PaymentInstructions['account'] {
-  const bankBin = env.PAYMENT_BANK_BIN?.trim();
+  const bin = env.PAYMENT_BANK_BIN?.trim() ?? '';
+  const bankCode = env.PAYMENT_BANK_CODE?.trim() || BANK_CODES[bin];
   const accountNumber = env.PAYMENT_ACCOUNT_NUMBER?.trim();
-  const accountName = env.PAYMENT_ACCOUNT_NAME?.trim();
-  if (
-    !bankBin ||
-    !/^\d{6}$/.test(bankBin) ||
-    !accountNumber ||
-    !/^[0-9A-Za-z]{4,19}$/.test(accountNumber) ||
-    !accountName
-  )
-    return null;
+  if (!bankCode || !/^[A-Za-z0-9]{2,20}$/.test(bankCode)) return null;
+  if (!accountNumber || !/^[0-9A-Za-z]{4,19}$/.test(accountNumber)) return null;
   return {
-    bankBin,
-    bankName: env.PAYMENT_BANK_NAME?.trim() || bankBin,
+    bankCode,
+    bankName: env.PAYMENT_BANK_NAME?.trim() || bankCode,
     accountNumber,
-    accountName,
+    accountName: env.PAYMENT_ACCOUNT_NAME?.trim() || null,
   };
+}
+
+/**
+ * "[mã] [Tên gia sư] thanh toan phi moi gioi" in plain ASCII. The class payment code comes first
+ * so a bank that shortens long content still keeps what the SePay webhook matches on.
+ */
+export function transferContentFor(code: string, tutorName: string): string {
+  return transferText(`${code} ${transferText(tutorName)} thanh toan phi moi gioi`, 80);
+}
+
+/** QR image from vietqr.app (SePay "Tạo QR và form thanh toán"): account, bank, amount, content. */
+export function qrImageUrl(
+  account: NonNullable<PaymentInstructions['account']>,
+  amountMinor: number,
+  content: string,
+): string {
+  return `https://vietqr.app/img?${new URLSearchParams({
+    acc: account.accountNumber,
+    bank: account.bankCode,
+    amount: String(amountMinor),
+    des: content,
+  })}`;
 }
 
 interface PaymentRow extends AcceptanceRow {
   class_code: string;
+  tutor_name: string;
   expected_budget_minor: number | null;
   sessions_per_week: number | null;
   window_count: number;
@@ -156,13 +194,15 @@ interface PaymentRow extends AcceptanceRow {
 async function ownAcceptance(db: D1Database, tutorId: string, assignmentId: string) {
   const row = await db
     .prepare(
-      `SELECT x.*, c.code AS class_code, q.expected_budget_minor, q.sessions_per_week,
+      `SELECT x.*, c.code AS class_code, u.display_name AS tutor_name,
+         q.expected_budget_minor, q.sessions_per_week,
          (SELECT count(*) FROM request_schedule_windows w WHERE w.request_id = q.id) AS window_count,
          ${PLACEMENT_RATE} AS placement_rate_bp
        FROM (${acceptanceSelect} WHERE a.id = ? AND a.tutor_user_id = ?) x
        JOIN class_assignments a ON a.id = x.id
        JOIN class_listings c ON c.id = a.class_id
-       JOIN parent_requests q ON q.id = c.source_request_id`,
+       JOIN parent_requests q ON q.id = c.source_request_id
+       JOIN users u ON u.id = a.tutor_user_id`,
     )
     .bind(assignmentId, tutorId)
     .first<PaymentRow>();
@@ -189,7 +229,7 @@ export async function getPaymentInstructions(
       feeSessionsPerWeek(row.sessions_per_week, row.window_count),
       row.placement_rate_bp,
     );
-  const transferContent = paymentCodeFor(row.class_code);
+  const transferContent = transferContentFor(paymentCodeFor(row.class_code), row.tutor_name);
   const account = receivingAccount(env);
   return {
     assignmentId: row.id,
@@ -198,14 +238,9 @@ export async function getPaymentInstructions(
     amountMinor,
     transferContent,
     account,
-    qrPayload:
+    qrImageUrl:
       account && amountMinor !== null && amountMinor > 0
-        ? vietQrPayload({
-            bankBin: account.bankBin,
-            accountNumber: account.accountNumber,
-            amountMinor,
-            content: transferContent,
-          })
+        ? qrImageUrl(account, amountMinor, transferContent)
         : null,
     learnerConfirmed: row.learner_confirmed_at !== null,
     contract:
@@ -789,7 +824,11 @@ export async function getProposalPayment(
     .bind(tutorId)
     .first<{ done: number }>();
   const amountMinor = item!.placementFeeMinor;
-  const transferContent = paymentCodeFor(row.request_code);
+  const tutor = await db
+    .prepare('SELECT display_name AS name FROM users WHERE id = ?')
+    .bind(tutorId)
+    .first<{ name: string }>();
+  const transferContent = transferContentFor(paymentCodeFor(row.request_code), tutor?.name ?? '');
   const account = receivingAccount(env);
   return {
     assignmentId: null,
@@ -798,14 +837,9 @@ export async function getProposalPayment(
     amountMinor,
     transferContent,
     account,
-    qrPayload:
+    qrImageUrl:
       account && amountMinor !== null && amountMinor > 0
-        ? vietQrPayload({
-            bankBin: account.bankBin,
-            accountNumber: account.accountNumber,
-            amountMinor,
-            content: transferContent,
-          })
+        ? qrImageUrl(account, amountMinor, transferContent)
         : null,
     learnerConfirmed: true,
     contract: null,

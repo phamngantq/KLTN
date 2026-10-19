@@ -284,10 +284,12 @@ describe('tutor class requests', () => {
       classCode: second.cls.code,
       firstAcceptance: false,
       amountMinor: 400_000,
-      transferContent: `PNL${second.cls.code.replace(/-/g, '')}`,
+      transferContent: expect.stringMatching(
+        new RegExp(`^PNL${second.cls.code.replace(/-/g, '')} .+ thanh toan phi moi gioi$`),
+      ),
       // No receiving account configured in tests: no QR is ever made up.
       account: null,
-      qrPayload: null,
+      qrImageUrl: null,
       reportedAt: null,
     });
     const stranger = await createPublicTutor({ teachesOffline: true });
@@ -500,7 +502,9 @@ describe('tutor class requests', () => {
       classCode: request.code,
       firstAcceptance: true,
       amountMinor: 400_000,
-      transferContent: `PNL${request.code.replace(/-/g, '')}`,
+      transferContent: expect.stringMatching(
+        new RegExp(`^PNL${request.code.replace(/-/g, '')} .+ thanh toan phi moi gioi$`),
+      ),
       contract: null,
     });
     expect(
@@ -515,24 +519,30 @@ describe('tutor class requests', () => {
   });
 });
 
-describe('VietQR payload', () => {
-  it('uses CRC-16/CCITT-FALSE and EMVCo fields with ASCII content', async () => {
-    const { crc16, transferText, vietQrPayload } = await import('../../src/shared/vietqr');
-    expect(crc16('123456789')).toBe('29B1');
-    expect(transferText('Phí nhận lớp Đà Nẵng #1')).toBe('Phi nhan lop Da Nang 1');
-    const payload = vietQrPayload({
-      bankBin: '970436',
-      accountNumber: '0123456789',
-      amountMinor: 400_000,
-      content: 'PHI NHAN LOP LH-1',
+describe('vietqr.app QR and transfer content', () => {
+  it('builds the vietqr.app image URL and "[mã] [tên gia sư] thanh toan phi moi gioi"', async () => {
+    const { qrImageUrl, transferContentFor } =
+      await import('../../src/server/modules/class-requests/service');
+    const content = transferContentFor('PNLLHD0000000000B', 'Nguyễn Thị Gia Sư');
+    expect(content).toBe('PNLLHD0000000000B Nguyen Thi Gia Su thanh toan phi moi gioi');
+    const url = new URL(
+      qrImageUrl(
+        { bankCode: 'ACB', bankName: 'ACB', accountNumber: '9527241', accountName: null },
+        640_000,
+        content,
+      ),
+    );
+    expect(url.origin + url.pathname).toBe('https://vietqr.app/img');
+    expect(Object.fromEntries(url.searchParams)).toEqual({
+      acc: '9527241',
+      bank: 'ACB',
+      amount: '640000',
+      des: content,
     });
-    expect(payload.startsWith('000201010212')).toBe(true);
-    expect(payload).toContain('0010A000000727');
-    expect(payload).toContain('0006970436');
-    expect(payload).toContain('5406400000');
-    expect(payload).toContain('0817PHI NHAN LOP LH-1');
-    expect(payload.slice(-8, -4)).toBe('6304');
-    expect(payload.slice(-4)).toBe(crc16(payload.slice(0, -4)));
+    // A long name is shortened after the code, never the code itself.
+    expect(
+      transferContentFor('PNLLHD0000000000B', 'A'.repeat(120)).startsWith('PNLLHD0000000000B '),
+    ).toBe(true);
   });
 });
 
@@ -581,7 +591,8 @@ describe('SePay webhook', () => {
       `/tutor/class-requests/acceptances/${selected.assignment.id}/payment`,
       tutor,
     );
-    expect(payment).toMatchObject({ transferContent: code, autoConfirm: true });
+    expect(payment).toMatchObject({ autoConfirm: true });
+    expect(payment.transferContent.startsWith(`${code} `)).toBe(true);
     const base = Math.floor(Date.now() % 1_000_000_000) * 10;
 
     // Only SePay's key is accepted.

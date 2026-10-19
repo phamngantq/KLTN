@@ -9,16 +9,17 @@ của gia sư hiện **Thanh toán thành công** (tự kiểm tra mỗi 5 giây
 
 | Biến | Ý nghĩa |
 |---|---|
-| `PAYMENT_BANK_BIN` | Mã BIN NAPAS 6 số của ngân hàng nhận tiền (ví dụ Vietcombank `970436`) |
-| `PAYMENT_BANK_NAME` | Tên ngân hàng hiển thị cho gia sư |
+| `PAYMENT_BANK_CODE` | Mã ngắn ngân hàng theo vietqr.app/banks.json (ví dụ `ACB`, `VCB`, `MB`) |
+| `PAYMENT_BANK_BIN` | Hoặc mã BIN 6 số (ví dụ ACB `970416`); hệ thống tự đổi sang mã ngắn |
+| `PAYMENT_BANK_NAME` | Tên ngân hàng hiển thị cho gia sư (không bắt buộc) |
 | `PAYMENT_ACCOUNT_NUMBER` | Số tài khoản nhận tiền (đã liên kết với SePay) |
-| `PAYMENT_ACCOUNT_NAME` | Tên chủ tài khoản, IN HOA không dấu |
+| `PAYMENT_ACCOUNT_NAME` | Tên chủ tài khoản hiển thị cho gia sư (không bắt buộc) |
 | `SEPAY_WEBHOOK_SECRET` | Secret Key của webhook khi chọn xác thực **HMAC-SHA256** (khuyến nghị) |
 | `SEPAY_WEBHOOK_API_KEY` | API key khi chọn xác thực **API Key** (dùng khi không đặt HMAC) |
 | `SEPAY_ENFORCE_IP` | `true` để chỉ nhận webhook từ 9 địa chỉ IP SePay công bố (tùy chọn) |
 
 ```
-npx wrangler secret put PAYMENT_BANK_BIN --env staging_v2
+npx wrangler secret put PAYMENT_BANK_CODE --env staging_v2   # hoặc PAYMENT_BANK_BIN
 npx wrangler secret put PAYMENT_BANK_NAME --env staging_v2
 npx wrangler secret put PAYMENT_ACCOUNT_NUMBER --env staging_v2
 npx wrangler secret put PAYMENT_ACCOUNT_NAME --env staging_v2
@@ -62,7 +63,22 @@ Theo tài liệu developer.sepay.vn (SePay Webhooks):
   2400:8905::2000:8cff:fe98:45cd, 2600:3c15::2000:8aff:fedd:874b — danh sách có thể thay đổi,
   kiểm tra lại trang "Địa chỉ IP" của SePay.
 
-## 3. Mã thanh toán và đối chiếu
+## 3. Mã QR (SePay "Tạo QR và form thanh toán")
+
+Ảnh QR lấy từ vietqr.app theo đúng mẫu tài liệu SePay:
+
+```
+https://vietqr.app/img?acc={SO_TK}&bank={NGAN_HANG}&amount={PHI_NHAN_LOP}&des={NOI_DUNG}
+```
+
+- `acc`: `PAYMENT_ACCOUNT_NUMBER`; `bank`: mã ngắn ngân hàng (BIN `970416` → `ACB`).
+- `amount`: phí nhận lớp đúng của lớp đó.
+- `des` (URL-encode): `PNL<mã lớp> <Tên gia sư không dấu> thanh toan phi moi gioi`, ví dụ
+  `PNLLHD0000000000B Nguyen Thi Gia Su thanh toan phi moi gioi`. Mã `PNL…` đứng đầu để SePay
+  điền trường `code` và webhook khớp đúng lớp; nội dung dài hơn 80 ký tự được cắt phần cuối.
+- CSP của trang cho phép ảnh từ `https://vietqr.app`.
+
+## 4. Mã thanh toán và đối chiếu
 
 - Nội dung chuyển khoản của mỗi lớp: `PNL` + mã lớp bỏ dấu gạch, ví dụ lớp `LH-D0000000000B`
   → `PNLLHD0000000000B`. Ngân hàng có thêm chữ trước/sau mã vẫn khớp.
@@ -77,7 +93,7 @@ Theo tài liệu developer.sepay.vn (SePay Webhooks):
 | Lớp đã thanh toán trước đó | Chuyển trùng | Hoàn tiền cho gia sư nếu cần |
 | Không khớp mã lớp | Nội dung không có mã `PNL…` hợp lệ | Đối chiếu thủ công |
 
-## 4. Kiểm thử
+## 5. Kiểm thử
 
 Trên my.sepay.vn có công cụ *Giả lập giao dịch* để gửi một giao dịch tiền vào với nội dung
 `PNL…` của một lớp đang chờ thanh toán (người học đã xác nhận, gia sư đã đồng ý hợp đồng). Lớp

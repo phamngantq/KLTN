@@ -114,9 +114,15 @@ export interface PaymentInstructions {
   /** ASCII content the centre matches the transfer with. */
   transferContent: string;
   /** Centre account from deployment config; null until configured (then no QR is shown). */
-  account: { bankBin: string; bankName: string; accountNumber: string; accountName: string } | null;
-  /** VietQR (EMVCo) payload with account, amount and content; null without an account or fee. */
-  qrPayload: string | null;
+  account: {
+    /** vietqr.app short bank code, e.g. ACB. */
+    bankCode: string;
+    bankName: string;
+    accountNumber: string;
+    accountName: string | null;
+  } | null;
+  /** vietqr.app QR image with account, amount and content; null without an account or fee. */
+  qrImageUrl: string | null;
   learnerConfirmed: boolean;
   contract: { id: string; version: number; status: 'issued' | 'acknowledged' } | null;
   /** The tutor's "Tôi đã chuyển khoản"; the centre still has to confirm receipt. */
