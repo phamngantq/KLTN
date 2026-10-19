@@ -741,6 +741,22 @@ describe('SePay request verification', () => {
     const { assertSepayRequest, SEPAY_IPS } =
       await import('../../src/server/modules/payments/sepay');
     await expect(assertSepayRequest({}, headers({}), body)).rejects.toMatchObject({ status: 503 });
+    // A key pasted with its "Apikey " prefix or quotes still matches.
+    for (const configured of ['Apikey khoa-bi-mat', '"khoa-bi-mat"', '  khoa-bi-mat  '])
+      await expect(
+        assertSepayRequest(
+          { SEPAY_WEBHOOK_API_KEY: configured },
+          headers({ Authorization: 'Apikey khoa-bi-mat' }),
+          body,
+        ),
+      ).resolves.toBeUndefined();
+    await expect(
+      assertSepayRequest(
+        { SEPAY_WEBHOOK_API_KEY: 'khoa-bi-mat' },
+        headers({ Authorization: 'Apikey khoa-khac' }),
+        body,
+      ),
+    ).rejects.toMatchObject({ status: 401 });
     const env = { SEPAY_WEBHOOK_API_KEY: 'khoa-bi-mat', SEPAY_ENFORCE_IP: 'true' };
     await expect(
       assertSepayRequest(

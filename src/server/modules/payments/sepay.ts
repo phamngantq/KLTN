@@ -75,7 +75,7 @@ export async function assertSepayRequest(
   now = Date.now(),
 ): Promise<void> {
   const secret = env.SEPAY_WEBHOOK_SECRET?.trim();
-  const key = env.SEPAY_WEBHOOK_API_KEY?.trim();
+  const key = cleanKey(env.SEPAY_WEBHOOK_API_KEY);
   if (!secret && !key)
     throw new AppError(503, 'SEPAY_NOT_CONFIGURED', 'Webhook SePay chưa được cấu hình.');
   if (env.SEPAY_ENFORCE_IP === 'true') {
@@ -105,8 +105,25 @@ export async function assertSepayRequest(
     return;
   }
   const header = headers.get('Authorization') ?? '';
-  if (!/^apikey\s+/i.test(header)) throw unauthorized();
-  if (!timingSafeEqualStrings(header.replace(/^apikey\s+/i, '').trim(), key!)) throw unauthorized();
+  if (!/^apikey\s+/i.test(header)) {
+    // Never logs the value: only which check failed.
+    console.warn('sepay webhook rejected', { reason: header ? 'auth-scheme' : 'auth-missing' });
+    throw unauthorized();
+  }
+  if (!timingSafeEqualStrings(cleanKey(header) ?? '', key!)) {
+    console.warn('sepay webhook rejected', { reason: 'api-key-mismatch' });
+    throw unauthorized();
+  }
+}
+
+/** A key as configured or sent, without a pasted "Apikey " prefix, quotes or spaces. */
+function cleanKey(value: string | undefined): string | undefined {
+  const key = value
+    ?.trim()
+    .replace(/^apikey\s+/i, '')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+  return key || undefined;
 }
 
 /** JSON (default), form-urlencoded or multipart bodies, as SePay may send any of them. */
